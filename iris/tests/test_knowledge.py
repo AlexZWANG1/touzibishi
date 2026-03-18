@@ -149,3 +149,28 @@ def test_compute_trade_score_caps_without_valuation(tmp_path):
     assert result.status == "ok"
     assert result.data["constrained_score"] <= 64
     assert any("valuation" in r.lower() or "Valuation" in r for r in result.data["constraint_reasons"])
+
+
+def test_memory_search_returns_results(tmp_path):
+    from tools.knowledge import memory_search
+    from unittest.mock import patch
+
+    def _mock_embed(texts):
+        results = []
+        for t in texts:
+            h = hash(t) % 1000
+            results.append([h / 1000, (h * 7 % 1000) / 1000, (h * 13 % 1000) / 1000])
+        return results
+
+    r = make_retriever(tmp_path)
+    with patch.object(r, '_embed', side_effect=_mock_embed):
+        extract_observation(
+            retriever=r, subject="NVDA",
+            claim="Data center revenue up 78%",
+            source="Earnings", fact_or_view="fact", relevance=0.9,
+            citation="...", time_str="2026-02-21", extracted_by="test",
+        )
+        result = memory_search(retriever=r, query="NVDA revenue growth", top_k=3)
+    assert result.status == "ok"
+    assert "results" in result.data
+    assert result.data["count"] >= 1

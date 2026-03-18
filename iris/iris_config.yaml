@@ -45,7 +45,68 @@ constraints:
 
 harness:
   max_tool_rounds: 25
+  max_total_tool_calls: 60
+  max_wall_time_seconds: 480
   max_retries: 3
   retry_base_delay: 1.0
   context_limit_chars: 300000
-  compress_threshold_chars: 2000
+  compress_threshold_chars: 5000
+  tool_compress_overrides:
+    fmp_get_financials: 8000
+    fred_get_macro: 8000
+  tool_injection_mode: "dynamic"   # "dynamic" or "all"
+  max_tools_per_round: 10
+  always_exposed_tools:
+    - query_knowledge
+    - memory_search
+  tool_triggers:
+    exa_search: ["搜索", "查找", "search", "find", "新闻", "news"]
+    web_fetch: ["网页", "网页内容", "链接", "url", "fetch", "抓取"]
+    fmp_get_financials: ["财报", "收入", "利润", "revenue", "earnings", "估值", "pe", "p/e"]
+    fred_get_macro: ["宏观", "利率", "gdp", "cpi", "失业率", "macro", "fed"]
+    extract_observation: ["观察", "事实", "提取", "observation", "extract"]
+    create_hypothesis: ["假设", "thesis", "hypothesis"]
+    add_evidence_card: ["证据", "支持", "反驳", "evidence"]
+    run_valuation: ["估值", "valuation", "dcf", "comps", "sotp"]
+    compute_trade_score: ["打分", "trade score", "recommendation", "推荐"]
+    write_audit_trail: ["审计", "audit", "记录"]
+    query_knowledge: ["历史", "知识", "query", "已研究"]
+    memory_search: ["记忆", "回忆", "memory", "semantic"]
+
+budget:
+  include_flush_in_tool_rounds: true
+  include_compaction_in_tool_rounds: true
+  pre_round_trim: true
+
+loop_detection:
+  generic_repeat_threshold: 3
+  ping_pong_threshold: 3
+  no_progress_threshold: 3
+  action: "steer_then_stop"  # steer_then_stop | hard_stop | warn_only
+
+compaction:
+  strategy: "llm_summary"
+  keep_recent_messages: 6
+  summary_max_input_chars: 50000
+  summary_prompt: |
+    Summarize this investment analysis conversation concisely.
+    PRESERVE: key data points, financial figures, tool results, decisions made, company tickers, hypothesis IDs, evidence IDs.
+    DISCARD: pleasantries, redundant search attempts, failed tool calls.
+    Output a structured summary in markdown.
+  memory_flush:
+    enabled: true
+    prompt: |
+      Context is about to be compacted. Review the conversation and save any key findings
+      that should persist across sessions. Use extract_observation for important facts/data.
+      Use create_hypothesis if a thesis has formed but not been saved.
+      Reply with a brief note of what you saved, or "Nothing to save" if all key info is already persisted.
+
+vector_search:
+  enabled: true
+  model: "text-embedding-3-small"
+  top_k: 5
+
+cross_session:
+  enabled: true
+  max_observations: 10
+  max_hypotheses: 3

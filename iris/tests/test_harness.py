@@ -1,7 +1,7 @@
 import json
 import threading
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from llm.base import LLMResponse, ToolCall
 from core.harness import Harness, HarnessConfig, HarnessEvent, EventType
 from tools.base import ToolResult
@@ -26,33 +26,25 @@ def test_harness_stops_when_no_tool_calls():
     assert "WATCH" in result.reply
 
 
-def test_harness_phase_blocks_wrong_tool():
-    """Tools not in current phase are blocked."""
+def test_harness_rejects_unknown_tool():
+    """Unknown tools return a structured not-found error."""
     tool_call = ToolCall(
-        id="tc_001", name="run_valuation",
-        arguments={"wacc": 0.10, "reasoning": "test", "hypothesis_id": "hyp_001",
-                    "methodology": "DCF", "methodology_reasoning": "test",
-                    "terminal_growth_rate": 0.02, "fair_value_low": 100.0,
-                    "fair_value_high": 130.0, "current_price": 90.0,
-                    "key_assumptions": [], "bull_case_value": 130.0,
-                    "bull_case_assumption": "high", "bear_case_value": 100.0,
-                    "bear_case_assumption": "low"}
+        id="tc_001", name="does_not_exist", arguments={}
     )
     mock_llm = make_mock_llm([
         LLMResponse(content=None, tool_calls=[tool_call]),
-        LLMResponse(content="Phase blocked.", tool_calls=[]),
+        LLMResponse(content="Unknown tool handled.", tool_calls=[]),
     ])
     harness = Harness(
         llm=mock_llm, tools=[], soul="You are IRIS.",
         config=HarnessConfig(max_tool_rounds=5),
     )
-    # Default phase is "gather" — run_valuation should be blocked
     harness.run("Analyze NVDA")
     second_call_messages = mock_llm.chat.call_args_list[1][0][0]
     tool_result_msg = next(m for m in second_call_messages if m["role"] == "tool")
     content = json.loads(tool_result_msg["content"])
     assert content["status"] == "error"
-    assert "phase" in content["error"].lower()
+    assert "not found" in content["error"].lower()
 
 
 def test_harness_exhausts_rounds():
@@ -75,6 +67,28 @@ def test_harness_exhausts_rounds():
     result = harness.run("Analyze NVDA")
     assert not result.ok
     assert "MAX_TOOL_ROUNDS" in result.error
+
+
+def test_harness_stops_on_total_tool_budget():
+    mock_tool = MagicMock()
+    mock_tool.name = "exa_search"
+    mock_tool.schema = {"type": "function", "function": {"name": "exa_search"}}
+    mock_tool.execute = MagicMock(return_value=ToolResult.ok({"results": [], "sources": []}))
+
+    responses = [
+        LLMResponse(content=None, tool_calls=[
+            ToolCall(id=f"tc_{i}", name="exa_search", arguments={"query": "NVDA"})
+        ])
+        for i in range(10)
+    ]
+    mock_llm = make_mock_llm(responses)
+    harness = Harness(
+        llm=mock_llm, tools=[mock_tool], soul="You are IRIS.",
+        config=HarnessConfig(max_tool_rounds=10, max_total_tool_calls=2),
+    )
+    result = harness.run("Analyze NVDA")
+    assert not result.ok
+    assert "MAX_TOTAL_TOOL_CALLS" in result.error
 
 
 def test_harness_parallel_tool_execution():
@@ -210,12 +224,16 @@ def test_harness_context_compaction():
     # Return a very large result
     mock_tool.execute = MagicMock(return_value=ToolResult.ok({"content": "x" * 10000}))
 
-    mock_llm = make_mock_llm([
+    # The LLM now gets called for: (1) initial run, (2) summary during compaction, (3) continuation
+    mock_llm = MagicMock()
+    mock_llm.chat.side_effect = [
         LLMResponse(content=None, tool_calls=[
             ToolCall(id="tc_1", name="exa_search", arguments={"query": "NVDA"})
         ]),
+        # Summary call from _llm_summarize during compaction
+        LLMResponse(content="Summary of earlier context.", tool_calls=[]),
         LLMResponse(content="Done.", tool_calls=[]),
-    ])
+    ]
 
     events = []
     harness = Harness(
@@ -260,3 +278,125 @@ def test_harness_events_emitted():
     assert EventType.TOOL_START in event_types
     assert EventType.TOOL_END in event_types
     assert EventType.TURN_END in event_types
+
+
+def test_dynamic_tool_injection_limits_exposed_tools():
+    """Dynamic mode should expose at most max_tools_per_round schemas."""
+    tool_a = MagicMock()
+    tool_a.name = "exa_search"
+    tool_a.schema = {
+        "type": "function",
+        "function": {
+            "name": "exa_search",
+            "description": "semantic search for financial news",
+            "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+        },
+    }
+    tool_b = MagicMock()
+    tool_b.name = "fred_get_macro"
+    tool_b.schema = {
+        "type": "function",
+        "function": {
+            "name": "fred_get_macro",
+            "description": "get macro CPI and FEDFUNDS series",
+            "parameters": {"type": "object", "properties": {"series_id": {"type": "string"}}},
+        },
+    }
+    tool_c = MagicMock()
+    tool_c.name = "run_valuation"
+    tool_c.schema = {
+        "type": "function",
+        "function": {
+            "name": "run_valuation",
+            "description": "run valuation model",
+            "parameters": {"type": "object", "properties": {"hypothesis_id": {"type": "string"}}},
+        },
+    }
+
+    harness = Harness(
+        llm=MagicMock(),
+        tools=[tool_a, tool_b, tool_c],
+        soul="You are IRIS.",
+        config=HarnessConfig(tool_injection_mode="dynamic", max_tools_per_round=2),
+    )
+    messages = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "Need macro CPI FEDFUNDS trend for the view"},
+    ]
+    schemas = harness._tool_schemas(messages, recent_tool_names=[])
+    assert len(schemas) == 2
+    names = [s["function"]["name"] for s in schemas]
+    assert "fred_get_macro" in names
+
+
+# ── Task 6: LLM-based Context Compaction ─────────────────────
+
+def test_llm_compaction_calls_summarizer():
+    summary_response = LLMResponse(
+        content="## Summary\nNVDA revenue up 78%. Hypothesis created with 50% confidence.",
+        tool_calls=[],
+    )
+    mock_llm = MagicMock()
+    mock_llm.chat.side_effect = [summary_response]
+
+    harness = Harness(
+        llm=mock_llm, tools=[], soul="You are IRIS.",
+        config=HarnessConfig(max_tool_rounds=5, context_limit_chars=200),
+    )
+
+    messages = [
+        {"role": "system", "content": "You are IRIS."},
+        {"role": "user", "content": "Analyze NVDA"},
+    ]
+    for i in range(10):
+        messages.append({"role": "assistant", "content": f"Step {i}: " + "x" * 50})
+        messages.append({"role": "user", "content": f"Continue {i}"})
+
+    harness._compact_context(messages)
+    assert mock_llm.chat.call_count >= 1
+    assert len(messages) < 22
+    summary_msgs = [m for m in messages if "CONTEXT SUMMARY" in m.get("content", "")]
+    assert len(summary_msgs) >= 1
+
+
+# ── Task 7: Cross-session Context Loading ─────────────────────
+
+def test_cross_session_context_loading():
+    from tools.retrieval import SQLiteRetriever
+    from tools.knowledge import extract_observation, create_hypothesis
+    import tempfile, os
+
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        db_path = os.path.join(tmp, "test.db")
+        retriever = SQLiteRetriever(db_path)
+        extract_observation(
+            retriever=retriever, subject="NVDA",
+            claim="Revenue up 78%", source="Earnings",
+            fact_or_view="fact", relevance=0.9,
+            citation="...", time_str="2026-02-21", extracted_by="test",
+        )
+        create_hypothesis(
+            retriever=retriever, company="NVDA",
+            thesis="AI dominance", timeframe="24m",
+            drivers=[
+                {"name": "d1", "description": "x", "current_assessment": "ok"},
+                {"name": "d2", "description": "y", "current_assessment": "ok"},
+                {"name": "d3", "description": "z", "current_assessment": "ok"},
+            ],
+            kill_criteria=[{"description": "k1"}],
+            initial_confidence=60.0,
+        )
+
+        mock_llm = make_mock_llm([
+            LLMResponse(content="Analysis with prior context.", tool_calls=[]),
+        ])
+        harness = Harness(
+            llm=mock_llm, tools=[], soul="You are IRIS.",
+            config=HarnessConfig(max_tool_rounds=5),
+            retriever=retriever,
+        )
+        result = harness.run("Continue analyzing NVDA")
+        assert result.ok
+        call_messages = mock_llm.chat.call_args_list[0][0][0]
+        user_msg = call_messages[1]["content"]
+        assert "Revenue up 78%" in user_msg or "Prior Analysis" in user_msg

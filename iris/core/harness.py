@@ -1,34 +1,38 @@
 """
-IRIS Harness — the agent loop.
+IRIS Harness - order-free agent loop.
 
-Inspired by Pi Agent (inner loop) + OpenClaw (retry/context/failover):
-  - Phase-gated tool access (IRIS-specific)
-  - Retry with exponential backoff
-  - Context overflow management (truncate → compact → drop)
-  - Parallel tool execution via ThreadPoolExecutor
-  - Abort support via threading.Event
-  - Mid-run steering via thread-safe queue
-  - Event hooks for UI/logging integration
-
-Guards and Invariants are gone — tools validate their own inputs/outputs.
+Responsibilities:
+- Main reasoning loop and tool dispatch
+- Budget governance (rounds/tool calls/wall-time + full LLM accounting)
+- Loop detection (repeat/ping-pong/no-progress)
+- Context compaction and memory flush orchestration
+- Tool hooks and run event persistence
 """
 
+from __future__ import annotations
+
 import json
-import time
-import threading
 import queue
+import sqlite3
+import threading
+import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Optional, Callable
 from enum import Enum
+from typing import Callable, Optional
 
-from llm.base import LLMClient, LLMResponse, ToolCall, StreamEvent
-from tools.base import ToolResult, TOOL_PHASES, PHASE_ORDER, PHASE_TRANSITIONS
+from core.budget import BudgetPolicy, BudgetTracker
+from core.context import ContextAssembler
+from core.loop_detector import LoopDetectionConfig, LoopDetector
+from core.tool_hooks import DefaultToolHooks, ToolHookContext, ToolHooks
+from llm.base import LLMClient, LLMResponse, StreamEvent, ToolCall
+from tools.base import ToolResult
 
-
-# ── Events ────────────────────────────────────────────────────
 
 class EventType(str, Enum):
+    RUN_START = "run_start"
+    RUN_END = "run_end"
     TURN_START = "turn_start"
     TURN_END = "turn_end"
     TOOL_START = "tool_start"
@@ -37,9 +41,10 @@ class EventType(str, Enum):
     TEXT = "text"
     CONTEXT_COMPACTED = "context_compacted"
     RETRY = "retry"
-    PHASE_CHANGE = "phase_change"
     ABORTED = "aborted"
     STEERING_INJECTED = "steering_injected"
+    LOOP_DETECTED = "loop_detected"
+    BUDGET_TRIMMED = "budget_trimmed"
 
 
 @dataclass
@@ -48,17 +53,40 @@ class HarnessEvent:
     data: dict = field(default_factory=dict)
 
 
-# ── Config & Result ───────────────────────────────────────────
-
 @dataclass
 class HarnessConfig:
     max_tool_rounds: int = 25
+    max_total_tool_calls: int = 60
+    max_wall_time_seconds: float = 480.0
+
     max_retries: int = 3
     retry_base_delay: float = 1.0
-    context_limit_chars: int = 300_000  # ~75k tokens
-    compress_threshold_chars: int = 2000
+
+    context_limit_chars: int = 300_000
+    compress_threshold_chars: int = 5000
+    tool_compress_overrides: dict[str, int] = field(
+        default_factory=lambda: {
+            "fmp_get_financials": 8000,
+            "fred_get_macro": 8000,
+            "fmp_financials": 8000,
+            "fred_series": 8000,
+        }
+    )
+
+    tool_injection_mode: str = "dynamic"  # dynamic | all
+    max_tools_per_round: int = 10
+    always_exposed_tools: tuple[str, ...] = ("query_knowledge", "memory_search")
+    tool_triggers: dict[str, list[str]] = field(default_factory=dict)
+
+    include_flush_in_tool_rounds: bool = True
+    include_compaction_in_tool_rounds: bool = True
+    pre_round_trim: bool = True
+
+    loop_detection: LoopDetectionConfig = field(default_factory=LoopDetectionConfig)
+
     parallel_tool_execution: bool = True
     streaming: bool = False
+    persist_events: bool = True
 
 
 @dataclass
@@ -69,16 +97,11 @@ class HarnessResult:
     error: Optional[str] = None
     total_input_tokens: int = 0
     total_output_tokens: int = 0
+    budget_breakdown: dict = field(default_factory=dict)
+    run_id: Optional[str] = None
 
-
-# ── Harness ───────────────────────────────────────────────────
 
 class Harness:
-    """
-    LLM agent loop controller.
-    Tools validate their own inputs. Harness manages the loop infrastructure.
-    """
-
     def __init__(
         self,
         llm: LLMClient,
@@ -86,115 +109,271 @@ class Harness:
         soul: str,
         config: HarnessConfig = None,
         on_event: Callable[[HarnessEvent], None] = None,
+        retriever=None,
+        tool_hooks: ToolHooks | None = None,
     ):
         self.llm = llm
         self.tool_registry = {t.name: t for t in tools}
         self.soul = soul
         self.config = config or HarnessConfig()
         self.on_event = on_event or (lambda e: None)
-        self._abort = threading.Event()
-        self._steering_queue: queue.Queue = queue.Queue()
+        self.retriever = retriever
+        self.tool_hooks = tool_hooks or DefaultToolHooks()
 
-    # ── Public API ────────────────────────────────────────────
+        self.context = ContextAssembler(llm_client=self.llm, retriever=self.retriever)
+        self.context._knowledge_tools = list(self.tool_registry.values())
+
+        self._abort = threading.Event()
+        self._steering_queue: queue.Queue[str] = queue.Queue()
+
+        self._active_budget: Optional[BudgetTracker] = None
+        self._current_run_id: Optional[str] = None
+
+        self._run_log_db_path = getattr(self.retriever, "db_path", None)
+        if self._run_log_db_path and self.config.persist_events:
+            self._ensure_run_log_table()
+
+        if self.retriever and hasattr(self.retriever, "set_usage_tracker"):
+            self.retriever.set_usage_tracker(self._track_embedding_usage)
+
+    # Public API -------------------------------------------------
 
     def abort(self):
-        """Cancel the running analysis from another thread."""
         self._abort.set()
 
     def steer(self, message: str):
-        """Inject a message into the running loop (between tool calls)."""
         self._steering_queue.put(message)
 
-    def run(
-        self,
-        user_input: str,
-        context_docs: list[str] = None,
-        initial_phase: str = "gather",
-    ) -> HarnessResult:
+    def run(self, user_input: str, context_docs: list[str] = None) -> HarnessResult:
         self._abort.clear()
-        self.current_phase = initial_phase
+        self._current_run_id = f"run_{uuid.uuid4().hex[:12]}"
 
-        messages = [
-            {"role": "system", "content": self.soul},
-            {"role": "user", "content": self._build_user_message(user_input, context_docs)},
-        ]
-        tool_log = []
-        total_input = 0
-        total_output = 0
+        budget = BudgetTracker(self._budget_policy())
+        self._active_budget = budget
+        loop_detector = LoopDetector(self.config.loop_detection)
 
-        for round_num in range(self.config.max_tool_rounds):
-            # ── Abort check ──
-            if self._abort.is_set():
-                self._emit(EventType.ABORTED)
-                return HarnessResult(
-                    ok=False, error="Aborted by user",
-                    tool_log=tool_log,
-                    total_input_tokens=total_input,
-                    total_output_tokens=total_output,
-                )
+        subject = self.context.extract_subject(user_input)
+        prior_messages = self.context.load_prior_context(subject=subject, retriever=self.retriever)
 
-            # ── Inject steering messages ──
-            self._inject_steering(messages)
+        messages: list[dict] = [self.context.build_system_message(self.soul, [])]
+        messages.extend(prior_messages)
+        messages.append({"role": "user", "content": self.context.build_user_message(user_input, context_docs)})
 
-            # ── Context overflow prevention ──
-            self._manage_context(messages)
+        tool_log: list[dict] = []
+        recent_tool_names: list[str] = []
+        main_round = 0
 
-            # ── Call LLM (with retry + optional streaming) ──
-            self._emit(EventType.TURN_START, {"round": round_num, "phase": self.current_phase})
-            tool_schemas = self._tool_schemas()
-
-            response = self._call_with_retry(messages, tool_schemas)
-            if response is None:
-                return HarnessResult(
-                    ok=False,
-                    error="LLM call failed after all retries",
-                    tool_log=tool_log,
-                    total_input_tokens=total_input,
-                    total_output_tokens=total_output,
-                )
-
-            total_input += response.input_tokens
-            total_output += response.output_tokens
-
-            # ── No tool calls → final reply ──
-            if not response.tool_calls:
-                self._emit(EventType.TURN_END, {"round": round_num})
-                return HarnessResult(
-                    ok=True,
-                    reply=response.content,
-                    tool_log=tool_log,
-                    total_input_tokens=total_input,
-                    total_output_tokens=total_output,
-                )
-
-            # ── Dispatch tool calls ──
-            messages.append(response.as_message())
-
-            if self.config.parallel_tool_execution and len(response.tool_calls) > 1:
-                results = self._dispatch_parallel(response.tool_calls, tool_log)
-            else:
-                results = [self._dispatch(tc, tool_log) for tc in response.tool_calls]
-
-            for tc, result_content in zip(response.tool_calls, results):
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": json.dumps(result_content),
-                })
-
-            self._emit(EventType.TURN_END, {"round": round_num})
-
-        return HarnessResult(
-            ok=False,
-            error=f"MAX_TOOL_ROUNDS ({self.config.max_tool_rounds}) reached",
-            tool_log=tool_log,
-            total_input_tokens=total_input,
-            total_output_tokens=total_output,
+        self._emit(
+            EventType.RUN_START,
+            {
+                "run_id": self._current_run_id,
+                "subject": subject,
+                "budget": budget.remaining_dict(),
+                "loop_status": loop_detector.status(),
+            },
         )
 
-    # ── LLM call with retry ──────────────────────────────────
+        while True:
+            if self._abort.is_set():
+                self._emit(EventType.ABORTED, {"run_id": self._current_run_id})
+                return self._final_result(False, tool_log=tool_log, error="Aborted by user", budget=budget)
 
-    def _call_with_retry(self, messages: list, tools: list) -> Optional[LLMResponse]:
+            if budget.wall_time_exceeded():
+                return self._final_result(
+                    False,
+                    tool_log=tool_log,
+                    error=f"MAX_WALL_TIME_SECONDS ({self.config.max_wall_time_seconds}) reached",
+                    budget=budget,
+                )
+
+            if budget.tool_call_limit_reached():
+                return self._final_result(
+                    False,
+                    tool_log=tool_log,
+                    error=f"MAX_TOTAL_TOOL_CALLS ({self.config.max_total_tool_calls}) reached",
+                    budget=budget,
+                )
+
+            self._inject_steering(messages)
+
+            if self.context.should_compact(messages, self.config.context_limit_chars):
+                before_len = len(messages)
+                self.context.compact(messages, self.llm, budget)
+                self._emit(
+                    EventType.CONTEXT_COMPACTED,
+                    {
+                        "run_id": self._current_run_id,
+                        "messages_before": before_len,
+                        "messages_after": len(messages),
+                        "budget": budget.remaining_dict(),
+                    },
+                )
+
+            tool_schemas = self._tool_schemas(messages, recent_tool_names)
+            tools_exposed = [s["function"]["name"] for s in tool_schemas]
+            messages[0] = self.context.build_system_message(self.soul, tools_exposed)
+
+            self._emit(
+                EventType.TURN_START,
+                {
+                    "run_id": self._current_run_id,
+                    "round": main_round,
+                    "tools_exposed": tools_exposed,
+                    "budget": budget.remaining_dict(),
+                    "loop_status": loop_detector.status(),
+                },
+            )
+
+            response = self._call_with_retry(messages, tool_schemas, budget=budget, category="main")
+            if response is None:
+                return self._final_result(
+                    False,
+                    tool_log=tool_log,
+                    error="LLM call failed after all retries",
+                    budget=budget,
+                )
+
+            if not response.tool_calls:
+                self._emit(
+                    EventType.TURN_END,
+                    {
+                        "run_id": self._current_run_id,
+                        "round": main_round,
+                        "tool_calls_executed": 0,
+                        "budget": budget.remaining_dict(),
+                        "loop_status": loop_detector.status(),
+                    },
+                )
+                self._emit(
+                    EventType.RUN_END,
+                    {
+                        "run_id": self._current_run_id,
+                        "ok": True,
+                        "budget": budget.breakdown(),
+                    },
+                )
+                return self._final_result(True, reply=response.content, tool_log=tool_log, budget=budget)
+
+            tool_calls = list(response.tool_calls)
+            pre_detectors = loop_detector.inspect_tool_signature(self._tool_call_signature(tool_calls))
+
+            allowed = budget.trim_tool_calls(len(tool_calls))
+            if allowed < len(tool_calls):
+                self._emit(
+                    EventType.BUDGET_TRIMMED,
+                    {
+                        "run_id": self._current_run_id,
+                        "round": main_round,
+                        "planned": len(tool_calls),
+                        "allowed": allowed,
+                    },
+                )
+                tool_calls = tool_calls[:allowed]
+
+            if not tool_calls:
+                return self._final_result(
+                    False,
+                    tool_log=tool_log,
+                    error=f"MAX_TOTAL_TOOL_CALLS ({self.config.max_total_tool_calls}) reached",
+                    budget=budget,
+                )
+
+            if not budget.reserve_round("main"):
+                return self._final_result(
+                    False,
+                    tool_log=tool_log,
+                    error=f"MAX_TOOL_ROUNDS ({self.config.max_tool_rounds}) reached",
+                    budget=budget,
+                )
+
+            if budget.total_tool_calls() + len(tool_calls) > self.config.max_total_tool_calls:
+                room = budget.remaining_tool_calls()
+                tool_calls = tool_calls[: max(0, room)]
+                if not tool_calls:
+                    return self._final_result(
+                        False,
+                        tool_log=tool_log,
+                        error=f"MAX_TOTAL_TOOL_CALLS ({self.config.max_total_tool_calls}) reached",
+                        budget=budget,
+                    )
+
+            budget.register_tool_calls("main", len(tool_calls))
+
+            response_for_history = LLMResponse(
+                content=response.content,
+                tool_calls=tool_calls,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+            )
+            messages.append(response_for_history.as_message())
+
+            recent_tool_names.extend(tc.name for tc in tool_calls)
+            recent_tool_names = recent_tool_names[-20:]
+
+            if self.config.parallel_tool_execution and len(tool_calls) > 1:
+                results = self._dispatch_parallel(tool_calls, tool_log, main_round, budget)
+            else:
+                results = [self._dispatch(tc, tool_log, main_round, budget) for tc in tool_calls]
+
+            for tc, result_content in zip(tool_calls, results):
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": json.dumps(result_content, ensure_ascii=False),
+                    }
+                )
+
+            post_detectors = loop_detector.inspect_tool_results(results)
+            signal = loop_detector.resolve_round(pre_detectors | post_detectors)
+            if signal:
+                self._emit(
+                    EventType.LOOP_DETECTED,
+                    {
+                        "run_id": self._current_run_id,
+                        "round": main_round,
+                        "detectors": signal.detector_names,
+                        "message": signal.message,
+                        "should_steer": signal.should_steer,
+                        "should_stop": signal.should_stop,
+                    },
+                )
+                if signal.should_steer:
+                    steer_msg = "You are repeating operations. Try a different strategy or adjust tool arguments."
+                    messages.append({"role": "user", "content": f"[STEERING] {steer_msg}"})
+                    self._emit(
+                        EventType.STEERING_INJECTED,
+                        {"run_id": self._current_run_id, "message": steer_msg},
+                    )
+                if signal.should_stop:
+                    return self._final_result(
+                        False,
+                        tool_log=tool_log,
+                        error=signal.message,
+                        budget=budget,
+                    )
+
+            self._emit(
+                EventType.TURN_END,
+                {
+                    "run_id": self._current_run_id,
+                    "round": main_round,
+                    "tool_calls_executed": len(tool_calls),
+                    "budget": budget.remaining_dict(),
+                    "loop_status": loop_detector.status(),
+                },
+            )
+            main_round += 1
+
+    # LLM call ---------------------------------------------------
+
+    def _call_with_retry(
+        self,
+        messages: list,
+        tools: list,
+        budget: BudgetTracker,
+        category: str,
+    ) -> Optional[LLMResponse]:
         last_error = None
 
         for attempt in range(self.config.max_retries):
@@ -202,102 +381,152 @@ class Harness:
                 return None
 
             try:
-                if self.config.streaming:
-                    return self._call_streaming(messages, tools)
-                return self.llm.chat(messages, tools=tools)
+                if self.config.streaming and category == "main":
+                    response = self._call_streaming(messages, tools)
+                else:
+                    response = self.llm.chat(messages, tools=tools)
+
+                budget.register_llm_call(category, response.input_tokens, response.output_tokens)
+                return response
 
             except Exception as e:
                 last_error = e
                 err = str(e).lower()
 
-                # Context overflow → compact and retry
                 if any(kw in err for kw in ("context_length", "maximum context", "token", "too long")):
-                    self._compact_context(messages)
-                    self._emit(EventType.CONTEXT_COMPACTED, {"reason": str(e), "attempt": attempt})
-                    continue
+                    if self.context.should_compact(messages, self.config.context_limit_chars):
+                        before_len = len(messages)
+                        self.context.compact(messages, self.llm, budget)
+                        self._emit(
+                            EventType.CONTEXT_COMPACTED,
+                            {
+                                "run_id": self._current_run_id,
+                                "attempt": attempt,
+                                "reason": str(e),
+                                "messages_before": before_len,
+                                "messages_after": len(messages),
+                            },
+                        )
+                        continue
 
-                # Rate limit / overload → exponential backoff
                 if any(kw in err for kw in ("rate_limit", "429", "overloaded", "503", "capacity")):
                     delay = self.config.retry_base_delay * (2 ** attempt)
-                    self._emit(EventType.RETRY, {"attempt": attempt + 1, "delay": delay, "error": str(e)})
+                    self._emit(
+                        EventType.RETRY,
+                        {
+                            "run_id": self._current_run_id,
+                            "attempt": attempt + 1,
+                            "delay": delay,
+                            "error": str(e),
+                        },
+                    )
                     time.sleep(delay)
                     continue
 
-                # Other errors → don't retry
                 break
 
-        self._emit(EventType.RETRY, {"failed": True, "error": str(last_error)})
+        self._emit(
+            EventType.RETRY,
+            {"run_id": self._current_run_id, "failed": True, "error": str(last_error)},
+        )
         return None
 
     def _call_streaming(self, messages: list, tools: list) -> LLMResponse:
-        """Call LLM with streaming, emitting text deltas via events."""
         response = None
         for event in self.llm.chat_stream(messages, tools=tools):
             if event.type == "text_delta":
-                self._emit(EventType.TEXT_DELTA, {"content": event.content})
+                self._emit(EventType.TEXT_DELTA, {"run_id": self._current_run_id, "content": event.content})
             elif event.type == "done":
                 response = event.response
         if response is None:
             raise RuntimeError("Stream ended without 'done' event")
         return response
 
-    # ── Tool dispatch ─────────────────────────────────────────
+    # Tool dispatch ----------------------------------------------
 
-    def _dispatch(self, tc: ToolCall, tool_log: list) -> dict:
-        # Phase check
-        allowed = TOOL_PHASES.get(self.current_phase, set())
-        if tc.name not in allowed:
-            tool_log.append({"tool": tc.name, "status": "phase_blocked", "phase": self.current_phase})
-            return {
-                "status": "error",
-                "error": f"Tool '{tc.name}' not available in '{self.current_phase}' phase.",
-                "hint": f"Available tools in this phase: {sorted(allowed)}",
-                "recoverable": True,
-            }
+    def _dispatch(self, tc: ToolCall, tool_log: list, round_num: int, budget: BudgetTracker) -> dict:
+        hook_ctx = ToolHookContext(
+            tool_name=tc.name,
+            args=tc.arguments,
+            run_id=self._current_run_id or "",
+            round_number=round_num,
+            budget_remaining=budget.remaining_dict(),
+        )
 
-        # Tool exists?
         tool = self.tool_registry.get(tc.name)
         if not tool:
-            tool_log.append({"tool": tc.name, "status": "not_found"})
-            return {
-                "status": "error",
-                "error": f"Tool '{tc.name}' not found",
-                "hint": f"Available: {list(self.tool_registry.keys())}",
-                "recoverable": False,
-            }
+            result = ToolResult.error(
+                f"Tool '{tc.name}' not found",
+                hint=f"Available: {list(self.tool_registry.keys())}",
+                recoverable=False,
+            )
+            result.tags.append("tool_not_found")
+            result = self.tool_hooks.after_tool_call(hook_ctx, result)
+            tool_log.append({"tool": tc.name, "status": result.status, "tags": result.tags, "error": result.error})
+            return self._compress(result.to_dict(), tc.name)
 
-        # Execute — tool validates its own inputs/outputs
-        self._emit(EventType.TOOL_START, {"tool": tc.name, "args": tc.arguments})
+        before_ctx = self.tool_hooks.before_tool_call(hook_ctx)
+        if before_ctx is None:
+            result = ToolResult.error(
+                "Tool call blocked by hook",
+                hint="Arguments failed hook validation",
+                recoverable=False,
+            )
+            result.tags.append("blocked")
+            result = self.tool_hooks.after_tool_call(hook_ctx, result)
+            tool_log.append({"tool": tc.name, "status": result.status, "tags": result.tags, "error": result.error})
+            return self._compress(result.to_dict(), tc.name)
+
+        self._emit(
+            EventType.TOOL_START,
+            {
+                "run_id": self._current_run_id,
+                "round": round_num,
+                "tool": tc.name,
+                "args": before_ctx.args,
+            },
+        )
+
         try:
-            result: ToolResult = tool.execute(tc.arguments)
+            result = tool.execute(before_ctx.args)
         except Exception as e:
-            tool_log.append({"tool": tc.name, "status": "exception", "error": str(e)})
-            self._emit(EventType.TOOL_END, {"tool": tc.name, "status": "exception"})
-            return {"status": "error", "error": f"Tool exception: {e}", "recoverable": False}
+            result = ToolResult.error(f"Tool exception: {e}", recoverable=False)
 
-        # Phase transition on success
-        if result.status == "ok":
-            transition = PHASE_TRANSITIONS.get(tc.name)
-            if transition:
-                cur_idx = PHASE_ORDER.index(self.current_phase)
-                new_idx = PHASE_ORDER.index(transition)
-                if new_idx > cur_idx:
-                    self.current_phase = transition
-                    self._emit(EventType.PHASE_CHANGE, {"from": PHASE_ORDER[cur_idx], "to": transition})
+        result = self.tool_hooks.after_tool_call(before_ctx, result)
 
-        # Compress + return
-        result_dict = result.to_dict()
-        compressed = self._compress(result_dict)
-        tool_log.append({"tool": tc.name, "status": result.status, "phase": self.current_phase})
-        self._emit(EventType.TOOL_END, {"tool": tc.name, "status": result.status})
-        return compressed
+        tool_log.append(
+            {
+                "tool": tc.name,
+                "status": result.status,
+                "tags": result.tags,
+                "error": result.error,
+            }
+        )
 
-    def _dispatch_parallel(self, tool_calls: list[ToolCall], tool_log: list) -> list[dict]:
-        """Execute multiple tool calls concurrently, return results in original order."""
+        self._emit(
+            EventType.TOOL_END,
+            {
+                "run_id": self._current_run_id,
+                "round": round_num,
+                "tool": tc.name,
+                "status": result.status,
+                "tags": result.tags,
+            },
+        )
+
+        return self._compress(result.to_dict(), tc.name)
+
+    def _dispatch_parallel(
+        self,
+        tool_calls: list[ToolCall],
+        tool_log: list,
+        round_num: int,
+        budget: BudgetTracker,
+    ) -> list[dict]:
         results = [None] * len(tool_calls)
         with ThreadPoolExecutor(max_workers=min(len(tool_calls), 4)) as executor:
             future_to_idx = {
-                executor.submit(self._dispatch, tc, tool_log): i
+                executor.submit(self._dispatch, tc, tool_log, round_num, budget): i
                 for i, tc in enumerate(tool_calls)
             }
             for future in as_completed(future_to_idx):
@@ -305,89 +534,249 @@ class Harness:
                 try:
                     results[idx] = future.result()
                 except Exception as e:
-                    results[idx] = {"status": "error", "error": str(e), "recoverable": False}
+                    results[idx] = {
+                        "status": "error",
+                        "error": str(e),
+                        "recoverable": False,
+                        "tags": ["dispatch_exception"],
+                    }
         return results
 
-    # ── Context management ────────────────────────────────────
+    # Routing/helpers --------------------------------------------
 
-    def _manage_context(self, messages: list):
-        """Proactively compact when approaching the context limit."""
-        total_chars = sum(len(json.dumps(m)) for m in messages)
-        if total_chars > self.config.context_limit_chars * 0.85:
-            self._compact_context(messages)
-            self._emit(EventType.CONTEXT_COMPACTED, {"chars_before": total_chars})
+    def _tool_schemas(self, messages: list[dict], recent_tool_names: list[str]) -> list[dict]:
+        if not self.tool_registry:
+            return []
 
-    def _compact_context(self, messages: list):
-        """
-        3-pass context reduction:
-        1. Truncate large tool results in-place
-        2. Deep-truncate nested structures
-        3. Drop middle exchanges if still too large
-        """
-        # Pass 1: Truncate tool result content
-        for msg in messages:
-            if msg.get("role") == "tool":
-                content = msg.get("content", "")
-                if len(content) > 800:
-                    try:
-                        data = json.loads(content)
-                        msg["content"] = json.dumps(self._deep_truncate(data))
-                    except (json.JSONDecodeError, TypeError):
-                        msg["content"] = content[:500] + "...[truncated]"
+        tools = list(self.tool_registry.values())
+        if self.config.tool_injection_mode == "all":
+            return [t.schema for t in tools]
 
-        # Pass 2: Check if still too large → drop middle exchanges
-        total_chars = sum(len(json.dumps(m)) for m in messages)
-        if total_chars > self.config.context_limit_chars * 0.85 and len(messages) > 8:
-            # Keep: system(0), first user(1), ... last 6 messages
-            kept = messages[:2] + [
-                {"role": "user", "content": "[Earlier tool exchanges compacted to save context window]"}
-            ] + messages[-6:]
-            messages.clear()
-            messages.extend(kept)
+        max_tools = max(1, min(self.config.max_tools_per_round, len(tools)))
+        context = self._recent_context_text(messages).lower()
+        signals = self._detect_artifact_signals(context)
 
-    def _deep_truncate(self, obj, max_str=500, max_list=5):
-        """Recursively truncate large strings and lists."""
+        always = [n for n in self.config.always_exposed_tools if n in self.tool_registry]
+        trigger_map = self.config.tool_triggers or {}
+
+        scored: list[tuple[float, str]] = []
+        for tool in tools:
+            keywords = trigger_map.get(tool.name, [])
+            score = 0.0
+            for kw in keywords:
+                if kw and kw.lower() in context:
+                    score += 2.0
+
+            if tool.name in recent_tool_names[-4:]:
+                score += 0.4
+
+            if signals["has_observation"] and tool.name == "add_evidence_card":
+                score += 1.2
+            if signals["has_hypothesis"] and tool.name in {"add_evidence_card", "run_valuation", "compute_trade_score"}:
+                score += 1.5
+            if signals["has_valuation"] and tool.name == "compute_trade_score":
+                score += 1.5
+            if signals["has_trade_score"] and tool.name == "write_audit_trail":
+                score += 1.5
+
+            scored.append((score, tool.name))
+
+        selected: list[str] = []
+        for name in always:
+            if len(selected) >= max_tools:
+                break
+            if name not in selected:
+                selected.append(name)
+
+        for _, name in sorted(scored, key=lambda x: (x[0], x[1]), reverse=True):
+            if len(selected) >= max_tools:
+                break
+            if name in selected:
+                continue
+            selected.append(name)
+
+        if not selected:
+            fallback = [
+                "query_knowledge",
+                "memory_search",
+                "exa_search",
+                "web_fetch",
+                "fmp_get_financials",
+                "fred_get_macro",
+                "extract_observation",
+                "create_hypothesis",
+                "add_evidence_card",
+                "run_valuation",
+                "compute_trade_score",
+                "write_audit_trail",
+            ]
+            selected = [n for n in fallback if n in self.tool_registry][:max_tools]
+
+        return [self.tool_registry[name].schema for name in selected]
+
+    def _recent_context_text(self, messages: list[dict]) -> str:
+        considered = [m for m in messages if m.get("role") in {"user", "assistant", "tool"}]
+        chunks = []
+        for msg in considered[-3:]:  # short-term routing: only recent 3 messages
+            content = msg.get("content")
+            if isinstance(content, str):
+                chunks.append(content[:1200])
+        return "\n".join(chunks)
+
+    def _detect_artifact_signals(self, text: str) -> dict:
+        return {
+            "has_observation": ("obs_" in text) or ("observation" in text),
+            "has_hypothesis": ("hyp_" in text) or ("hypothesis" in text),
+            "has_valuation": ("val_" in text) or ("valuation_id" in text),
+            "has_trade_score": ("ts_" in text) or ("trade_score_id" in text),
+        }
+
+    def _tool_call_signature(self, tool_calls: list[ToolCall]) -> tuple:
+        return tuple(
+            (tc.name, json.dumps(tc.arguments, sort_keys=True, ensure_ascii=False))
+            for tc in tool_calls
+        )
+
+    def _compress(self, result: dict, tool_name: str) -> dict:
+        threshold = int(self.config.tool_compress_overrides.get(tool_name, self.config.compress_threshold_chars))
+        payload = json.dumps(result, ensure_ascii=False)
+        if len(payload) <= threshold:
+            return result
+        return self._deep_truncate(result)
+
+    def _deep_truncate(self, obj, max_str: int = 500, max_list: int = 5):
         if isinstance(obj, str):
             return obj[:max_str] + f"...[{len(obj)} chars]" if len(obj) > max_str else obj
         if isinstance(obj, list):
-            items = [self._deep_truncate(item) for item in obj[:max_list]]
+            items = [self._deep_truncate(item, max_str=max_str, max_list=max_list) for item in obj[:max_list]]
             if len(obj) > max_list:
                 items.append(f"...[{len(obj) - max_list} more]")
             return items
         if isinstance(obj, dict):
-            return {k: self._deep_truncate(v) for k, v in obj.items()}
+            return {k: self._deep_truncate(v, max_str=max_str, max_list=max_list) for k, v in obj.items()}
         return obj
 
-    # ── Steering ──────────────────────────────────────────────
-
     def _inject_steering(self, messages: list):
-        """Drain steering queue and inject as user messages."""
         while not self._steering_queue.empty():
             try:
                 msg = self._steering_queue.get_nowait()
                 messages.append({"role": "user", "content": f"[STEERING] {msg}"})
-                self._emit(EventType.STEERING_INJECTED, {"message": msg})
+                self._emit(EventType.STEERING_INJECTED, {"run_id": self._current_run_id, "message": msg})
             except queue.Empty:
                 break
 
-    # ── Helpers ───────────────────────────────────────────────
+    def _budget_policy(self) -> BudgetPolicy:
+        return BudgetPolicy(
+            max_tool_rounds=self.config.max_tool_rounds,
+            max_total_tool_calls=self.config.max_total_tool_calls,
+            max_wall_time_seconds=self.config.max_wall_time_seconds,
+            include_flush_in_tool_rounds=self.config.include_flush_in_tool_rounds,
+            include_compaction_in_tool_rounds=self.config.include_compaction_in_tool_rounds,
+            pre_round_trim=self.config.pre_round_trim,
+        )
 
-    def _compress(self, result: dict) -> dict:
-        result_str = json.dumps(result)
-        if len(result_str) <= self.config.compress_threshold_chars:
-            return result
-        return self._deep_truncate(result)
+    def _final_result(
+        self,
+        ok: bool,
+        tool_log: list[dict],
+        budget: BudgetTracker,
+        reply: str | None = None,
+        error: str | None = None,
+    ) -> HarnessResult:
+        self._emit(
+            EventType.RUN_END,
+            {
+                "run_id": self._current_run_id,
+                "ok": ok,
+                "error": error,
+                "budget": budget.breakdown(),
+            },
+        )
+        return HarnessResult(
+            ok=ok,
+            reply=reply,
+            tool_log=tool_log,
+            error=error,
+            total_input_tokens=budget.total_input_tokens,
+            total_output_tokens=budget.total_output_tokens,
+            budget_breakdown=budget.breakdown(),
+            run_id=self._current_run_id,
+        )
 
-    def _build_user_message(self, user_input: str, context_docs: list[str] = None) -> str:
-        msg = user_input
-        if context_docs:
-            docs_text = "\n\n---\n\n".join(context_docs)
-            msg += f"\n\n## Provided Documents\n\n{docs_text}"
-        return msg
+    def _track_embedding_usage(self, input_tokens: int = 0) -> None:
+        if self._active_budget:
+            self._active_budget.register_embedding_call(input_tokens=input_tokens)
 
-    def _tool_schemas(self) -> list[dict]:
-        allowed = TOOL_PHASES.get(self.current_phase, set())
-        return [t.schema for t in self.tool_registry.values() if t.name in allowed]
+    def _ensure_run_log_table(self):
+        try:
+            with sqlite3.connect(self._run_log_db_path) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS run_log (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        run_id TEXT NOT NULL,
+                        event_type TEXT NOT NULL,
+                        data_json TEXT,
+                        created_at REAL NOT NULL DEFAULT (julianday('now'))
+                    );
+                    """
+                )
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_run_log_run_id ON run_log(run_id);")
+        except Exception:
+            pass
+
+    def _persist_event(self, event_type: str, data: dict):
+        if not (self.config.persist_events and self._run_log_db_path and self._current_run_id):
+            return
+        try:
+            payload = json.dumps(data or {}, ensure_ascii=False)
+            with sqlite3.connect(self._run_log_db_path) as conn:
+                conn.execute(
+                    "INSERT INTO run_log (run_id, event_type, data_json) VALUES (?, ?, ?)",
+                    (self._current_run_id, event_type, payload),
+                )
+        except Exception:
+            pass
 
     def _emit(self, event_type: EventType, data: dict = None):
-        self.on_event(HarnessEvent(type=event_type, data=data or {}))
+        payload = data or {}
+        if self._current_run_id and "run_id" not in payload:
+            payload["run_id"] = self._current_run_id
+        self.on_event(HarnessEvent(type=event_type, data=payload))
+        self._persist_event(event_type.value, payload)
+
+    # Compatibility shims for existing tests/callers -----------------
+
+    def _build_user_message(self, user_input: str, context_docs: list[str] = None) -> str:
+        return self.context.build_user_message(user_input, context_docs)
+
+    def _load_prior_context(self, subject: str = "") -> str:
+        prior_messages = self.context.load_prior_context(subject, self.retriever)
+        if not prior_messages:
+            return ""
+        return "\n\n".join(m.get("content", "") for m in prior_messages if m.get("content"))
+
+    def _memory_flush(self, messages: list) -> None:
+        budget = self._active_budget or BudgetTracker(self._budget_policy())
+        knowledge_tools = [
+            t for t in self.tool_registry.values()
+            if t.name in {"extract_observation", "create_hypothesis", "add_evidence_card", "query_knowledge"}
+        ]
+        self.context.memory_flush(messages, knowledge_tools, budget)
+
+    def _compact_context(self, messages: list) -> None:
+        budget = self._active_budget or BudgetTracker(self._budget_policy())
+        self.context.compact(messages, self.llm, budget)
+
+    def _manage_context(self, messages: list) -> None:
+        if self.context.should_compact(messages, self.config.context_limit_chars):
+            before_len = len(messages)
+            self._compact_context(messages)
+            self._emit(
+                EventType.CONTEXT_COMPACTED,
+                {
+                    "run_id": self._current_run_id,
+                    "messages_before": before_len,
+                    "messages_after": len(messages),
+                },
+            )

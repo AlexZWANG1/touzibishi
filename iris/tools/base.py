@@ -9,16 +9,23 @@ class ToolResult:
     error: Optional[str] = None
     hint: Optional[str] = None
     recoverable: bool = True
+    tags: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         if self.status == "ok":
-            return {"status": "ok", "data": self.data}
-        return {
+            payload = {"status": "ok", "data": self.data}
+            if self.tags:
+                payload["tags"] = self.tags
+            return payload
+        payload = {
             "status": "error",
             "error": self.error,
             "hint": self.hint,
             "recoverable": self.recoverable,
         }
+        if self.tags:
+            payload["tags"] = self.tags
+        return payload
 
     @classmethod
     def ok(cls, data: Any) -> "ToolResult":
@@ -42,28 +49,6 @@ def make_tool_schema(name: str, description: str, properties: dict, required: li
             },
         },
     }
-
-
-# ── Phase-based tool injection ─────────────────────────────────
-
-TOOL_PHASES = {
-    "gather":   {"exa_search", "web_fetch", "fmp_get_financials", "fred_get_macro",
-                 "extract_observation", "create_hypothesis", "query_knowledge"},
-    "analyze":  {"exa_search", "web_fetch", "fmp_get_financials", "fred_get_macro",
-                 "extract_observation", "add_evidence_card", "create_hypothesis",
-                 "query_knowledge"},
-    "evaluate": {"add_evidence_card", "run_valuation", "compute_trade_score",
-                 "query_knowledge"},
-    "finalize": {"write_audit_trail", "query_knowledge"},
-}
-
-PHASE_ORDER = ["gather", "analyze", "evaluate", "finalize"]
-
-PHASE_TRANSITIONS = {
-    "create_hypothesis": "analyze",
-    "run_valuation":     "evaluate",
-    "write_audit_trail": "finalize",
-}
 
 
 class Tool:

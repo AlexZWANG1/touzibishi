@@ -41,6 +41,36 @@ def render_sidebar():
                 st.cache_resource.clear()
                 st.success("Model updated — restart analysis")
 
+        st.divider()
+        st.markdown("**Run Telemetry**")
+        result = st.session_state.get("last_result")
+        if result is None:
+            st.caption("No run yet")
+            return
+
+        st.caption(f"Run ID: `{result.run_id or '-'}`")
+
+        breakdown = result.budget_breakdown or {}
+        rounds = breakdown.get("tool_rounds", {})
+        calls = breakdown.get("tool_calls", {})
+
+        rounds_used = rounds.get("counted_total", 0)
+        rounds_limit = max(1, rounds.get("limit", 1))
+        calls_used = calls.get("total", 0)
+        calls_limit = max(1, calls.get("limit", 1))
+
+        st.caption(f"Rounds: {rounds_used}/{rounds_limit}")
+        st.progress(min(1.0, rounds_used / rounds_limit))
+
+        st.caption(f"Tool Calls: {calls_used}/{calls_limit}")
+        st.progress(min(1.0, calls_used / calls_limit))
+
+        st.caption(f"Total Tool Log Entries: {len(result.tool_log)}")
+        if result.error:
+            st.error(f"Stop reason: {result.error}")
+        else:
+            st.success("Stop reason: final response produced")
+
 
 def main():
     render_sidebar()
