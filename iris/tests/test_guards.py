@@ -37,5 +37,5 @@ def test_compute_trade_score_requires_reasoning():
 
 def test_unknown_tool_passes_guards():
     g = InvestmentGuards()
-    result = g.check("perplexity_search", {"query": "NVDA earnings"})
+    result = g.check("exa_search", {"query": "NVDA earnings"})
     assert not result.blocked
