@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap");
+}
+
+:root {
+  --iris-bg: #0a0a0f;
+  --iris-surface: #13131a;
+  --iris-surface-hover: #1a1a24;
+  --iris-border: #2a2a3a;
+  --iris-text: #e8e8ed;
+  --iris-text-secondary: #a0a0b0;
+  --iris-text-muted: #606070;
+  --iris-accent: #6366f1;
+  --iris-accent-hover: #818cf8;
+
+  --phase-gather: #22c55e;
+  --phase-analyze: #3b82f6;
+  --phase-evaluate: #f59e0b;
+  --phase-finalize: #8b5cf6;
+
+  --event-search: #22c55e;
+  --event-analyze: #3b82f6;
+  --event-model: #f59e0b;
+  --event-system: #9ca3af;
+  --event-user: #a855f7;
+
+  --status-bullish: #22c55e;
+  --status-bearish: #ef4444;
+  --status-neutral: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--iris-bg);
+  color: var(--iris-text);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--iris-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--iris-text-muted);
+}
+
+/* Timeline connector line */
+.timeline-connector {
+  position: absolute;
+  left: 15px;
+  top: 32px;
+  bottom: 0;
+  width: 2px;
+  background: var(--iris-border);
+}
+
+/* Pulse animation for running items */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Sensitivity heatmap cell */
+.heatmap-cell {
+  transition: background-color 0.2s ease;
+}
+
+/* Markdown prose styling */
+.prose-iris {
+  line-height: 1.7;
+}
+
+.prose-iris h1,
+.prose-iris h2,
+.prose-iris h3 {
+  color: var(--iris-text);
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose-iris h1 { font-size: 1.5rem; }
+.prose-iris h2 { font-size: 1.25rem; }
+.prose-iris h3 { font-size: 1.1rem; }
+
+.prose-iris p {
+  margin-bottom: 0.75em;
+  color: var(--iris-text-secondary);
+}
+
+.prose-iris code {
+  background: var(--iris-surface-hover);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.875em;
+}
+
+.prose-iris pre {
+  background: var(--iris-surface);
+  border: 1px solid var(--iris-border);
+  border-radius: 8px;
+  padding: 1em;
+  overflow-x: auto;
+}
+
+.prose-iris pre code {
+  background: none;
+  padding: 0;
+}
+
+.prose-iris ul,
+.prose-iris ol {
+  margin-left: 1.5em;
+  margin-bottom: 0.75em;
+  color: var(--iris-text-secondary);
+}
+
+.prose-iris li {
+  margin-bottom: 0.25em;
+}
+
+.prose-iris table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1em;
+}
+
+.prose-iris th,
+.prose-iris td {
+  border: 1px solid var(--iris-border);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+
+.prose-iris th {
+  background: var(--iris-surface);
+  font-weight: 600;
+}
+
+.prose-iris blockquote {
+  border-left: 3px solid var(--iris-accent);
+  padding-left: 1em;
+  color: var(--iris-text-muted);
+  margin-bottom: 0.75em;
+}
