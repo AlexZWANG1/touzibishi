@@ -29,6 +29,6 @@ def test_trade_score_out_of_range():
 
 def test_failed_result_skips_invariant():
     checker = InvariantChecker()
-    result = ToolResult.error("something failed")
+    result = ToolResult.fail("something failed")
     violations = checker.check("extract_observation", result)
     assert violations == []

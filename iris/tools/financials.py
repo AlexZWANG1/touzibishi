@@ -50,7 +50,7 @@ FRED_GET_MACRO_SCHEMA = make_tool_schema(
 def fmp_get_financials(ticker: str, statement_type: str, period: str = "annual") -> ToolResult:
     api_key = os.getenv("FMP_API_KEY")
     if not api_key:
-        return ToolResult.error("FMP_API_KEY not set", hint="Add to .env file")
+        return ToolResult.fail("FMP_API_KEY not set", hint="Add to .env file")
 
     url = f"{FMP_BASE}/{statement_type}/{ticker.upper()}?period={period}&limit=4&apikey={api_key}"
     try:
@@ -60,7 +60,7 @@ def fmp_get_financials(ticker: str, statement_type: str, period: str = "annual")
             data = response.json()
 
         if not data:
-            return ToolResult.error(
+            return ToolResult.fail(
                 f"No financial data found for {ticker}",
                 hint="Verify the ticker is correct and listed on a major exchange",
             )
@@ -71,15 +71,15 @@ def fmp_get_financials(ticker: str, statement_type: str, period: str = "annual")
             "data": data[:2],
         })
     except httpx.HTTPStatusError as e:
-        return ToolResult.error(f"FMP API error: {e.response.status_code}", recoverable=True)
+        return ToolResult.fail(f"FMP API error: {e.response.status_code}", recoverable=True)
     except Exception as e:
-        return ToolResult.error(f"Financial data fetch failed: {str(e)}", recoverable=False)
+        return ToolResult.fail(f"Financial data fetch failed: {str(e)}", recoverable=False)
 
 
 def fred_get_macro(series_id: str, limit: int = 4) -> ToolResult:
     api_key = os.getenv("FRED_API_KEY")
     if not api_key:
-        return ToolResult.error("FRED_API_KEY not set", hint="Add to .env file")
+        return ToolResult.fail("FRED_API_KEY not set", hint="Add to .env file")
 
     url = (
         f"{FRED_BASE}/series/observations"
@@ -94,7 +94,7 @@ def fred_get_macro(series_id: str, limit: int = 4) -> ToolResult:
 
         observations = data.get("observations", [])
         if not observations:
-            return ToolResult.error(
+            return ToolResult.fail(
                 f"No FRED data for series {series_id}",
                 hint="Check the series ID at fred.stlouisfed.org",
             )
@@ -107,4 +107,4 @@ def fred_get_macro(series_id: str, limit: int = 4) -> ToolResult:
             ],
         })
     except Exception as e:
-        return ToolResult.error(f"FRED fetch failed: {str(e)}", recoverable=False)
+        return ToolResult.fail(f"FRED fetch failed: {str(e)}", recoverable=False)

@@ -244,14 +244,6 @@ class Harness:
                         "loop_status": loop_detector.status(),
                     },
                 )
-                self._emit(
-                    EventType.RUN_END,
-                    {
-                        "run_id": self._current_run_id,
-                        "ok": True,
-                        "budget": budget.breakdown(),
-                    },
-                )
                 return self._final_result(True, reply=response.content, tool_log=tool_log, budget=budget)
 
             tool_calls = list(response.tool_calls)
@@ -455,7 +447,7 @@ class Harness:
 
         tool = self.tool_registry.get(tc.name)
         if not tool:
-            result = ToolResult.error(
+            result = ToolResult.fail(
                 f"Tool '{tc.name}' not found",
                 hint=f"Available: {list(self.tool_registry.keys())}",
                 recoverable=False,
@@ -467,7 +459,7 @@ class Harness:
 
         before_ctx = self.tool_hooks.before_tool_call(hook_ctx)
         if before_ctx is None:
-            result = ToolResult.error(
+            result = ToolResult.fail(
                 "Tool call blocked by hook",
                 hint="Arguments failed hook validation",
                 recoverable=False,
@@ -490,7 +482,7 @@ class Harness:
         try:
             result = tool.execute(before_ctx.args)
         except Exception as e:
-            result = ToolResult.error(f"Tool exception: {e}", recoverable=False)
+            result = ToolResult.fail(f"Tool exception: {e}", recoverable=False)
 
         result = self.tool_hooks.after_tool_call(before_ctx, result)
 

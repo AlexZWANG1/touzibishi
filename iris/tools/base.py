@@ -32,7 +32,7 @@ class ToolResult:
         return cls(status="ok", data=data)
 
     @classmethod
-    def error(cls, error: str, hint: str = None, recoverable: bool = True) -> "ToolResult":
+    def fail(cls, error: str, hint: str = None, recoverable: bool = True) -> "ToolResult":
         return cls(status="error", error=error, hint=hint, recoverable=recoverable)
 
 

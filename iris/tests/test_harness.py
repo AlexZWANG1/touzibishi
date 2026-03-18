@@ -280,6 +280,46 @@ def test_harness_events_emitted():
     assert EventType.TURN_END in event_types
 
 
+def test_harness_emits_run_end_once():
+    """RUN_END should only be emitted once per run."""
+    events = []
+    mock_llm = make_mock_llm([LLMResponse(content="Done.", tool_calls=[])])
+    harness = Harness(
+        llm=mock_llm, tools=[], soul="You are IRIS.",
+        config=HarnessConfig(max_tool_rounds=5),
+        on_event=lambda e: events.append(e),
+    )
+    result = harness.run("Analyze NVDA")
+    assert result.ok
+    run_end_events = [e for e in events if e.type == EventType.RUN_END]
+    assert len(run_end_events) == 1
+
+
+def test_tool_log_error_is_none_on_success():
+    """Successful tool calls should log error=None, not a method/object."""
+    mock_tool = MagicMock()
+    mock_tool.name = "exa_search"
+    mock_tool.schema = {"type": "function", "function": {"name": "exa_search"}}
+    mock_tool.execute = MagicMock(return_value=ToolResult.ok({"results": []}))
+
+    mock_llm = make_mock_llm([
+        LLMResponse(content=None, tool_calls=[
+            ToolCall(id="tc_1", name="exa_search", arguments={"query": "NVDA"})
+        ]),
+        LLMResponse(content="Done.", tool_calls=[]),
+    ])
+
+    harness = Harness(
+        llm=mock_llm, tools=[mock_tool], soul="You are IRIS.",
+        config=HarnessConfig(max_tool_rounds=5),
+    )
+    result = harness.run("Analyze NVDA")
+    assert result.ok
+    assert len(result.tool_log) == 1
+    assert result.tool_log[0]["status"] == "ok"
+    assert result.tool_log[0]["error"] is None
+
+
 def test_dynamic_tool_injection_limits_exposed_tools():
     """Dynamic mode should expose at most max_tools_per_round schemas."""
     tool_a = MagicMock()

@@ -227,7 +227,7 @@ def extract_observation(
         retriever.save_observation(obs)
         return ToolResult.ok({"id": obs.id, "subject": obs.subject, "claim": obs.claim})
     except Exception as e:
-        return ToolResult.error(f"Failed to save observation: {e}")
+        return ToolResult.fail(f"Failed to save observation: {e}")
 
 
 def create_hypothesis(
@@ -254,7 +254,7 @@ def create_hypothesis(
             "drivers": [d.name for d in hyp.drivers],
         })
     except Exception as e:
-        return ToolResult.error(f"Failed to create hypothesis: {e}")
+        return ToolResult.fail(f"Failed to create hypothesis: {e}")
 
 
 def add_evidence_card(
@@ -264,14 +264,14 @@ def add_evidence_card(
     novelty: float, driver_link: str, reasoning: str,
 ) -> ToolResult:
     if not reasoning.strip():
-        return ToolResult.error(
+        return ToolResult.fail(
             "reasoning must not be empty",
             hint="Explain why you rated direction/reliability/independence/novelty as you did",
         )
 
     hyp = retriever.get_hypothesis(hypothesis_id)
     if not hyp:
-        return ToolResult.error(
+        return ToolResult.fail(
             f"Hypothesis {hypothesis_id} not found",
             hint="Call create_hypothesis first or check the ID"
         )
@@ -327,12 +327,12 @@ def run_valuation(
 ) -> ToolResult:
     # Cross-field validation — Harness responsibility (deterministic check)
     if terminal_growth_rate >= wacc:
-        return ToolResult.error(
+        return ToolResult.fail(
             f"terminal_growth_rate ({terminal_growth_rate:.1%}) must be < WACC ({wacc:.1%})",
             hint="Long-term growth rate typically 2%-3%, cannot exceed cost of capital",
         )
     if not reasoning.strip():
-        return ToolResult.error("reasoning is required", hint="Explain your key assumptions")
+        return ToolResult.fail("reasoning is required", hint="Explain your key assumptions")
 
     fair_value_mid = (fair_value_low + fair_value_high) / 2
     valuation_gap = (fair_value_mid - current_price) / current_price if current_price else 0
@@ -371,14 +371,14 @@ def compute_trade_score(
     valuation_id: Optional[str] = None,
 ) -> ToolResult:
     if not reasoning.strip():
-        return ToolResult.error(
+        return ToolResult.fail(
             "reasoning must not be empty",
             hint="Explain your assessment of fundamental_quality, catalyst_timing, risk_penalty",
         )
 
     hyp = retriever.get_hypothesis(hypothesis_id)
     if not hyp:
-        return ToolResult.error(f"Hypothesis {hypothesis_id} not found")
+        return ToolResult.fail(f"Hypothesis {hypothesis_id} not found")
 
     valuation = retriever.get_valuation(valuation_id) if valuation_id else None
 
@@ -462,14 +462,14 @@ def write_audit_trail(
 
     score = retriever.get_trade_score(trade_score_id)
     if not score:
-        return ToolResult.error(
+        return ToolResult.fail(
             f"TradeScore {trade_score_id} not found",
             hint="Call compute_trade_score first",
         )
 
     hyp = retriever.get_hypothesis(score.hypothesis_id)
     if not hyp:
-        return ToolResult.error(f"Hypothesis {score.hypothesis_id} not found")
+        return ToolResult.fail(f"Hypothesis {score.hypothesis_id} not found")
 
     valuation = retriever.get_valuation(score.valuation_id) if score.valuation_id else None
 

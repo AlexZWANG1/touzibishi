@@ -46,7 +46,7 @@ def exa_search(query: str, num_results: int = 5, use_autoprompt: bool = True) ->
     """Semantic search via Exa API. Returns titles, URLs, and text snippets."""
     api_key = os.getenv("EXA_API_KEY")
     if not api_key:
-        return ToolResult.error("EXA_API_KEY not set", hint="Get free key at https://exa.ai — 1000 req/month free")
+        return ToolResult.fail("EXA_API_KEY not set", hint="Get free key at https://exa.ai — 1000 req/month free")
 
     num_results = max(1, min(10, num_results))
 
@@ -97,11 +97,11 @@ def exa_search(query: str, num_results: int = 5, use_autoprompt: bool = True) ->
             })
 
     except httpx.TimeoutException:
-        return ToolResult.error("Search timed out", hint="Try a more specific query", recoverable=True)
+        return ToolResult.fail("Search timed out", hint="Try a more specific query", recoverable=True)
     except httpx.HTTPStatusError as e:
-        return ToolResult.error(f"Exa API error: {e.response.status_code}", recoverable=True)
+        return ToolResult.fail(f"Exa API error: {e.response.status_code}", recoverable=True)
     except Exception as e:
-        return ToolResult.error(f"Search failed: {str(e)}", recoverable=False)
+        return ToolResult.fail(f"Search failed: {str(e)}", recoverable=False)
 
 
 # ── Jina Reader (web fetch) ─────────────────────────────────
@@ -132,7 +132,7 @@ WEB_FETCH_SCHEMA = make_tool_schema(
 def web_fetch(url: str, max_chars: int = 5000) -> ToolResult:
     """Fetch a URL as markdown via Jina Reader. Free, no key needed."""
     if not url or not url.startswith(("http://", "https://")):
-        return ToolResult.error("Invalid URL — must start with http:// or https://")
+        return ToolResult.fail("Invalid URL — must start with http:// or https://")
 
     max_chars = max(500, min(20000, max_chars))
     jina_url = JINA_READER_PREFIX + url
@@ -150,7 +150,7 @@ def web_fetch(url: str, max_chars: int = 5000) -> ToolResult:
             content = response.text.strip()
 
             if not content:
-                return ToolResult.error("Page returned empty content", hint="URL may be behind a paywall or require login")
+                return ToolResult.fail("Page returned empty content", hint="URL may be behind a paywall or require login")
 
             truncated = len(content) > max_chars
             content = content[:max_chars]
@@ -163,8 +163,8 @@ def web_fetch(url: str, max_chars: int = 5000) -> ToolResult:
             })
 
     except httpx.TimeoutException:
-        return ToolResult.error("Fetch timed out", hint="Page may be slow or blocking automated requests", recoverable=True)
+        return ToolResult.fail("Fetch timed out", hint="Page may be slow or blocking automated requests", recoverable=True)
     except httpx.HTTPStatusError as e:
-        return ToolResult.error(f"Fetch error: {e.response.status_code}", recoverable=True)
+        return ToolResult.fail(f"Fetch error: {e.response.status_code}", recoverable=True)
     except Exception as e:
-        return ToolResult.error(f"Fetch failed: {str(e)}", recoverable=False)
+        return ToolResult.fail(f"Fetch failed: {str(e)}", recoverable=False)
