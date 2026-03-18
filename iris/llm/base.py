@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Generator
 
 
 @dataclass
@@ -35,6 +35,14 @@ class LLMResponse:
         return msg
 
 
+@dataclass
+class StreamEvent:
+    """Event yielded during streaming LLM response."""
+    type: str  # "text_delta" | "done"
+    content: str = ""
+    response: Optional[LLMResponse] = None  # set on "done"
+
+
 class LLMClient(ABC):
     @abstractmethod
     def chat(
@@ -44,3 +52,15 @@ class LLMClient(ABC):
         temperature: float = 0.3,
     ) -> LLMResponse:
         ...
+
+    def chat_stream(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        temperature: float = 0.3,
+    ) -> Generator[StreamEvent, None, None]:
+        """Streaming LLM call. Default falls back to non-streaming."""
+        response = self.chat(messages, tools, temperature)
+        if response.content:
+            yield StreamEvent(type="text_delta", content=response.content)
+        yield StreamEvent(type="done", response=response)

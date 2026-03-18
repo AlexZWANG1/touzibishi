@@ -7,7 +7,7 @@ from core.schemas import (
     Observation, Driver, KillCriterion, EvidenceCard,
     Hypothesis, ValuationOutput, Assumption, TradeScore,
 )
-from core.config import EVOLVABLE_PARAMS, INVARIANTS
+from core import config
 from tools.base import ToolResult, make_tool_schema
 from tools.retrieval import EvidenceRetriever
 
@@ -26,7 +26,7 @@ EXTRACT_OBSERVATION_SCHEMA = make_tool_schema(
         "claim": {"type": "string", "description": "The core claim in one concise sentence"},
         "source": {"type": "string", "description": "Source name/URL"},
         "fact_or_view": {"type": "string", "enum": ["fact", "view"]},
-        "relevance": {"type": "number", "description": "0.0-1.0, relevance to investment thesis"},
+        "relevance": {"type": "number", "minimum": 0, "maximum": 1, "description": "Relevance to investment thesis"},
         "citation": {"type": "string", "description": "Exact quote or paraphrase from source"},
         "time_str": {"type": "string", "description": "Date of information in YYYY-MM-DD format"},
     },
@@ -67,7 +67,7 @@ CREATE_HYPOTHESIS_SCHEMA = make_tool_schema(
             },
         },
         "initial_confidence": {
-            "type": "number",
+            "type": "number", "minimum": 0, "maximum": 100,
             "description": "Starting confidence 0-100. Use 50 if genuinely uncertain.",
         },
     },
@@ -84,9 +84,9 @@ ADD_EVIDENCE_CARD_SCHEMA = make_tool_schema(
         "hypothesis_id": {"type": "string", "description": "ID from create_hypothesis"},
         "observation_id": {"type": "string", "description": "ID from extract_observation"},
         "direction": {"type": "string", "enum": ["supports", "refutes", "mixed", "neutral"]},
-        "reliability": {"type": "number", "description": "0-1: source credibility (earnings call=0.9, blog=0.3)"},
-        "independence": {"type": "number", "description": "0-1: how independent from existing evidence"},
-        "novelty": {"type": "number", "description": "0-1: how new/surprising is this information"},
+        "reliability": {"type": "number", "minimum": 0, "maximum": 1, "description": "Source credibility (earnings call=0.9, blog=0.3)"},
+        "independence": {"type": "number", "minimum": 0, "maximum": 1, "description": "How independent from existing evidence"},
+        "novelty": {"type": "number", "minimum": 0, "maximum": 1, "description": "How new/surprising is this information"},
         "driver_link": {"type": "string", "description": "Which driver this evidence relates to"},
         "reasoning": {"type": "string", "description": "Why you rated direction/reliability/independence/novelty this way"},
     },
@@ -98,15 +98,15 @@ RUN_VALUATION_SCHEMA = make_tool_schema(
     name="run_valuation",
     description=(
         "Perform valuation analysis. Choose methodology based on company type: "
-        "stable cash flows→DCF, cyclical→comps+normalized, early stage→scenario, conglomerate→SOTP. "
+        "stable cash flows->DCF, cyclical->comps+normalized, early stage->scenario, conglomerate->SOTP. "
         "Must provide both bull and bear cases."
     ),
     properties={
         "hypothesis_id": {"type": "string"},
         "methodology": {"type": "string", "enum": ["DCF", "comps", "scenario", "SOTP", "milestone"]},
         "methodology_reasoning": {"type": "string"},
-        "wacc": {"type": "number", "description": "Discount rate 0.03-0.25"},
-        "terminal_growth_rate": {"type": "number", "description": "Must be < WACC"},
+        "wacc": {"type": "number", "minimum": 0.03, "maximum": 0.25, "description": "Discount rate 3%-25%"},
+        "terminal_growth_rate": {"type": "number", "minimum": 0.0, "maximum": 0.05, "description": "Long-term growth, must be < WACC, typically 2%-3%"},
         "fair_value_low": {"type": "number"},
         "fair_value_high": {"type": "number"},
         "current_price": {"type": "number"},
@@ -145,9 +145,9 @@ COMPUTE_TRADE_SCORE_SCHEMA = make_tool_schema(
     properties={
         "hypothesis_id": {"type": "string"},
         "valuation_id": {"type": "string", "description": "ID from run_valuation, or null"},
-        "fundamental_quality": {"type": "number", "description": "0-1: business quality, moat, management"},
-        "catalyst_timing": {"type": "number", "description": "0-1: clarity and proximity of catalyst"},
-        "risk_penalty": {"type": "number", "description": "0-1: magnitude of key risks (higher = riskier)"},
+        "fundamental_quality": {"type": "number", "minimum": 0, "maximum": 1, "description": "Business quality, moat, management"},
+        "catalyst_timing": {"type": "number", "minimum": 0, "maximum": 1, "description": "Clarity and proximity of catalyst"},
+        "risk_penalty": {"type": "number", "minimum": 0, "maximum": 1, "description": "Magnitude of key risks (higher = riskier)"},
         "reasoning": {"type": "string"},
     },
     required=["hypothesis_id", "fundamental_quality", "catalyst_timing", "risk_penalty", "reasoning"],
@@ -244,6 +244,12 @@ def add_evidence_card(
     direction: str, reliability: float, independence: float,
     novelty: float, driver_link: str, reasoning: str,
 ) -> ToolResult:
+    if not reasoning.strip():
+        return ToolResult.error(
+            "reasoning must not be empty",
+            hint="Explain why you rated direction/reliability/independence/novelty as you did",
+        )
+
     hyp = retriever.get_hypothesis(hypothesis_id)
     if not hyp:
         return ToolResult.error(
@@ -264,9 +270,10 @@ def add_evidence_card(
         created_at=datetime.now(),
     )
 
-    direction_map = {"supports": +1, "refutes": -1, "mixed": +0.2, "neutral": 0}
+    # Bayesian update — formula is Harness (deterministic), parameters are Context
+    direction_map = config.get("evidence.direction_map")
+    scaling = config.get("evidence.scaling_factor")
     sign = direction_map.get(direction, 0)
-    scaling = EVOLVABLE_PARAMS["belief_update_scaling_factor"]
     delta = sign * reliability * independence * novelty * scaling
 
     old_confidence = hyp.confidence
@@ -299,6 +306,15 @@ def run_valuation(
     bear_case_value: float, bear_case_assumption: str,
     reasoning: str,
 ) -> ToolResult:
+    # Cross-field validation — Harness responsibility (deterministic check)
+    if terminal_growth_rate >= wacc:
+        return ToolResult.error(
+            f"terminal_growth_rate ({terminal_growth_rate:.1%}) must be < WACC ({wacc:.1%})",
+            hint="Long-term growth rate typically 2%-3%, cannot exceed cost of capital",
+        )
+    if not reasoning.strip():
+        return ToolResult.error("reasoning is required", hint="Explain your key assumptions")
+
     fair_value_mid = (fair_value_low + fair_value_high) / 2
     valuation_gap = (fair_value_mid - current_price) / current_price if current_price else 0
 
@@ -335,48 +351,59 @@ def compute_trade_score(
     reasoning: str,
     valuation_id: Optional[str] = None,
 ) -> ToolResult:
+    if not reasoning.strip():
+        return ToolResult.error(
+            "reasoning must not be empty",
+            hint="Explain your assessment of fundamental_quality, catalyst_timing, risk_penalty",
+        )
+
     hyp = retriever.get_hypothesis(hypothesis_id)
     if not hyp:
         return ToolResult.error(f"Hypothesis {hypothesis_id} not found")
 
     valuation = retriever.get_valuation(valuation_id) if valuation_id else None
 
-    p = EVOLVABLE_PARAMS
+    # ── All parameters from Context layer ──
+    w = config.get("scoring.weights")
+    caps = config.get("scoring.caps")
+    min_evidence = config.get("evidence.min_count_for_action")
+    min_spread = config.get("constraints.min_bull_bear_spread")
+
     valuation_gap_norm = (
         min(1.0, max(0.0, (valuation.valuation_gap + 0.5))) if valuation else 0.5
     )
 
+    # ── Deterministic formula — Harness responsibility ──
     raw_score = (
-        p["weight_fundamental_quality"] * fundamental_quality
-        + p["weight_valuation_gap"] * valuation_gap_norm
-        + p["weight_belief_confidence"] * (hyp.confidence / 100)
-        + p["weight_catalyst_timing"] * catalyst_timing
-        - p["weight_risk_penalty"] * risk_penalty
+        w["fundamental_quality"] * fundamental_quality
+        + w["valuation_gap"] * valuation_gap_norm
+        + w["belief_confidence"] * (hyp.confidence / 100)
+        + w["catalyst_timing"] * catalyst_timing
+        - w["risk_penalty"] * risk_penalty
     ) * 100
 
+    # ── Hard caps — Harness logic, thresholds from Context ──
     constrained = raw_score
     reasons = []
 
     if valuation is None:
-        constrained = min(constrained, INVARIANTS["no_valuation_cap"])
-        reasons.append("No valuation output → capped at RESEARCH_MORE (64)")
+        constrained = min(constrained, caps["no_valuation"])
+        reasons.append(f"No valuation → capped at {caps['no_valuation']}")
 
-    if len(hyp.evidence_log) < p["min_evidence_count_for_action"]:
-        constrained = min(constrained, INVARIANTS["low_evidence_cap"])
-        reasons.append(
-            f"Only {len(hyp.evidence_log)} evidence cards < {p['min_evidence_count_for_action']} min → capped at WATCH (49)"
-        )
+    if len(hyp.evidence_log) < min_evidence:
+        constrained = min(constrained, caps["low_evidence"])
+        reasons.append(f"Only {len(hyp.evidence_log)} evidence < {min_evidence} min → capped at {caps['low_evidence']}")
 
     unresolved_kills = [k for k in hyp.kill_criteria if not k.resolved]
     if unresolved_kills:
-        constrained = min(constrained, INVARIANTS["unresolved_kill_cap"])
-        reasons.append(f"{len(unresolved_kills)} unresolved kill criteria → capped at CANDIDATE (74)")
+        constrained = min(constrained, caps["unresolved_kill"])
+        reasons.append(f"{len(unresolved_kills)} unresolved kill criteria → capped at {caps['unresolved_kill']}")
 
     if valuation and valuation.bull_case and valuation.bear_case:
         spread = (valuation.bull_case["fair_value"] - valuation.bear_case["fair_value"]) / valuation.current_price
-        if spread < INVARIANTS["min_bull_bear_spread"]:
-            constrained = min(constrained, 64)
-            reasons.append(f"Bull/bear spread {spread:.0%} < 30% → insufficient margin of safety")
+        if spread < min_spread:
+            constrained = min(constrained, caps["narrow_spread"])
+            reasons.append(f"Bull/bear spread {spread:.0%} < {min_spread:.0%} → capped at {caps['narrow_spread']}")
 
     constrained = max(0.0, min(100.0, constrained))
     recommendation = _score_to_recommendation(constrained)
@@ -492,12 +519,10 @@ def query_knowledge(
 
 
 def _score_to_recommendation(score: float) -> str:
-    if score >= 85:
-        return "HIGH_CONVICTION"
-    elif score >= 75:
-        return "INITIATE_SMALL"
-    elif score >= 65:
-        return "CANDIDATE"
-    elif score >= 50:
-        return "RESEARCH_MORE"
+    """Deterministic mapping — Harness logic, thresholds from Context."""
+    tiers = config.get("scoring.recommendation_tiers")
+    # Sort descending by threshold so we match highest first
+    for tier_name, threshold in sorted(tiers.items(), key=lambda x: x[1], reverse=True):
+        if score >= threshold:
+            return tier_name
     return "WATCH"

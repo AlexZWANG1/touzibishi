@@ -1,17 +1,17 @@
-import os
 import sys
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from core.config import EVOLVABLE_PARAMS, DB_PATH, load_soul
-from core.harness import Harness, HarnessConfig
-from core.invariants import InvariantChecker
-from guards.guards import InvestmentGuards
+from core.config import load_config, load_soul, DB_PATH
+from core.harness import Harness, HarnessConfig, HarnessEvent, EventType
 from llm.openai_client import OpenAIClient
 from tools.retrieval import SQLiteRetriever
 from tools.base import Tool
-from tools.search import perplexity_search, PERPLEXITY_SEARCH_SCHEMA
+from tools.search import (
+    exa_search, EXA_SEARCH_SCHEMA,
+    web_fetch, WEB_FETCH_SCHEMA,
+)
 from tools.financials import (
     fmp_get_financials, FMP_GET_FINANCIALS_SCHEMA,
     fred_get_macro, FRED_GET_MACRO_SCHEMA,
@@ -27,13 +27,46 @@ from tools.knowledge import (
 )
 
 
-def build_harness(db_path: str = None) -> tuple[Harness, SQLiteRetriever]:
+def _cli_event_handler(event: HarnessEvent):
+    """Print harness events to console for CLI mode."""
+    if event.type == EventType.TURN_START:
+        print(f"  [Round {event.data.get('round', '?')}] phase={event.data.get('phase', '?')}")
+    elif event.type == EventType.TOOL_START:
+        print(f"    → {event.data.get('tool', '?')}()")
+    elif event.type == EventType.TOOL_END:
+        status = event.data.get('status', '?')
+        symbol = "✓" if status == "ok" else "✗"
+        print(f"    {symbol} {event.data.get('tool', '?')} [{status}]")
+    elif event.type == EventType.PHASE_CHANGE:
+        print(f"  ── Phase: {event.data.get('from')} → {event.data.get('to')} ──")
+    elif event.type == EventType.CONTEXT_COMPACTED:
+        print(f"  [context compacted]")
+    elif event.type == EventType.RETRY:
+        if event.data.get("failed"):
+            print(f"  [retry failed: {event.data.get('error', '?')}]")
+        else:
+            print(f"  [retry #{event.data.get('attempt')} in {event.data.get('delay', 0):.1f}s]")
+    elif event.type == EventType.TEXT_DELTA:
+        print(event.data.get("content", ""), end="", flush=True)
+    elif event.type == EventType.ABORTED:
+        print("\n  [ABORTED]")
+
+
+def build_harness(
+    db_path: str = None,
+    on_event=None,
+    streaming: bool = False,
+) -> tuple[Harness, SQLiteRetriever]:
+    cfg = load_config()
+    h = cfg["harness"]
+
     db = db_path or DB_PATH
     retriever = SQLiteRetriever(db)
     soul = load_soul()
 
     external_tools = [
-        Tool(perplexity_search, PERPLEXITY_SEARCH_SCHEMA),
+        Tool(exa_search, EXA_SEARCH_SCHEMA),
+        Tool(web_fetch, WEB_FETCH_SCHEMA),
         Tool(fmp_get_financials, FMP_GET_FINANCIALS_SCHEMA),
         Tool(fred_get_macro, FRED_GET_MACRO_SCHEMA),
     ]
@@ -51,27 +84,31 @@ def build_harness(db_path: str = None) -> tuple[Harness, SQLiteRetriever]:
     harness = Harness(
         llm=OpenAIClient(),
         tools=external_tools + knowledge_tools,
-        guards=InvestmentGuards(),
-        invariants=InvariantChecker(),
-        retriever=retriever,
         soul=soul,
         config=HarnessConfig(
-            max_tool_rounds=EVOLVABLE_PARAMS["max_tool_rounds"],
-            compress_threshold_chars=EVOLVABLE_PARAMS["compress_threshold_chars"],
+            max_tool_rounds=h["max_tool_rounds"],
+            max_retries=h["max_retries"],
+            retry_base_delay=h["retry_base_delay"],
+            context_limit_chars=h["context_limit_chars"],
+            compress_threshold_chars=h["compress_threshold_chars"],
+            streaming=streaming,
         ),
+        on_event=on_event,
     )
     return harness, retriever
 
 
 def run_cli(query: str, docs: list[str] = None):
-    harness, _ = build_harness()
+    harness, _ = build_harness(on_event=_cli_event_handler, streaming=True)
     print(f"\nAnalyzing: {query}\n{'='*60}")
     result = harness.run(query, context_docs=docs)
     if result.ok:
-        print(f"\nAnalysis Complete\n{result.reply}")
+        if not harness.config.streaming:
+            print(f"\n{result.reply}")
+        print()
     else:
         print(f"\nAnalysis Failed: {result.error}")
-    print(f"\nTool calls: {len(result.tool_log)}")
+    print(f"Tool calls: {len(result.tool_log)}")
     print(f"Tokens: {result.total_input_tokens} in / {result.total_output_tokens} out")
     return result
 

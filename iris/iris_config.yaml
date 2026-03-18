@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────
+# IRIS Context Layer — 改这里，不改代码
+#
+# 三分法：
+#   Harness (代码)  → 公式、流程、安全检查 — 必须稳定正确
+#   Context (本文件) → 权重、阈值、参数     — 依赖信息，可调
+#   Prompt  (soul/)  → 哲学、风格、判断力   — 本来就不确定
+# ─────────────────────────────────────────────────────────────
+
+scoring:
+  # 加权评分公式的权重 (总和应为 1.0)
+  weights:
+    fundamental_quality: 0.25
+    valuation_gap: 0.25
+    belief_confidence: 0.25
+    catalyst_timing: 0.15
+    risk_penalty: 0.10
+
+  # 硬约束上限 — 条件不满足时强制封顶
+  caps:
+    no_valuation: 64        # 没跑估值 → 最高 RESEARCH_MORE
+    low_evidence: 49        # 证据不足 → 最高 WATCH
+    unresolved_kill: 74     # 有未解决的 kill criteria → 最高 CANDIDATE
+    narrow_spread: 64       # 牛熊价差不够 → 最高 RESEARCH_MORE
+
+  # 推荐等级阈值 (分数 >= 阈值 → 该等级)
+  recommendation_tiers:
+    HIGH_CONVICTION: 85
+    INITIATE_SMALL: 75
+    CANDIDATE: 65
+    RESEARCH_MORE: 50
+    # < 50 → WATCH
+
+evidence:
+  scaling_factor: 10        # 贝叶斯更新的缩放系数
+  min_count_for_action: 3   # 最少需要几条证据才能给出行动建议
+  direction_map:
+    supports: 1.0
+    refutes: -1.0
+    mixed: 0.2
+    neutral: 0.0
+
+constraints:
+  min_bull_bear_spread: 0.30  # 牛熊案例的最小价差比例
+
+harness:
+  max_tool_rounds: 25
+  max_retries: 3
+  retry_base_delay: 1.0
+  context_limit_chars: 300000
+  compress_threshold_chars: 2000
