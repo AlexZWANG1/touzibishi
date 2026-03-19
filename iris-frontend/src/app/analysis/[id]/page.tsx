@@ -20,6 +20,7 @@ export default function AnalysisPage() {
   const id = params.id as string;
 
   const pageState = useAnalysisStore((s) => s.pageState);
+  const isReplay = useAnalysisStore((s) => s.isReplay);
   const activeTab = useAnalysisStore((s) => s.activeTab);
   const pendingQuestion = useAnalysisStore((s) => s.pendingQuestion);
 
@@ -31,6 +32,19 @@ export default function AnalysisPage() {
 
   return (
     <div className="relative flex h-[calc(100vh-3.5rem)] flex-col bg-[var(--iris-bg)]">
+      {/* Replay banner */}
+      {isReplay && (
+        <div
+          className="flex-shrink-0 px-3 py-1 text-[11px] border-b"
+          style={{
+            borderColor: "var(--iris-accent)",
+            color: "var(--iris-accent)",
+            background: "rgba(201,168,76,0.05)",
+          }}
+        >
+          历史回看
+        </div>
+      )}
       {/* Main content area */}
       <div className="flex min-h-0 flex-1">
         {/* Left Panel - fixed 360px log panel */}
@@ -100,9 +114,9 @@ export default function AnalysisPage() {
       >
         {pageState === "WAITING" && pendingQuestion ? (
           <PendingQuestionCard />
-        ) : (
+        ) : !isReplay ? (
           <SteeringInput />
-        )}
+        ) : null}
       </div>
     </div>
   );

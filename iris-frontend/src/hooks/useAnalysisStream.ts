@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useAnalysisStore } from "./useAnalysisStore";
+import { probeSession, getHistoryDetail } from "@/utils/api";
 import type { SSEEvent, SSEEventType } from "@/types/api";
 
 const MAX_RETRIES = 5;
@@ -28,59 +29,75 @@ const SSE_EVENT_TYPES: SSEEventType[] = [
 
 export function useAnalysisStream(analysisId: string | null) {
   const handleSSEEvent = useAnalysisStore((s) => s.handleSSEEvent);
+  const loadSnapshot = useAnalysisStore((s) => s.loadSnapshot);
   const eventSourceRef = useRef<EventSource | null>(null);
   const retriesRef = useRef(0);
+  const resolvedRef = useRef(false);
 
-  const connect = useCallback(() => {
-    if (!analysisId) return;
+  const connectSSE = useCallback(
+    (id: string) => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+      const es = new EventSource(`${baseUrl}/api/analyze/${id}/stream`);
+      eventSourceRef.current = es;
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-    const es = new EventSource(`${baseUrl}/api/analyze/${analysisId}/stream`);
-    eventSourceRef.current = es;
+      for (const eventType of SSE_EVENT_TYPES) {
+        es.addEventListener(eventType, (evt: MessageEvent) => {
+          try {
+            if (evt.data === undefined || evt.data === null) return;
+            const data = JSON.parse(evt.data);
+            const sseEvent: SSEEvent = {
+              type: eventType,
+              data,
+              timestamp: Date.now(),
+            };
+            handleSSEEvent(sseEvent);
+            retriesRef.current = 0;
 
-    // Backend sends NAMED events (event: tool_start\ndata: {...}\n\n).
-    // EventSource.onmessage only fires for UNNAMED events, so we must
-    // register a listener for each named event type.
-    for (const eventType of SSE_EVENT_TYPES) {
-      es.addEventListener(eventType, (evt: MessageEvent) => {
-        try {
-          if (evt.data === undefined || evt.data === null) return;
-          const data = JSON.parse(evt.data);
-          const sseEvent: SSEEvent = {
-            type: eventType,
-            data,
-            timestamp: Date.now(),
-          };
-          handleSSEEvent(sseEvent);
-          retriesRef.current = 0;
-
-          // "done" is the stream sentinel — close connection
-          if (eventType === "done") {
-            es.close();
-            eventSourceRef.current = null;
+            // "done" is the stream sentinel — close connection
+            if (eventType === "done") {
+              es.close();
+              eventSourceRef.current = null;
+            }
+          } catch (err) {
+            console.error(`Failed to parse SSE event [${eventType}]:`, err);
           }
-        } catch (err) {
-          console.error(`Failed to parse SSE event [${eventType}]:`, err);
-        }
-      });
-    }
-
-    es.onerror = () => {
-      es.close();
-      eventSourceRef.current = null;
-
-      if (retriesRef.current < MAX_RETRIES) {
-        const delay = BASE_BACKOFF_MS * Math.pow(2, retriesRef.current);
-        retriesRef.current += 1;
-        setTimeout(connect, delay);
-      } else {
-        console.error("Max SSE retries reached, giving up.");
+        });
       }
-    };
-  }, [analysisId, handleSSEEvent]);
+
+      es.onerror = () => {
+        es.close();
+        eventSourceRef.current = null;
+
+        if (retriesRef.current < MAX_RETRIES) {
+          const delay = BASE_BACKOFF_MS * Math.pow(2, retriesRef.current);
+          retriesRef.current += 1;
+          setTimeout(() => connectSSE(id), delay);
+        } else {
+          console.error("Max SSE retries reached, giving up.");
+        }
+      };
+    },
+    [handleSSEEvent]
+  );
 
   useEffect(() => {
-    connect();
+    if (!analysisId || resolvedRef.current) return;
+    resolvedRef.current = true;
+
+    (async () => {
+      const isLive = await probeSession(analysisId);
+      if (isLive) {
+        connectSSE(analysisId);
+      } else {
+        try {
+          const snapshot = await getHistoryDetail(analysisId);
+          loadSnapshot(snapshot);
+        } catch {
+          console.error("Analysis not found");
+          useAnalysisStore.setState({ pageState: "COMPLETE" });
+        }
+      }
+    })();
 
     return () => {
       if (eventSourceRef.current) {
@@ -88,6 +105,7 @@ export function useAnalysisStream(analysisId: string | null) {
         eventSourceRef.current = null;
       }
       retriesRef.current = 0;
+      resolvedRef.current = false;
     };
-  }, [connect]);
+  }, [analysisId, connectSSE, loadSnapshot]);
 }

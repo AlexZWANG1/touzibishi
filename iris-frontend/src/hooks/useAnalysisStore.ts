@@ -9,6 +9,7 @@ import type {
   ModelPanelState,
   CompsPanelState,
   MemoryPanelState,
+  AnalysisSnapshot,
 } from "@/types/analysis";
 import type { SSEEvent } from "@/types/api";
 import { translateToolStart, TOOL_TAB_MAP } from "@/utils/eventTranslator";
@@ -16,6 +17,7 @@ import * as api from "@/utils/api";
 
 interface AnalysisStore {
   pageState: PageState;
+  isReplay: boolean;
   analysisId: string | null;
   timeline: TimelineEvent[];
   reasoningText: string;
@@ -35,6 +37,7 @@ interface AnalysisStore {
   respondToInput: (response: string) => Promise<void>;
   setActiveTab: (tab: ActiveTab) => void;
   handleSSEEvent: (event: SSEEvent) => void;
+  loadSnapshot: (snapshot: AnalysisSnapshot) => void;
   reset: () => void;
 }
 
@@ -74,6 +77,7 @@ const initialMemoryPanel: MemoryPanelState = {
 
 export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   pageState: "IDLE",
+  isReplay: false,
   analysisId: null,
   timeline: [],
   reasoningText: "",
@@ -400,9 +404,25 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
     }
   },
 
+  loadSnapshot: (snapshot) => {
+    set({
+      pageState: "COMPLETE",
+      isReplay: true,
+      analysisId: snapshot.id,
+      reasoningText: snapshot.reasoning_text || "",
+      thinkingText: snapshot.thinking_text || "",
+      timeline: snapshot.timeline || [],
+      dataPanel: snapshot.panels?.data || initialDataPanel,
+      modelPanel: snapshot.panels?.model || initialModelPanel,
+      compsPanel: snapshot.panels?.comps || initialCompsPanel,
+      memoryPanel: snapshot.panels?.memory || initialMemoryPanel,
+    });
+  },
+
   reset: () => {
     set({
       pageState: "IDLE",
+      isReplay: false,
       analysisId: null,
       timeline: [],
       reasoningText: "",

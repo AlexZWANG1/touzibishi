@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { TimelineEvent } from "@/types/analysis";
 import { formatTime, formatDuration } from "@/utils/formatters";
 
@@ -35,6 +36,10 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 export function TimelineItem({ event, isLast }: TimelineItemProps) {
+  if (event.tool === "thinking") {
+    return <ThinkingItem event={event} />;
+  }
+
   const dotColor = phaseColorMap[event.phase] || "var(--iris-text-muted)";
   const isRunning = event.status === "running";
   const isError = event.status === "error";
@@ -142,6 +147,70 @@ export function TimelineItem({ event, isLast }: TimelineItemProps) {
         >
           {formatTime(event.timestamp)}
         </span>
+      </div>
+    </div>
+  );
+}
+
+function ThinkingItem({ event }: { event: TimelineEvent }) {
+  const [expanded, setExpanded] = useState(false);
+  const fullText = event.fullText || event.message;
+
+  return (
+    <div className="relative px-1" style={{ paddingTop: 2, paddingBottom: 2 }}>
+      <div
+        className="cursor-pointer rounded-[2px] px-2 py-1"
+        style={{
+          borderLeft: "2px solid var(--iris-accent)",
+          background: expanded ? "rgba(201,168,76,0.05)" : "transparent",
+        }}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-1.5">
+          <span
+            style={{
+              fontSize: 9,
+              color: "var(--iris-accent)",
+              transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+              transition: "transform 150ms",
+              display: "inline-block",
+            }}
+          >
+            ▶
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              color: "var(--iris-accent)",
+              fontWeight: 600,
+            }}
+          >
+            AI 思考
+          </span>
+          {!expanded && (
+            <span
+              className="truncate"
+              style={{
+                fontSize: 10,
+                color: "var(--iris-text-muted)",
+              }}
+            >
+              — {event.message}
+            </span>
+          )}
+        </div>
+        {expanded && (
+          <pre
+            className="mt-1 whitespace-pre-wrap font-mono"
+            style={{
+              fontSize: 10,
+              lineHeight: 1.5,
+              color: "var(--iris-text-secondary)",
+            }}
+          >
+            {fullText}
+          </pre>
+        )}
       </div>
     </div>
   );
