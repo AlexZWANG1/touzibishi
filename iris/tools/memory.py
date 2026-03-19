@@ -8,7 +8,6 @@ Three tools:
 """
 
 import json
-import re
 from datetime import datetime, date
 from pathlib import Path
 
@@ -164,8 +163,26 @@ def save_memory(company: str, memory_type: str, content: str) -> ToolResult:
 
 
 def _append_calibration_entry(company: str, content: str):
-    """Parse fair value from content and append to prediction log."""
-    predicted = _extract_fair_value(content)
+    """Append calibration entry using DB valuation, not regex."""
+    from tools.retrieval import SQLiteRetriever
+    from core.config import DB_PATH
+    retriever = SQLiteRetriever(DB_PATH)
+    val = retriever.get_latest_valuation(company)
+    if val is None:
+        return  # No valuation exists, nothing to calibrate
+
+    # Parse fair_value from the valuation data JSON
+    val_data = val.get("data")
+    predicted = None
+    if val_data and isinstance(val_data, str):
+        try:
+            parsed = json.loads(val_data)
+            predicted = parsed.get("fair_value")
+        except (json.JSONDecodeError, TypeError):
+            pass
+    elif val_data and isinstance(val_data, dict):
+        predicted = val_data.get("fair_value")
+
     if predicted is None:
         return
 
@@ -178,28 +195,10 @@ def _append_calibration_entry(company: str, content: str):
         "analyst_consensus": None,
         "note": "pending 90-day review",
     }
-
     log_path = _memory_base() / "calibration" / "prediction_log.jsonl"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-
-def _extract_fair_value(content: str) -> float | None:
-    """Try to extract a fair value number from markdown content."""
-    patterns = [
-        r"Fair\s+Value[:\s]*\$?([\d,.]+)",
-        r"公允价值[:\s]*\$?([\d,.]+)",
-        r"fair_value[:\s]*([\d,.]+)",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, content, re.IGNORECASE)
-        if match:
-            try:
-                return float(match.group(1).replace(",", ""))
-            except ValueError:
-                continue
-    return None
 
 
 def check_calibration(company: str = None) -> ToolResult:

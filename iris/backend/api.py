@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from core.config import get as config_get
+from core.config import get as config_get, DB_PATH
 from core.harness import HarnessEvent
 from backend.sessions import (
     AnalysisSession,
@@ -40,6 +40,27 @@ from backend.user_input_tool import (
 )
 from tools.base import Tool
 from tools.memory import check_calibration
+from tools.retrieval import SQLiteRetriever
+
+
+# ── Retriever helper ─────────────────────────────────────────
+
+def _get_retriever() -> SQLiteRetriever:
+    return SQLiteRetriever(DB_PATH)
+
+
+# ── Ticker extraction helper ────────────────────────────────
+
+def _extract_ticker(query: str, session: AnalysisSession) -> str | None:
+    """Best-effort ticker extraction from query and tool results."""
+    tool_results = session.accumulated_panels
+    for tool_name in ["yf_quote", "build_dcf", "fmp_get_financials"]:
+        result = tool_results.get(tool_name, {})
+        if isinstance(result, dict) and result.get("ticker"):
+            return result["ticker"].upper()
+    match = re.search(r'\b([A-Z]{1,5})\b', query)
+    return match.group(1) if match else None
+
 
 # ── App setup ─────────────────────────────────────────────────
 
@@ -143,6 +164,38 @@ async def start_analysis(req: AnalyzeRequest):
     def _run():
         try:
             result = harness.run(req.query, context_docs=req.contextDocs)
+
+            # --- Persist to DB ---
+            snap = session.snapshot()
+            retriever = _get_retriever()
+            ticker = _extract_ticker(req.query, session)
+
+            # Save valuation record if build_dcf was called
+            if session.pending_valuation and ticker:
+                pv = session.pending_valuation
+                if pv.get("fair_value") is not None:
+                    retriever.save_valuation_record(
+                        ticker=ticker,
+                        fair_value=pv["fair_value"],
+                        current_price=pv["current_price"],
+                        gap_pct=pv["gap_pct"],
+                        run_id=session.id,
+                    )
+
+            # Save the full analysis run
+            retriever.save_analysis_run(
+                id=session.id,
+                query=req.query,
+                ticker=ticker,
+                status="complete" if result.ok else "error",
+                reasoning_text=snap["reasoning_text"],
+                thinking_text=snap["thinking_text"],
+                timeline_json=json.dumps(snap["timeline"], ensure_ascii=False, default=str),
+                panels_json=json.dumps(snap["panels"], ensure_ascii=False, default=str),
+                tokens_in=result.total_input_tokens,
+                tokens_out=result.total_output_tokens,
+            )
+
             session.events.put({
                 "event": "analysis_complete",
                 "data": {
@@ -214,6 +267,15 @@ async def stream_events(analysis_id: str):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.get("/api/analyze/{analysis_id}/status")
+async def session_status(analysis_id: str):
+    """Lightweight probe: does this session exist?"""
+    session = get_session(analysis_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"exists": True, "status": session.status}
 
 
 @app.post("/api/analyze/{analysis_id}/steer")
@@ -303,160 +365,91 @@ async def delete_memory(memory_type: str, filename: str):
 
 @app.get("/api/watchlist")
 async def get_watchlist():
-    """
-    Scan memory/companies/*.md and parse for watchlist data.
-    Returns ticker, fair_value, market_price, gap, thesis, and alerts.
-    """
-    base = _memory_base()
-    companies_dir = base / "companies"
-    if not companies_dir.exists():
+    """Build watchlist from DB (structured data) + live yf_quote prices."""
+    from tools.market import yf_quote
+
+    retriever = _get_retriever()
+    tickers = retriever.get_tracked_tickers()
+    if not tickers:
         return []
 
+    loop = asyncio.get_event_loop()
+
+    async def fetch_quote(t: str) -> dict:
+        try:
+            result = await loop.run_in_executor(None, functools.partial(yf_quote, t))
+            if result.status == "ok":
+                return result.data
+        except Exception:
+            pass
+        return {}
+
+    quotes = await asyncio.gather(*[fetch_quote(t) for t in tickers])
+    quote_map = {t: q for t, q in zip(tickers, quotes)}
+
     watchlist = []
-    for f in sorted(companies_dir.iterdir()):
-        if not f.is_file() or not f.name.endswith(".md"):
-            continue
+    for ticker in tickers:
+        quote = quote_map.get(ticker, {})
+        val = retriever.get_latest_valuation(ticker)
+        latest_run = retriever.get_latest_run_for_ticker(ticker)
+        hyps = retriever.list_hypotheses(company=ticker)
+        thesis = hyps[-1].thesis if hyps else None
 
-        content = f.read_text(encoding="utf-8")
-        ticker = f.stem.upper()
+        # Parse fair_value from the valuation data JSON
+        fair_value = None
+        if val:
+            val_data = val.get("data")
+            if val_data and isinstance(val_data, str):
+                try:
+                    parsed = json.loads(val_data)
+                    fair_value = parsed.get("fair_value")
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            elif val_data and isinstance(val_data, dict):
+                fair_value = val_data.get("fair_value")
 
-        entry = _parse_company_file(ticker, content, f)
-        watchlist.append(entry)
+        market_price = quote.get("price")
+        gap = None
+        if fair_value is not None and market_price is not None and market_price != 0:
+            gap = round((fair_value - market_price) / market_price, 4)
 
+        watchlist.append({
+            "ticker": ticker,
+            "name": quote.get("name"),
+            "market_price": market_price,
+            "fair_value": fair_value,
+            "gap": gap,
+            "thesis": thesis,
+            "recommendation": latest_run.get("recommendation") if latest_run else None,
+            "latest_run_id": latest_run["id"] if latest_run else None,
+            "alerts": [],
+        })
     return watchlist
 
 
-def _parse_company_file(ticker: str, content: str, path: Path) -> dict:
-    """Parse a company markdown file for watchlist fields."""
-    fair_value = _extract_number(content, r"(?:Fair\s+Value|fair_value|公允价值)[:\s]*\$?([\d,.]+)")
-    market_price = _extract_number(content, r"(?:Market\s+Price|market_price|市场价格)[:\s]*\$?([\d,.]+)")
+# ── History endpoints ────────────────────────────────────────
 
-    gap = None
-    if fair_value is not None and market_price is not None and market_price != 0:
-        gap = round((fair_value - market_price) / market_price, 4)
-
-    thesis = _extract_section(content, r"(?:##?\s*(?:Thesis|投资论点|Investment Thesis))\s*\n(.*?)(?=\n##|\Z)")
-
-    alerts = _compute_alerts(content, path)
-
-    return {
-        "ticker": ticker,
-        "fair_value": fair_value,
-        "market_price": market_price,
-        "gap": gap,
-        "thesis": thesis,
-        "alerts": alerts,
-    }
+@app.get("/api/history")
+async def list_history(
+    ticker: Optional[str] = Query(default=None),
+    limit: int = Query(default=30, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+):
+    retriever = _get_retriever()
+    return retriever.list_analysis_runs(ticker=ticker, limit=limit, offset=offset)
 
 
-def _extract_number(content: str, pattern: str) -> float | None:
-    match = re.search(pattern, content, re.IGNORECASE)
-    if match:
-        try:
-            return float(match.group(1).replace(",", ""))
-        except ValueError:
-            return None
-    return None
-
-
-def _extract_section(content: str, pattern: str) -> str | None:
-    match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
-    if match:
-        return match.group(1).strip()[:500]
-    return None
-
-
-def _compute_alerts(content: str, path: Path) -> list[dict]:
-    """Compute alert rules for a company file."""
-    alerts = []
-
-    # stale_analysis: file modified >30 days ago
-    try:
-        mtime = datetime.fromtimestamp(path.stat().st_mtime)
-        now = datetime.now(timezone.utc)
-        if mtime.tzinfo is None:
-            mtime = mtime.replace(tzinfo=timezone.utc)
-        if now - mtime > timedelta(days=30):
-            alerts.append({
-                "type": "stale_analysis",
-                "message": f"Analysis is {(now - mtime).days} days old",
-            })
-    except OSError:
-        pass
-
-    # kill_triggered: look for checked kill criteria [x] or [X]
-    kill_section = _extract_kill_section(content)
-    if kill_section:
-        checked = re.findall(r"\[[\s]*[xX][\s]*\]", kill_section)
-        if checked:
-            alerts.append({
-                "type": "kill_triggered",
-                "message": f"{len(checked)} kill criteria triggered",
-            })
-
-    # calibration_warning: 3+ consecutive same-direction errors >5%
-    cal_warning = _check_calibration_warning(content)
-    if cal_warning:
-        alerts.append(cal_warning)
-
-    return alerts
-
-
-def _extract_kill_section(content: str) -> str | None:
-    """Extract the kill criteria section from markdown."""
-    match = re.search(
-        r"(?:##?\s*(?:Kill\s+Criteria|终止条件))\s*\n(.*?)(?=\n##|\Z)",
-        content,
-        re.IGNORECASE | re.DOTALL,
-    )
-    return match.group(1) if match else None
-
-
-def _check_calibration_warning(content: str) -> dict | None:
-    """
-    Check for calibration warning: 3+ consecutive same-direction errors >5%.
-    Looks for a calibration section with error percentages.
-    """
-    errors_section = re.findall(
-        r"(?:error|误差)[:\s]*([+-]?\d+(?:\.\d+)?)\s*%",
-        content,
-        re.IGNORECASE,
-    )
-    if len(errors_section) < 3:
-        return None
-
-    errors = []
-    for e in errors_section:
-        try:
-            errors.append(float(e) / 100.0)
-        except ValueError:
-            continue
-
-    if len(errors) < 3:
-        return None
-
-    # Check last 3+ consecutive same direction >5%
-    consecutive = 0
-    last_sign = None
-    for e in reversed(errors):
-        sign = 1 if e > 0 else -1
-        if abs(e) > 0.05:
-            if last_sign is None or sign == last_sign:
-                consecutive += 1
-                last_sign = sign
-            else:
-                break
-        else:
-            break
-
-    if consecutive >= 3:
-        direction = "overestimate" if last_sign > 0 else "underestimate"
-        return {
-            "type": "calibration_warning",
-            "message": f"{consecutive} consecutive {direction} errors >5%",
-        }
-
-    return None
+@app.get("/api/history/{run_id}")
+async def get_history_detail(run_id: str):
+    retriever = _get_retriever()
+    run = retriever.get_analysis_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Analysis run not found")
+    run["timeline"] = json.loads(run.get("timeline_json") or "[]")
+    run["panels"] = json.loads(run.get("panels_json") or "{}")
+    del run["timeline_json"]
+    del run["panels_json"]
+    return run
 
 
 # ── Calibration endpoint ─────────────────────────────────────
@@ -482,5 +475,3 @@ def _cleanup_loop():
         for sid, session in sessions.items():
             if session.last_activity < cutoff:
                 remove_session(sid)
-
-
