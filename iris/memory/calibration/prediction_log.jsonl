@@ -7,3 +7,17 @@
 {"date": "2026-03-19", "company": "AAPL", "metric": "fair_value", "predicted": 121.47, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
 {"date": "2026-03-19", "company": "AAPL", "metric": "fair_value", "predicted": 121.47, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
 {"date": "2026-03-19", "company": "MSFT", "metric": "fair_value", "predicted": 109.72, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "AAPL", "metric": "fair_value", "predicted": 121.47, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "NVDA", "metric": "fair_value", "predicted": 108.13, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "MSFT", "metric": "fair_value", "predicted": 109.73, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "GOOGL", "metric": "fair_value", "predicted": 57.18, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "AAPL", "metric": "fair_value", "predicted": 121.47, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "AAPL", "metric": "fair_value", "predicted": 109.82, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "AAPL", "metric": "fair_value", "predicted": 109.82, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "AAPL", "metric": "fair_value", "predicted": 109.82, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "NVDA", "metric": "fair_value", "predicted": 94.83, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "NVDA", "metric": "fair_value", "predicted": 94.83, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-19", "company": "AAPL", "metric": "fair_value", "predicted": 109.82, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-20", "company": "NVDA", "metric": "fair_value", "predicted": 94.83, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-20", "company": "AAPL", "metric": "fair_value", "predicted": 130.89, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}
+{"date": "2026-03-20", "company": "MSFT", "metric": "fair_value", "predicted": 105.18, "actual": null, "analyst_consensus": null, "note": "pending 90-day review"}

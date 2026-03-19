@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 
 export function AIReasoningArea() {
@@ -23,22 +25,29 @@ export function AIReasoningArea() {
 
   const lines = activeText.split("\n");
   const lineCount = lines.length;
-  const previewLines = lines.slice(-2).join("\n");
+  // For preview, take last 2 non-empty lines as plain text
+  const previewLines = lines.filter((l) => l.trim()).slice(-2).join(" · ");
 
   return (
-    <div className="relative flex flex-col">
+    <div
+      className="relative flex shrink-0 flex-col"
+      style={{
+        borderTop: "1px solid var(--iris-border)",
+        maxHeight: "30%",
+      }}
+    >
       {/* Header / Toggle */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left"
-        style={{ background: "transparent" }}
+        className="flex w-full items-center gap-1 border-none bg-transparent text-left"
+        style={{ padding: "6px 10px" }}
       >
         {/* Muted chevron */}
         <svg
           className="flex-shrink-0"
           style={{
-            width: 10,
-            height: 10,
+            width: 8,
+            height: 8,
             color: "var(--iris-text-muted)",
             transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
             transition: "transform 150ms",
@@ -56,11 +65,13 @@ export function AIReasoningArea() {
         </svg>
 
         <span
+          className="font-mono"
           style={{
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: 600,
             color: "var(--iris-text-secondary)",
-            letterSpacing: "0.03em",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase" as const,
           }}
         >
           分析笔记
@@ -69,8 +80,9 @@ export function AIReasoningArea() {
         {/* Line count */}
         <span
           style={{
-            fontSize: 9,
+            fontSize: 8,
             color: "var(--iris-text-muted)",
+            fontWeight: 400,
           }}
         >
           {lineCount}行
@@ -81,55 +93,45 @@ export function AIReasoningArea() {
       <div
         className="overflow-hidden"
         style={{
-          maxHeight: expanded ? "calc(40vh - 36px)" : 36,
+          maxHeight: expanded ? "calc(30vh - 30px)" : 0,
           transition: "max-height 200ms ease-in-out",
         }}
       >
-        <div className="relative">
-          {/* Left border accent */}
-          {expanded && (
-            <div
-              className="absolute bottom-0 left-0 top-0"
-              style={{
-                width: 1,
-                background: "var(--iris-border)",
-                opacity: 0.6,
-              }}
-            />
-          )}
-
-          <div
-            ref={scrollRef}
-            className={`px-3 pb-2 ${expanded ? "overflow-y-auto" : "overflow-hidden"}`}
-            style={{
-              maxHeight: expanded ? "calc(40vh - 36px)" : 36,
-            }}
-          >
-            <pre
-              className="whitespace-pre-wrap font-mono"
-              style={{
-                fontSize: 11,
-                lineHeight: 1.5,
-                color: "var(--iris-text-secondary)",
-              }}
-            >
-              {expanded ? activeText : previewLines}
-            </pre>
-          </div>
-
-          {/* Fade-out gradient when collapsed */}
-          {!expanded && (
-            <div
-              className="pointer-events-none absolute inset-x-0 bottom-0"
-              style={{
-                height: 16,
-                background:
-                  "linear-gradient(to top, var(--iris-bg) 0%, transparent 100%)",
-              }}
-            />
-          )}
+        <div
+          ref={scrollRef}
+          className={expanded ? "overflow-y-auto" : "overflow-hidden"}
+          style={{
+            padding: "0 10px 6px 10px",
+            maxHeight: expanded ? "calc(30vh - 30px)" : 0,
+          }}
+        >
+          {expanded ? (
+            <div className="prose-iris prose-iris-sm">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {activeText}
+              </ReactMarkdown>
+            </div>
+          ) : null}
         </div>
       </div>
+
+      {/* Collapsed preview */}
+      {!expanded && previewLines && (
+        <p
+          className="truncate font-mono"
+          style={{
+            fontSize: 9,
+            lineHeight: 1.5,
+            color: "var(--iris-text-secondary)",
+            margin: 0,
+            padding: "0 10px 4px 10px",
+            maxHeight: 60,
+            overflow: "hidden",
+          }}
+        >
+          {previewLines}
+        </p>
+      )}
     </div>
   );
 }

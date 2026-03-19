@@ -31,38 +31,34 @@ export default function AnalysisPage() {
   useAnalysisStream(id);
 
   return (
-    <div className="relative flex h-[calc(100vh-3.5rem)] flex-col bg-[var(--iris-bg)]">
+    <div className="relative flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden bg-[var(--iris-bg)]">
       {/* Replay banner */}
       {isReplay && (
         <div
-          className="flex-shrink-0 px-3 py-1 text-[11px] border-b"
+          className="shrink-0 px-[10px] py-[3px] font-mono text-[11px] uppercase tracking-wider border-b border-[var(--iris-accent)]"
           style={{
-            borderColor: "var(--iris-accent)",
             color: "var(--iris-accent)",
-            background: "rgba(201,168,76,0.05)",
+            background: "rgba(245,128,37,0.05)",
           }}
         >
-          历史回看
+          REPLAY // 历史回看
         </div>
       )}
       {/* Main content area */}
-      <div className="flex min-h-0 flex-1">
-        {/* Left Panel - fixed 360px log panel */}
-        <div className="flex w-[360px] flex-shrink-0 flex-col border-r border-[var(--iris-border)]">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Left Panel - fixed 320px log panel */}
+        <div className="flex w-[320px] shrink-0 flex-col border-r border-[var(--iris-border)]">
           {/* Phase Indicator */}
-          <div className="flex-shrink-0 border-b border-[var(--iris-border)] px-3 py-1">
+          <div className="shrink-0 border-b border-[var(--iris-border)] px-[8px] py-[4px]">
             <PhaseIndicator />
           </div>
 
           {/* Timeline - scrollable center */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
+          <div className="min-h-0 flex-1 overflow-y-auto px-[6px] py-[4px]">
             {pageState === "IDLE" ? (
               <div className="flex h-full items-center justify-center">
-                <p
-                  className="text-[var(--iris-text-muted)]"
-                  style={{ fontSize: 11 }}
-                >
-                  等待初始化...
+                <p className="font-mono text-[11px] text-[var(--iris-text-muted)]">
+                  WAITING...
                 </p>
               </div>
             ) : (
@@ -72,7 +68,7 @@ export default function AnalysisPage() {
 
           {/* AI Reasoning - bottom, expandable, max 40% height */}
           <div
-            className="flex-shrink-0 border-t border-[var(--iris-border)]"
+            className="shrink-0 border-t border-[var(--iris-border)]"
             style={{ maxHeight: "40%" }}
           >
             <AIReasoningArea />
@@ -88,11 +84,8 @@ export default function AnalysisPage() {
           <div className="min-h-0 flex-1 overflow-y-auto">
             {pageState === "IDLE" ? (
               <div className="flex h-full items-center justify-center">
-                <p
-                  className="text-[var(--iris-text-muted)]"
-                  style={{ fontSize: 11 }}
-                >
-                  准备分析面板...
+                <p className="font-mono text-[11px] text-[var(--iris-text-muted)]">
+                  LOADING PANELS...
                 </p>
               </div>
             ) : (
@@ -107,11 +100,8 @@ export default function AnalysisPage() {
         </div>
       </div>
 
-      {/* Bottom: Steering Input / Pending Question - solid background */}
-      <div
-        className="flex-shrink-0 border-t border-[var(--iris-border)] px-3 py-2"
-        style={{ background: "var(--iris-bg)" }}
-      >
+      {/* Bottom: Steering Input / Pending Question */}
+      <div className="shrink-0 border-t border-[var(--iris-border)] p-[6px_10px] bg-[var(--iris-bg)]">
         {pageState === "WAITING" && pendingQuestion ? (
           <PendingQuestionCard />
         ) : !isReplay ? (

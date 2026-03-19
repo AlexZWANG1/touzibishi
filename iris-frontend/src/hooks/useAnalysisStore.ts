@@ -534,7 +534,7 @@ function _extractPanelData(
       const peers: import("@/types/analysis").PeerCompany[] = rawPeers.map((p) => ({
         ticker: (p.ticker as string) || "",
         name: (p.ticker as string) || "",
-        marketCap: 0,
+        marketCap: (p.market_cap as number) || 0,
         peRatio: (p.fwd_pe as number) || 0,
         evEbitda: (p.ev_ebitda as number) || 0,
         revenueGrowth: (p.revenue_growth as number) || 0,

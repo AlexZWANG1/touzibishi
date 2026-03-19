@@ -15,78 +15,82 @@ const confidenceLabels: Record<string, string> = {
 
 export function FairValueCard({ data }: FairValueCardProps) {
   const isUpside = data.upside >= 0;
+  const isInvalid = data.fairValue <= 0 || isNaN(data.fairValue);
 
   // Calculate position percentages for the visual bar
-  const maxVal = Math.max(data.fairValue, data.currentPrice) * 1.2;
-  const fairPct = Math.min(95, Math.max(5, (data.fairValue / maxVal) * 100));
+  const maxVal = Math.max(Math.abs(data.fairValue), data.currentPrice) * 1.2 || 1;
+  const fairPct = isInvalid ? 5 : Math.min(95, Math.max(5, (data.fairValue / maxVal) * 100));
   const currentPct = Math.min(
     95,
     Math.max(5, (data.currentPrice / maxVal) * 100)
   );
 
   return (
-    <div className="border border-[var(--iris-border)] p-2">
+    <div className="border border-[var(--iris-border)] p-[10px] bg-[var(--iris-bg)]">
       {/* Row 1: Fair value + current price + gap */}
-      <div className="flex items-baseline gap-3">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--iris-text-muted)]">
-          DCF Fair Value
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="font-mono text-[10px] text-[var(--iris-text-muted)] uppercase tracking-[0.06em]">
+          DCF FAIR VALUE
         </span>
-        <span className="font-mono text-[16px] font-bold text-[var(--iris-accent)]">
-          {formatCurrency(data.fairValue, data.currency)}
+        <span className={`font-mono text-[20px] font-bold ${isInvalid ? "text-[var(--iris-text-muted)]" : "text-[var(--iris-accent)]"}`}>
+          {isInvalid ? "N/A" : formatCurrency(data.fairValue, data.currency)}
         </span>
-        <span className="text-[10px] text-[var(--iris-text-muted)]">vs</span>
-        <span className="font-mono text-[13px] text-[var(--iris-text-secondary)]">
+        <span className="font-mono text-[11px] text-[var(--iris-text-muted)]">vs</span>
+        <span className="font-mono text-[14px] text-[var(--iris-text-secondary)]">
           {formatCurrency(data.currentPrice, data.currency)}
         </span>
         <span
-          className={`font-mono text-[14px] font-bold ${
+          className={`font-mono text-[15px] font-bold ${
             isUpside
-              ? "text-[var(--iris-bullish)]"
-              : "text-[var(--iris-bearish)]"
+              ? "text-[#22C55E]"
+              : "text-[#EF4444]"
           }`}
         >
           {isUpside ? "+" : ""}
           {data.upside.toFixed(1)}%
         </span>
-        <span className="text-[10px] text-[var(--iris-text-muted)]">
+        <span className="font-mono text-[10px] text-[var(--iris-text-muted)]">
           {confidenceLabels[data.confidence] || "MED"} conf
         </span>
       </div>
 
-      {/* Row 2: Thin progress bar */}
-      <div className="relative mt-2">
-        <div className="h-1 bg-[var(--iris-border)]">
+      {/* Row 2: Progress bar with markers */}
+      <div className="relative mt-3" style={{ height: 14 }}>
+        {/* Track */}
+        <div
+          className="absolute bg-[var(--iris-border)]"
+          style={{ left: 0, right: 0, top: 5, height: 4 }}
+        >
           <div
             className="absolute left-0 top-0 h-full"
             style={{
-              width: `${fairPct}%`,
+              width: `${Math.min(fairPct, currentPct)}%`,
               backgroundColor: isUpside
-                ? "var(--iris-bullish)"
-                : "var(--iris-bearish)",
-              opacity: 0.3,
+                ? "rgba(34,197,94,0.35)"
+                : "rgba(239,68,68,0.35)",
             }}
           />
         </div>
 
-        {/* Current price marker */}
-        <div
-          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{ left: `${currentPct}%` }}
-        >
-          <div className="h-2.5 w-px bg-[var(--iris-text-secondary)]" />
-        </div>
-
         {/* Fair value marker */}
         <div
-          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{ left: `${fairPct}%` }}
+          className="absolute"
+          style={{ left: `${fairPct}%`, top: 0, transform: "translateX(-50%)" }}
         >
-          <div className="h-2.5 w-px bg-[var(--iris-accent)]" />
+          <div style={{ width: 2, height: 14, background: "var(--iris-accent)" }} />
+        </div>
+
+        {/* Current price marker */}
+        <div
+          className="absolute"
+          style={{ left: `${currentPct}%`, top: 0, transform: "translateX(-50%)" }}
+        >
+          <div style={{ width: 2, height: 14, background: "var(--iris-text-secondary)" }} />
         </div>
       </div>
 
       {/* Row 3: Bar labels */}
-      <div className="mt-0.5 flex justify-between text-[9px] text-[var(--iris-text-muted)]">
+      <div className="mt-1 flex justify-between font-mono text-[9px] text-[var(--iris-text-muted)]">
         <span>0</span>
         <div className="flex gap-3">
           <span className="text-[var(--iris-text-secondary)]">

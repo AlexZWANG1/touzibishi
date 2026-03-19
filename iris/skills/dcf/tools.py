@@ -25,6 +25,7 @@ BUILD_DCF_SCHEMA = make_tool_schema(
     description=(
         "Build a full DCF valuation model. Returns fair value per share, implied multiples, "
         "sensitivity matrix, and year-by-year projections.\n\n"
+        "FCF formula: NOPAT + D&A - CapEx - ΔWC (unlevered free cash flow).\n\n"
         "Example call:\n"
         '{"assumptions": {\n'
         '  "company": "NVIDIA", "ticker": "NVDA", "projection_years": 5,\n'
@@ -38,6 +39,7 @@ BUILD_DCF_SCHEMA = make_tool_schema(
         '  ],\n'
         '  "gross_margin": {"value": 0.73},\n'
         '  "opex_pct_of_revenue": {"value": 0.12},\n'
+        '  "da_pct_of_revenue": {"value": 0.05},\n'
         '  "wacc": 0.11, "terminal_growth": 0.03,\n'
         '  "tax_rate": {"value": 0.12},\n'
         '  "capex_pct_of_revenue": {"value": 0.07},\n'
@@ -46,7 +48,8 @@ BUILD_DCF_SCHEMA = make_tool_schema(
         '  "current_price": 135.0\n'
         "}}\n\n"
         "IMPORTANT: You MUST populate ALL fields from data gathered via fmp_get_financials. "
-        "Do NOT pass an empty dict. Each segment needs exactly projection_years growth_rates entries."
+        "Do NOT pass an empty dict. Each segment needs exactly projection_years growth_rates entries. "
+        "da_pct_of_revenue is D&A as fraction of revenue — compute from depreciationAndAmortization / revenue in the cash flow statement."
     ),
     properties={
         "assumptions": {
@@ -57,6 +60,7 @@ BUILD_DCF_SCHEMA = make_tool_schema(
                 "gross_margin ({value: float}), wacc (float 0.05-0.20), terminal_growth (float < wacc), "
                 "net_cash (float, $M), shares_outstanding (float, millions), current_price (float). "
                 "Optional: opex_pct_of_revenue, tax_rate, capex_pct_of_revenue, "
+                "da_pct_of_revenue (D&A as pct of revenue — IMPORTANT for capital-intensive companies), "
                 "working_capital_change_pct (all as {value: float}), scenarios."
             ),
         },
@@ -180,6 +184,11 @@ def build_dcf(assumptions: dict) -> ToolResult:
     capex_pct = _resolve_per_year(
         assumptions.get("capex_pct_of_revenue"), projection_years, 0.05
     )
+    # D&A as pct of revenue — defaults to capex_pct if not provided (steady-state assumption)
+    da_default = capex_pct[0] if capex_pct else 0.05
+    da_pct = _resolve_per_year(
+        assumptions.get("da_pct_of_revenue"), projection_years, da_default
+    )
     wc_change_pct = _resolve_per_year(
         assumptions.get("working_capital_change_pct"), projection_years, 0.01
     )
@@ -192,6 +201,7 @@ def build_dcf(assumptions: dict) -> ToolResult:
         opex_pct=opex_pct,
         tax_rate=tax_rate,
         capex_pct=capex_pct,
+        da_pct=da_pct,
         wc_change_pct=wc_change_pct,
         wacc=wacc,
         terminal_growth=terminal_growth,
@@ -217,6 +227,7 @@ def build_dcf(assumptions: dict) -> ToolResult:
                     opex_pct=opex_pct,
                     tax_rate=tax_rate,
                     capex_pct=capex_pct,
+                    da_pct=da_pct,
                     wc_change_pct=wc_change_pct,
                     wacc=w,
                     terminal_growth=g,
@@ -262,6 +273,10 @@ def build_dcf(assumptions: dict) -> ToolResult:
                 s_assumptions.get("capex_pct_of_revenue", assumptions.get("capex_pct_of_revenue")),
                 projection_years, 0.05,
             )
+            s_da_pct = _resolve_per_year(
+                s_assumptions.get("da_pct_of_revenue", assumptions.get("da_pct_of_revenue")),
+                projection_years, s_capex_pct[0] if s_capex_pct else 0.05,
+            )
             s_wc_change_pct = _resolve_per_year(
                 s_assumptions.get("working_capital_change_pct", assumptions.get("working_capital_change_pct")),
                 projection_years, 0.01,
@@ -279,6 +294,7 @@ def build_dcf(assumptions: dict) -> ToolResult:
                 opex_pct=s_opex_pct,
                 tax_rate=s_tax_rate,
                 capex_pct=s_capex_pct,
+                da_pct=s_da_pct,
                 wc_change_pct=s_wc_change_pct,
                 wacc=s_wacc,
                 terminal_growth=s_tg,
@@ -311,6 +327,7 @@ def _compute_dcf(
     opex_pct: list[float],
     tax_rate: list[float],
     capex_pct: list[float],
+    da_pct: list[float],
     wc_change_pct: list[float],
     wacc: float,
     terminal_growth: float,
@@ -318,11 +335,15 @@ def _compute_dcf(
     shares_outstanding: float,
     current_price: float,
 ) -> dict:
-    """Core DCF computation — returns dict with all outputs."""
+    """Core DCF computation — returns dict with all outputs.
+
+    FCF = NOPAT + D&A - CapEx - ΔWC  (unlevered free cash flow)
+    """
     year_by_year = []
     fcf_list = []
     nopat_list = []
     ebit_list = []
+    prev_revenue = sum(float(seg["current_annual_revenue"]) for seg in segments)
 
     for t in range(projection_years):
         # Revenue = sum of all segments' projected revenue for year t
@@ -333,15 +354,18 @@ def _compute_dcf(
                 seg_revenue *= (1.0 + float(seg["growth_rates"][i]))
             total_revenue += seg_revenue
 
+        revenue_growth = (total_revenue - prev_revenue) / prev_revenue if prev_revenue else 0
+
         cogs = total_revenue * (1.0 - gross_margin[t])
         gross_profit = total_revenue - cogs
         opex = total_revenue * opex_pct[t]
         ebit = gross_profit - opex
         tax = ebit * tax_rate[t]
         nopat = ebit - tax
+        da = total_revenue * da_pct[t]
         capex = total_revenue * capex_pct[t]
         delta_wc = total_revenue * wc_change_pct[t]
-        fcf = nopat - capex - delta_wc
+        fcf = nopat + da - capex - delta_wc
 
         discount_factor = (1.0 + wacc) ** (t + 1)
         discounted_fcf = fcf / discount_factor
@@ -349,9 +373,11 @@ def _compute_dcf(
         year_by_year.append({
             "year": t + 1,
             "revenue": round(total_revenue, 2),
+            "revenue_growth": round(revenue_growth, 4),
             "gross_profit": round(gross_profit, 2),
             "ebit": round(ebit, 2),
             "nopat": round(nopat, 2),
+            "da": round(da, 2),
             "fcf": round(fcf, 2),
             "discounted_fcf": round(discounted_fcf, 2),
         })
@@ -359,6 +385,7 @@ def _compute_dcf(
         fcf_list.append(fcf)
         nopat_list.append(nopat)
         ebit_list.append(ebit)
+        prev_revenue = total_revenue
 
     # Terminal value
     terminal_value = fcf_list[-1] * (1.0 + terminal_growth) / (wacc - terminal_growth)
@@ -425,6 +452,7 @@ def get_comps(ticker: str, peers: list[str]) -> ToolResult:
             "ev_ebitda": None,
             "revenue_growth": None,
             "gross_margin": None,
+            "market_cap": None,
             "is_target": t == ticker.upper(),
         }
 
@@ -434,13 +462,14 @@ def get_comps(ticker: str, peers: list[str]) -> ToolResult:
             ratios_data = ratios_result.data.get("data", [])
             if ratios_data:
                 latest = ratios_data[0]
-                entry["fwd_pe"] = latest.get("priceEarningsRatio")
-                entry["ev_ebitda"] = latest.get("enterpriseValueOverEBITDA")
+                entry["fwd_pe"] = latest.get("priceToEarningsRatio") or latest.get("priceEarningsRatio")
+                entry["ev_ebitda"] = latest.get("enterpriseValueMultiple") or latest.get("enterpriseValueOverEBITDA")
                 entry["gross_margin"] = latest.get("grossProfitMargin")
-                entry["revenue_growth"] = latest.get("revenueGrowth")
+                entry["revenue_growth"] = latest.get("revenuePerShare")  # fallback; true growth needs two periods
+                entry["market_cap"] = latest.get("marketCap")
 
         # If ratios didn't have everything, try profile
-        if entry["fwd_pe"] is None or entry["ev_ebitda"] is None:
+        if entry["fwd_pe"] is None or entry["ev_ebitda"] is None or entry["market_cap"] is None:
             profile_result = fmp_get_financials(ticker=t, statement_type="profile")
             if profile_result.status == "ok" and profile_result.data:
                 profile_data = profile_result.data.get("data", [])
@@ -450,6 +479,8 @@ def get_comps(ticker: str, peers: list[str]) -> ToolResult:
                         entry["fwd_pe"] = p.get("pe")
                     if entry["ev_ebitda"] is None:
                         entry["ev_ebitda"] = p.get("enterpriseValueOverEBITDA")
+                    if entry["market_cap"] is None:
+                        entry["market_cap"] = p.get("marketCap") or p.get("mktCap")
 
         results.append(entry)
 

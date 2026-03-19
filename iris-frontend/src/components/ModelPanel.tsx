@@ -8,11 +8,11 @@ import { YearByYearTable } from "./YearByYearTable";
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-3 p-3">
-      <div className="h-24 bg-[var(--iris-surface)]" />
-      <div className="h-8 w-2/3 bg-[var(--iris-surface)]" />
+    <div className="space-y-[6px] p-[6px]">
+      <div className="h-20 bg-[var(--iris-surface)]" />
+      <div className="h-6 w-2/3 bg-[var(--iris-surface)]" />
+      <div className="h-36 bg-[var(--iris-surface)]" />
       <div className="h-48 bg-[var(--iris-surface)]" />
-      <div className="h-64 bg-[var(--iris-surface)]" />
     </div>
   );
 }
@@ -26,8 +26,8 @@ export function ModelPanel() {
 
   if (!panel.fairValue && panel.yearByYear.length === 0 && panel.impliedMultiples.length === 0) {
     return (
-      <div className="px-3 py-12">
-        <p className="text-[11px] text-[var(--iris-text-muted)]">
+      <div className="px-[8px] py-[10px]">
+        <p className="font-mono text-[11px] text-[var(--iris-text-muted)]">
           等待 DCF 模型构建...
         </p>
       </div>
@@ -35,14 +35,14 @@ export function ModelPanel() {
   }
 
   return (
-    <div className="space-y-3 p-3">
+    <div className="flex flex-col gap-[10px] p-[6px]">
       {/* Fair Value Card */}
       {panel.fairValue && <FairValueCard data={panel.fairValue} />}
 
       {/* Implied Multiples row */}
       {panel.impliedMultiples.length > 0 && (
         <div>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--iris-text-muted)]">
+          <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-[var(--iris-text-muted)] mb-[2px]">
             Implied Multiples
           </p>
           <ImpliedMultiples multiples={panel.impliedMultiples} />

@@ -94,6 +94,7 @@ class AnalysisSession:
     def _handle_tool_start(self, event: HarnessEvent) -> None:
         tool = event.data.get("tool", "")
         self.accumulated_timeline.append({
+            "id": f"tool-{tool}-{uuid.uuid4().hex[:8]}",
             "tool": tool,
             "args": event.data.get("args"),
             "status": "running",
@@ -103,7 +104,8 @@ class AnalysisSession:
     def _handle_tool_end(self, event: HarnessEvent) -> None:
         tool = event.data.get("tool", "")
         status = event.data.get("status", "ok")
-        result = event.data.get("result")
+        # Prefer untruncated result_full over audit-truncated result
+        result = event.data.get("result_full") or event.data.get("result")
 
         # Mark the last running timeline entry for this tool as complete
         for entry in reversed(self.accumulated_timeline):
@@ -201,7 +203,7 @@ class AnalysisSession:
                 projections.append({
                     "year": f"Y{row.get('year', '?')}",
                     "revenue": revenue,
-                    "growth": 0,
+                    "growth": row.get("revenue_growth", 0),
                     "ebitda": ebit,
                     "margin": (ebit / revenue * 100) if revenue else 0,
                     "fcf": row.get("fcf", 0),
@@ -222,7 +224,7 @@ class AnalysisSession:
             peers.append({
                 "ticker": p.get("ticker", ""),
                 "name": p.get("ticker", ""),
-                "marketCap": 0,
+                "marketCap": p.get("market_cap", 0) or 0,
                 "peRatio": p.get("fwd_pe", 0) or 0,
                 "evEbitda": p.get("ev_ebitda", 0) or 0,
                 "revenueGrowth": p.get("revenue_growth", 0) or 0,
@@ -377,6 +379,7 @@ class AnalysisSession:
                 inside = raw[open_idx + len(OPEN):]
                 thinking_parts.append(inside)
                 thinking_entries.append({
+                    "id": f"think-{uuid.uuid4().hex[:8]}",
                     "tool": "thinking",
                     "status": "complete",
                     "timestamp": time.time(),
@@ -388,6 +391,7 @@ class AnalysisSession:
             inside = raw[open_idx + len(OPEN):close_idx]
             thinking_parts.append(inside)
             thinking_entries.append({
+                "id": f"think-{uuid.uuid4().hex[:8]}",
                 "tool": "thinking",
                 "status": "complete",
                 "timestamp": time.time(),

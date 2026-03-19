@@ -20,24 +20,24 @@ export function FinancialTable({ table }: FinancialTableProps) {
   return (
     <div className="overflow-hidden border border-[var(--iris-border)]">
       {/* Title bar */}
-      <div className="border-b border-[var(--iris-border)] bg-[var(--iris-surface)] px-3 py-1.5">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--iris-accent)]">
+      <div className="p-[5px_8px] border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
+        <h3 className="font-mono text-[11px] text-[var(--iris-accent)] uppercase tracking-[0.08em]">
           {table.title}
         </h3>
       </div>
 
       {/* Scrollable table area */}
       <div className="overflow-x-auto">
-        <table className="w-full text-[12px]">
+        <table className="w-full text-[11px] border-collapse">
           <thead>
             <tr className="border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
-              <th className="sticky left-0 bg-[var(--iris-surface)] px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-[var(--iris-accent)]">
+              <th className="sticky left-0 bg-[var(--iris-surface)] p-[3px_8px] text-left font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--iris-accent)]">
                 {table.headers[0] || ""}
               </th>
               {table.headers.slice(1).map((header) => (
                 <th
                   key={header}
-                  className="px-3 py-1.5 text-right text-[10px] font-semibold uppercase tracking-widest text-[var(--iris-accent)]"
+                  className="p-[3px_8px] text-right font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--iris-accent)]"
                 >
                   {header}
                 </th>
@@ -46,36 +46,30 @@ export function FinancialTable({ table }: FinancialTableProps) {
           </thead>
           <tbody>
             {table.rows.map((row, idx) => {
-              const isEven = idx % 2 === 0;
-              const rowBg = row.isHeader
-                ? "bg-[var(--iris-surface)]"
-                : isEven
-                  ? "bg-transparent"
-                  : "bg-[var(--iris-surface)]/30";
+              const isLast = idx === table.rows.length - 1;
 
               return (
                 <tr
                   key={idx}
-                  className={`border-b border-[var(--iris-border)]/50 last:border-0 ${rowBg}`}
-                  style={{ height: "28px" }}
+                  style={{
+                    borderBottom: isLast ? "none" : "1px solid rgba(30,32,48,0.3)",
+                  }}
                 >
                   <td
-                    className={`sticky left-0 px-3 py-1 ${
+                    className={`sticky left-0 p-[3px_8px] font-mono ${
                       row.isHeader
-                        ? "bg-[var(--iris-surface)] text-[10px] font-semibold uppercase tracking-wider text-[var(--iris-text-muted)]"
+                        ? "text-[10px] uppercase tracking-[0.06em] text-[var(--iris-text-muted)] bg-[var(--iris-surface)]"
                         : row.isBold
                           ? "font-semibold text-[var(--iris-text)]"
                           : "text-[var(--iris-text-secondary)]"
                     }`}
                     style={{
                       paddingLeft: row.indent
-                        ? `${12 + row.indent * 14}px`
+                        ? `${8 + row.indent * 12}px`
                         : undefined,
                       background: row.isHeader
                         ? undefined
-                        : isEven
-                          ? "var(--iris-bg)"
-                          : "rgba(14,16,23,0.3)",
+                        : "var(--iris-bg)",
                     }}
                   >
                     {row.label}
@@ -85,9 +79,9 @@ export function FinancialTable({ table }: FinancialTableProps) {
                     return (
                       <td
                         key={vIdx}
-                        className={`px-3 py-1 text-right font-mono ${
+                        className={`p-[3px_8px] text-right font-mono ${
                           row.isHeader
-                            ? "text-[10px] font-semibold text-[var(--iris-text-muted)]"
+                            ? "text-[10px] text-[var(--iris-text-muted)]"
                             : negative
                               ? "text-[#EF4444]"
                               : row.isBold

@@ -31,14 +31,14 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   const point = payload[0].payload;
   return (
     <div
-      className="border border-[var(--iris-border)] px-2 py-1 rounded-[2px]"
-      style={{ background: "rgba(14,16,23,0.95)" }}
+      className="border border-[var(--iris-border)] px-[6px] py-[3px]"
+      style={{ background: "rgba(7,8,12,0.95)" }}
     >
       <p
-        className={`font-['JetBrains_Mono',monospace] text-[12px] font-semibold ${
+        className={`font-mono text-[11px] font-semibold ${
           point.isTarget
             ? "text-[var(--iris-accent)]"
-            : "text-[#2DD4BF]"
+            : "text-[var(--iris-data)]"
         }`}
       >
         {point.ticker}
@@ -48,12 +48,12 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
           </span>
         )}
       </p>
-      <div className="flex gap-3 text-[10px] text-[var(--iris-text-secondary)]">
+      <div className="flex gap-2 font-mono text-[10px] text-[var(--iris-text-secondary)]">
         <span>
-          x: <span className="font-['JetBrains_Mono',monospace]">{point.x.toFixed(1)}</span>
+          x: {point.x.toFixed(1)}
         </span>
         <span>
-          y: <span className="font-['JetBrains_Mono',monospace]">{point.y.toFixed(1)}%</span>
+          y: {point.y.toFixed(1)}%
         </span>
       </div>
     </div>
@@ -64,15 +64,15 @@ export function CompsScatter({ data, xLabel, yLabel }: CompsScatterProps) {
   if (data.length === 0) return null;
 
   return (
-    <div className="border border-[var(--iris-border)] rounded-[3px] overflow-hidden">
-      <div className="border-b border-[var(--iris-border)] bg-[var(--iris-surface)] px-2 py-1.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--iris-text-muted)]">
+    <div className="border border-[var(--iris-border)] overflow-hidden">
+      <div className="p-[5px_8px] border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
+        <span className="font-mono text-[11px] text-[var(--iris-accent)] uppercase tracking-[0.08em]">
           Valuation Scatter
         </span>
       </div>
-      <div className="p-1">
-        <ResponsiveContainer width="100%" height={280}>
-          <ScatterChart margin={{ top: 8, right: 12, bottom: 30, left: 20 }}>
+      <div className="p-[4px]" style={{ background: "var(--iris-bg)" }}>
+        <ResponsiveContainer width="100%" height={260}>
+          <ScatterChart margin={{ top: 6, right: 10, bottom: 28, left: 16 }}>
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="var(--iris-border)"
@@ -81,25 +81,25 @@ export function CompsScatter({ data, xLabel, yLabel }: CompsScatterProps) {
             <XAxis
               type="number"
               dataKey="x"
-              tick={{ fill: "#525264", fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{ fill: "#525264", fontSize: 10, fontFamily: "ui-monospace, monospace" }}
               stroke="var(--iris-border)"
               tickLine={{ stroke: "var(--iris-border)" }}
             >
               <Label
                 value={xLabel}
                 position="bottom"
-                offset={10}
+                offset={8}
                 style={{
                   fill: "#8B8B9E",
                   fontSize: 10,
-                  fontWeight: 500,
+                  fontFamily: "ui-monospace, monospace",
                 }}
               />
             </XAxis>
             <YAxis
               type="number"
               dataKey="y"
-              tick={{ fill: "#525264", fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{ fill: "#525264", fontSize: 10, fontFamily: "ui-monospace, monospace" }}
               stroke="var(--iris-border)"
               tickLine={{ stroke: "var(--iris-border)" }}
             >
@@ -107,11 +107,11 @@ export function CompsScatter({ data, xLabel, yLabel }: CompsScatterProps) {
                 value={yLabel}
                 angle={-90}
                 position="insideLeft"
-                offset={-8}
+                offset={-6}
                 style={{
                   fill: "#8B8B9E",
                   fontSize: 10,
-                  fontWeight: 500,
+                  fontFamily: "ui-monospace, monospace",
                 }}
               />
             </YAxis>
@@ -123,9 +123,9 @@ export function CompsScatter({ data, xLabel, yLabel }: CompsScatterProps) {
               {data.map((entry, idx) => (
                 <Cell
                   key={idx}
-                  fill={entry.isTarget ? "#C9A84C" : "#2DD4BF"}
+                  fill={entry.isTarget ? "#F58025" : "#2DD4BF"}
                   r={entry.isTarget ? 7 : 4}
-                  stroke={entry.isTarget ? "#C9A84C" : "transparent"}
+                  stroke={entry.isTarget ? "#F58025" : "transparent"}
                   strokeWidth={entry.isTarget ? 2 : 0}
                   opacity={entry.isTarget ? 1 : 0.75}
                 />

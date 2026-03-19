@@ -30,52 +30,48 @@ export function SteeringInput() {
   const placeholder = PLACEHOLDERS[pageState] || PLACEHOLDERS.RUNNING;
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-2">
+    <form
+      onSubmit={handleSubmit}
+      className="flex items-center"
+      style={{ gap: 6 }}
+    >
       <input
         type="text"
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder={placeholder}
         disabled={isDisabled}
-        className="min-w-0 flex-1 border bg-transparent focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        className="min-w-0 flex-1 border border-[var(--iris-border)] bg-transparent font-sans text-[var(--iris-text)] placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
         style={{
-          height: 32,
+          height: 28,
           padding: "0 8px",
-          fontSize: 12,
-          color: "var(--iris-text)",
-          borderColor: "var(--iris-border)",
-          borderRadius: 2,
-        }}
-        onFocus={(e) => {
-          if (!isDisabled) {
-            e.currentTarget.style.borderColor = "#C9A84C";
-          }
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.borderColor = "var(--iris-border)";
+          fontSize: 11,
+          borderRadius: 0,
+          caretColor: "var(--iris-accent)",
         }}
       />
 
       <button
         type="submit"
         disabled={!message.trim() || isDisabled}
-        className="flex flex-shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-30"
+        className="flex flex-shrink-0 items-center justify-center border-none disabled:cursor-not-allowed disabled:opacity-30"
         style={{
-          width: 32,
-          height: 32,
-          borderRadius: 2,
+          width: 28,
+          height: 28,
+          borderRadius: 0,
           background:
             !message.trim() || isDisabled
               ? "var(--iris-surface)"
-              : "#C9A84C",
+              : "var(--iris-accent)",
           color:
             !message.trim() || isDisabled
               ? "var(--iris-text-muted)"
               : "var(--iris-bg)",
+          cursor: !message.trim() || isDisabled ? "not-allowed" : "pointer",
         }}
       >
         <svg
-          style={{ width: 14, height: 14 }}
+          style={{ width: 12, height: 12 }}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

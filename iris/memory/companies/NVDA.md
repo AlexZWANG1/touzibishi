@@ -1,8 +1,15 @@
-## NVDA quick analysis update
-- Data used: FY2026 annual financials from FMP and current quote from Yahoo. Revenue $215.9B, gross margin 71.1%, operating expense ratio 10.7%, effective tax rate 15.1%, capex/revenue 2.8%, net cash about $51.1B, diluted shares 24.432B, current price about $181.85.
-- User-provided context aligns with source data: Q4 FY2026 revenue reached $68.1B, up 73% YoY, indicating very strong ongoing data center/AI demand.
-- Base-case DCF (5-year decelerating growth 30/22/18/14/10, WACC 10%, terminal growth 3%) produced fair value of $119.35/share, or about 34% below market.
-- DCF implied multiples at fair value: forward P/E 20.3x, EV/EBITDA 16.9x, FCF yield 4.5%.
-- Sensitivity range roughly $85-$204/share depending on WACC and terminal growth; current price only makes sense under more optimistic discount rate/terminal assumptions.
-- Comps tool returned incomplete valuation fields, but NVDA gross margin (71.1%) is ~30% above peer median, supporting a quality premium.
-- Bottom line: great company, but at ~$182 the stock looks closer to Hold / wait for better entry than clear Buy on base-case valuation. Confidence: medium.
+## NVDA postmortem update
+- User requested a postmortem on NVDA.
+- Retrieved prior NVDA note: previous work mainly stored a conservative DCF framing and a qualitative conclusion ('hold / wait for pullback'), with growth assumptions of 22%, 16%, 12%, 9%, 7% for future years.
+- Limitation discovered: prior note did **not** preserve a structured forecast table for revenue, gross margin, capex, or FCF, so this review cannot compute a clean predicted-vs-actual error table for core operating metrics.
+- Verifiable facts available in current context:
+  - FY2026 revenue: $215.9B.
+  - FY2026 gross margin: 71.1%.
+  - FY2026 free cash flow: about $96.7B.
+  - FY2026 ending cash + short-term investments: about $62.6B; total debt about $11.4B.
+  - Q1 FY2026 revenue: $44.1B.
+  - Q1 FY2026 export-control-related H20 charge: $4.5B.
+- Main learning from the postmortem:
+  1. Future analyses must save a structured forecast table for operating metrics, not just valuation conclusions.
+  2. For NVDA, policy/export shocks should be modeled separately from core AI demand, because a large one-time charge can coexist with very strong company-wide revenue, margin, and FCF.
+- Calibration data found only pending fair-value entries; no resolved operating-metric prediction records yet.

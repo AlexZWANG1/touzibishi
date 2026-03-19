@@ -10,9 +10,9 @@ export function AssumptionList({ assumptions }: AssumptionListProps) {
   if (assumptions.length === 0) return null;
 
   return (
-    <div className="border border-[var(--iris-border)] rounded-[3px] overflow-hidden">
-      <div className="border-b border-[var(--iris-border)] bg-[var(--iris-surface)] px-2 py-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--iris-text-muted)]">
+    <div className="border border-[var(--iris-border)] overflow-hidden">
+      <div className="p-[5px_8px] border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
+        <span className="font-mono text-[11px] text-[var(--iris-accent)] uppercase tracking-[0.08em]">
           核心假设
         </span>
       </div>
@@ -20,17 +20,18 @@ export function AssumptionList({ assumptions }: AssumptionListProps) {
         {assumptions.map((item, idx) => (
           <div
             key={idx}
-            className={`flex items-center justify-between px-2 py-1 text-[12px] ${
-              idx < assumptions.length - 1 ? "border-b border-[var(--iris-border)]/30" : ""
-            }`}
+            className="flex items-center justify-between px-[8px] py-[3px] font-mono text-[11px]"
+            style={{
+              borderBottom: idx < assumptions.length - 1 ? "1px solid rgba(30,32,48,0.3)" : "none",
+            }}
           >
             <span className="text-[var(--iris-text-secondary)]">
               {item.label}
               {item.sensitivity && (
-                <span className="ml-1 text-[10px] text-amber-400">*</span>
+                <span className="ml-1 text-[10px] text-[#F59E0B]">*</span>
               )}
             </span>
-            <span className="font-['JetBrains_Mono',monospace] text-[#2DD4BF]">
+            <span className="font-mono font-semibold text-[var(--iris-data)]">
               {item.value}
             </span>
           </div>

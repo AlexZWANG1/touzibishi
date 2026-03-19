@@ -17,12 +17,13 @@ function getCellStyle(
 ): { bg: string; text: string; border?: string } {
   if (isBase) {
     return {
-      bg: "rgba(201,168,76,0.12)",
+      bg: "rgba(245,128,37,0.12)",
       text: "var(--iris-text)",
       border: "1px solid var(--iris-accent)",
     };
   }
 
+  if (isNaN(value) || isNaN(baseValue)) return { bg: "transparent", text: "var(--iris-text-muted)" };
   const diff = baseValue !== 0 ? ((value - baseValue) / baseValue) * 100 : 0;
 
   if (diff > 20) return { bg: "rgba(34,197,94,0.25)", text: "#4ade80" };
@@ -53,62 +54,62 @@ export function SensitivityHeatmap({
 
   return (
     <div className="overflow-hidden border border-[var(--iris-border)]">
-      <div className="border-b border-[var(--iris-border)] bg-[var(--iris-surface)] px-3 py-1.5">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--iris-accent)]">
+      <div className="p-[5px_8px] border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
+        <span className="font-mono text-[11px] text-[var(--iris-accent)] uppercase tracking-[0.08em]">
           Sensitivity Analysis
-        </h3>
-        <p className="text-[10px] text-[var(--iris-text-muted)]">
+        </span>
+        <span className="font-mono text-[10px] text-[var(--iris-text-muted)] ml-2">
           {rowLabel} vs {colLabel}
-        </p>
+        </span>
       </div>
-      <div className="overflow-x-auto p-2">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className="px-2 py-1 text-left font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--iris-text-muted)]">
-                {rowLabel} \ {colLabel}
-              </th>
-              {colValues.map((col) => (
-                <th
-                  key={col}
-                  className="px-2 py-1 text-center font-mono text-[10px] font-medium text-[var(--iris-accent)]/70"
-                >
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rowValues.map((row) => (
-              <tr key={row}>
-                <td className="px-2 py-1 font-mono text-[10px] font-medium text-[var(--iris-accent)]/70">
-                  {row}
-                </td>
-                {colValues.map((col) => {
-                  const cell = cellMap.get(`${row}-${col}`);
-                  const value = cell?.value ?? 0;
-                  const isBase = cell?.isBase ?? false;
-                  const style = getCellStyle(value, baseValue, isBase);
+      <div className="grid gap-[1px] p-[6px]" style={{ gridTemplateColumns: `auto repeat(${colValues.length}, 1fr)` }}>
+        {/* Header row */}
+        <div className="p-[3px] font-mono text-[10px] text-[var(--iris-text-muted)]">
+          {rowLabel}\{colLabel}
+        </div>
+        {colValues.map((col) => (
+          <div
+            key={col}
+            className="p-[3px] text-center font-mono text-[10px] text-[var(--iris-accent)]"
+            style={{ opacity: 0.7 }}
+          >
+            {col}
+          </div>
+        ))}
 
-                  return (
-                    <td
-                      key={col}
-                      className="px-2 py-1 text-center font-mono text-[11px]"
-                      style={{
-                        backgroundColor: style.bg,
-                        color: style.text,
-                        fontWeight: isBase ? 700 : 400,
-                        border: style.border || "none",
-                      }}
-                    >
-                      ${value.toFixed(0)}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* Data rows */}
+        {rowValues.map((row) => (
+          <>
+            <div
+              key={`label-${row}`}
+              className="p-[3px] font-mono text-[10px] text-[var(--iris-accent)]"
+              style={{ opacity: 0.7 }}
+            >
+              {row}
+            </div>
+            {colValues.map((col) => {
+              const cell = cellMap.get(`${row}-${col}`);
+              const value = Number(cell?.value ?? 0);
+              const isBase = cell?.isBase ?? false;
+              const style = getCellStyle(value, baseValue, isBase);
+
+              return (
+                <div
+                  key={`${row}-${col}`}
+                  className="p-[3px] text-center font-mono text-[10px]"
+                  style={{
+                    backgroundColor: style.bg,
+                    color: style.text,
+                    fontWeight: isBase ? 700 : 400,
+                    border: style.border || "none",
+                  }}
+                >
+                  {isNaN(value) ? "—" : `$${value.toFixed(0)}`}
+                </div>
+              );
+            })}
+          </>
+        ))}
       </div>
     </div>
   );

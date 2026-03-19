@@ -1,8 +1,8 @@
-## TSLA snapshot analysis
-- Date of analysis anchored to live quote around $397.3/share from Yahoo Finance.
-- FY2025 FMP data: revenue $94.8B, gross margin 18.0%, operating margin 4.6%, net income $3.8B, operating cash flow $14.7B, capex $8.5B, free cash flow $6.2B.
-- Balance sheet remains strong: cash and short-term investments $44.1B vs total debt $8.4B, implying net cash about $35.7B.
-- Manual assumption set used in build_dcf: 5-year revenue growth 14%, 12%, 10%, 8%, 6%; gross margin 18.0%; opex/revenue 13.4%; capex/revenue 9.0%; tax rate 27.0%; WACC 10.5%; terminal growth 3.0%.
-- Build_dcf output produced negative fair value (-$23.91/share), which appears directionally bearish but economically distorted, likely because the tool’s FCF construction does not fully reflect Tesla’s reported positive operating cash flow and depreciation add-backs. Treat absolute DCF output as low reliability, but it signals current valuation requires major margin expansion beyond present levels.
-- Comps check was limited: gross margin for TSLA 18.0% vs peer median ~9.2% across GM/F/RIVN/LI, showing Tesla deserves a quality premium on gross margin, but available peer forward multiples from tool were null.
-- Bottom line: TSLA looks fundamentally strong on balance sheet and optionality, but at nearly $1.49T market cap and ~15.7x sales / ~141x forward P/E from quote snapshot, the stock price already discounts substantial success in autonomy/AI/energy. Recommendation leaning Hold/Avoid new money unless investor has high conviction in non-auto upside.
+## TSLA updated analysis
+- Live quote used: $392.78/share, market cap about $1.47T.
+- FY2025 FMP financials: revenue $94.8B, gross profit $17.1B, gross margin 18.0%, operating income $4.36B, operating margin 4.6%, net income $3.79B, OCF $14.75B, capex $8.53B, FCF $6.22B.
+- Balance sheet remains strong with cash and short-term investments $44.1B vs total debt $8.38B, net cash about $35.7B.
+- Base DCF assumptions used: revenue growth 8/7/6/5/4%, gross margin 18.0%, opex 13.4% of revenue, tax 27.0%, capex 9.0% of revenue, working capital 1.0%, WACC 11%, terminal growth 3%.
+- build_dcf output: fair value -$16.06/share, implying severe overvaluation versus current price. However absolute value likely unreliable for TSLA because tool FCF construction appears to undercapture depreciation/non-cash support relative to reported positive OCF/FCF. Use DCF as directional only: today’s valuation requires much higher future margins/cash generation than current auto economics show.
+- Comps tool had limited multiple coverage, but TSLA gross margin 18.0% vs peer median ~9.2% supports a quality premium over auto peers. Even so, quote-based valuation remains stretched at ~15.5x sales, ~140x forward PE, and ~138x EV/EBITDA.
+- Investment conclusion: strong balance sheet and strategic optionality in autonomy/AI/energy, but current stock price already discounts substantial success. Stance: Hold for existing high-conviction believers; Avoid/New money unattractive absent a major pullback or hard evidence of durable margin reacceleration beyond auto business.

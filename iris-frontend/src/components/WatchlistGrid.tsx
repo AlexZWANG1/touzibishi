@@ -14,17 +14,17 @@ export function WatchlistGrid({ items, loading, onRefresh }: WatchlistGridProps)
     <div>
       {/* Section header */}
       <div
-        className="flex items-center gap-3 border-b px-2 py-1.5"
-        style={{ borderColor: "var(--iris-accent)", borderBottomWidth: "1px" }}
+        className="flex items-center gap-2 px-1 py-1"
+        style={{ borderBottom: "1px solid var(--iris-accent)" }}
       >
         <h2
-          className="text-[13px] font-semibold tracking-wide uppercase"
-          style={{ color: "var(--iris-text-secondary)" }}
+          className="font-mono text-[11px] font-semibold tracking-[0.15em] uppercase"
+          style={{ color: "var(--iris-text-muted)" }}
         >
-          监控列表
+          WATCHLIST
         </h2>
         <span
-          className="font-data text-[11px]"
+          className="font-mono text-[11px]"
           style={{ color: "var(--iris-accent)" }}
         >
           {items.length}
@@ -32,36 +32,38 @@ export function WatchlistGrid({ items, loading, onRefresh }: WatchlistGridProps)
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="ml-auto text-[11px] px-2 py-0.5 border cursor-pointer"
+          className="ml-auto font-mono text-[11px] px-1.5 py-px border cursor-pointer uppercase tracking-wider transition-colors"
           style={{
             borderColor: "var(--iris-border)",
             color: "var(--iris-text-muted)",
-            borderRadius: "2px",
             backgroundColor: "transparent",
           }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--iris-accent)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--iris-border)"; }}
         >
-          {loading ? "刷新中..." : "刷新"}
+          {loading ? "..." : "REFRESH"}
         </button>
       </div>
 
       {loading && items.length === 0 ? (
-        <div className="flex items-center gap-2 py-6 text-[11px]" style={{ color: "var(--iris-text-muted)" }}>
+        <div className="flex items-center gap-1.5 py-3 font-mono text-[11px]" style={{ color: "var(--iris-text-muted)" }}>
           <div
-            className="h-3 w-3 animate-spin rounded-full border border-t-transparent"
+            className="h-2.5 w-2.5 animate-spin border border-t-transparent"
             style={{ borderColor: "var(--iris-accent)", borderTopColor: "transparent" }}
           />
-          加载中...
+          LOADING...
         </div>
       ) : (
-        <table className="mt-1 w-full">
+        <table className="mt-0.5 w-full" style={{ borderCollapse: "collapse" }}>
           <thead>
-            <tr>
-              <th className="text-left text-[11px]" style={{ color: "var(--iris-text-muted)" }}>Ticker</th>
-              <th className="text-left text-[11px]" style={{ color: "var(--iris-text-muted)" }}>Name</th>
-              <th className="text-right text-[11px]" style={{ color: "var(--iris-text-muted)" }}>Price</th>
-              <th className="text-right text-[11px]" style={{ color: "var(--iris-text-muted)" }}>Gap%</th>
-              <th className="text-right text-[11px]" style={{ color: "var(--iris-text-muted)" }}>Fair Value</th>
-              <th className="text-right text-[11px]" style={{ color: "var(--iris-text-muted)" }}>Rec</th>
+            <tr style={{ borderBottom: "1px solid var(--iris-border)" }}>
+              <th className="text-left font-mono text-[10px] uppercase tracking-wider py-1 px-1 font-normal" style={{ color: "var(--iris-text-muted)" }}>TICKER</th>
+              <th className="text-left font-mono text-[10px] uppercase tracking-wider py-1 px-1 font-normal" style={{ color: "var(--iris-text-muted)" }}>NAME</th>
+              <th className="text-right font-mono text-[10px] uppercase tracking-wider py-1 px-1 font-normal" style={{ color: "var(--iris-text-muted)" }}>PRICE</th>
+              <th className="text-right font-mono text-[10px] uppercase tracking-wider py-1 px-1 font-normal" style={{ color: "var(--iris-text-muted)" }}>GAP%</th>
+              <th className="text-right font-mono text-[10px] uppercase tracking-wider py-1 px-1 font-normal" style={{ color: "var(--iris-text-muted)" }}>FV</th>
+              <th className="text-right font-mono text-[10px] uppercase tracking-wider py-1 px-1 font-normal" style={{ color: "var(--iris-text-muted)" }}>REC</th>
+              <th className="text-right font-mono text-[10px] uppercase tracking-wider py-1 px-1 font-normal" style={{ color: "var(--iris-text-muted)" }}></th>
             </tr>
           </thead>
           <tbody>

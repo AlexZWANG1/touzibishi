@@ -17,7 +17,14 @@ export function PhaseIndicator() {
   const isComplete = pageState === "COMPLETE";
 
   return (
-    <div className="flex items-center" style={{ height: 24 }}>
+    <div
+      className="flex items-center font-mono"
+      style={{
+        height: 28,
+        padding: "4px 10px",
+        borderBottom: "1px solid var(--iris-border)",
+      }}
+    >
       <div className="flex items-center gap-0">
         {phases.map((phase, idx) => {
           const isActive = phase.key === currentPhase && !isComplete;
@@ -27,9 +34,9 @@ export function PhaseIndicator() {
             <div key={phase.key} className="flex items-center">
               {idx > 0 && (
                 <span
-                  className="mx-1"
+                  className="mx-0.5"
                   style={{
-                    fontSize: 11,
+                    fontSize: 10,
                     color: "var(--iris-text-muted)",
                     opacity: 0.4,
                   }}
@@ -39,10 +46,10 @@ export function PhaseIndicator() {
               )}
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: 500,
                   color: isActive
-                    ? "#C9A84C"
+                    ? "var(--iris-accent)"
                     : isPast
                       ? "var(--iris-text-secondary)"
                       : "var(--iris-text-muted)",
@@ -59,12 +66,26 @@ export function PhaseIndicator() {
       {/* Status on the right */}
       <div className="ml-auto flex items-center">
         {isComplete && (
-          <span style={{ fontSize: 11, color: "#22C55E", fontWeight: 500 }}>
+          <span
+            className="font-mono"
+            style={{ fontSize: 10, color: "var(--iris-data)", fontWeight: 500 }}
+          >
             完成
           </span>
         )}
+        {pageState === "RUNNING" && (
+          <span
+            className="font-mono"
+            style={{ fontSize: 10, color: "var(--iris-accent)", fontWeight: 500 }}
+          >
+            运行中
+          </span>
+        )}
         {pageState === "WAITING" && (
-          <span style={{ fontSize: 11, color: "#C9A84C", fontWeight: 500 }}>
+          <span
+            className="font-mono"
+            style={{ fontSize: 10, color: "var(--iris-accent)", fontWeight: 500 }}
+          >
             等待输入
           </span>
         )}

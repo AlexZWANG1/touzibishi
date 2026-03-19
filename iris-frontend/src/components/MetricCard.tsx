@@ -11,42 +11,44 @@ export function MetricCard({ metric }: MetricCardProps) {
   const isNegative = metric.change != null && metric.change < 0;
 
   return (
-    <div className="border border-[var(--iris-border)] p-2">
-      <p className="text-[10px] font-medium uppercase tracking-widest text-[var(--iris-text-muted)]">
+    <div className="p-[6px_8px] border border-[var(--iris-border)] bg-[var(--iris-bg)]">
+      <p className="font-mono text-[9px] text-[var(--iris-text-muted)] uppercase tracking-[0.06em]">
         {metric.label}
       </p>
 
-      <div className="mt-1 flex items-baseline gap-1.5">
-        <span className="font-mono text-[16px] font-semibold text-[var(--iris-data)]">
+      <div className="mt-0.5 flex items-baseline gap-1">
+        <span className="font-mono text-[15px] font-semibold text-[var(--iris-data)]">
           {metric.value}
         </span>
         {metric.unit && (
-          <span className="text-[10px] text-[var(--iris-text-muted)]">
+          <span className="font-mono text-[9px] text-[var(--iris-text-muted)]">
             {metric.unit}
           </span>
         )}
+      </div>
 
-        {metric.change != null && (
+      {metric.change != null && (
+        <div className="mt-[1px] flex items-baseline gap-1">
           <span
-            className={`font-mono text-[11px] font-medium ${
+            className={`font-mono text-[10px] ${
               isPositive
-                ? "text-[var(--iris-bullish)]"
+                ? "text-[#22C55E]"
                 : isNegative
-                  ? "text-[var(--iris-bearish)]"
+                  ? "text-[#EF4444]"
                   : "text-[var(--iris-text-muted)]"
             }`}
           >
             {isPositive ? "+" : ""}
             {metric.change.toFixed(1)}%
           </span>
-        )}
 
-        {metric.change != null && metric.changeLabel && (
-          <span className="text-[10px] text-[var(--iris-text-muted)]">
-            {metric.changeLabel}
-          </span>
-        )}
-      </div>
+          {metric.changeLabel && (
+            <span className="font-mono text-[9px] text-[var(--iris-text-muted)]">
+              {metric.changeLabel}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

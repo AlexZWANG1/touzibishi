@@ -526,6 +526,7 @@ class Harness:
                 "status": result.status,
                 "tags": result.tags,
                 "result": result_snapshot,
+                "result_full": result.data if result.status == "ok" else None,
                 "error": result.error if result.status != "ok" else None,
                 "hint": result.hint if result.status != "ok" else None,
             },

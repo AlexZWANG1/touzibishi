@@ -128,7 +128,10 @@ export async function getHistoryDetail(runId: string): Promise<AnalysisSnapshot>
 export async function probeSession(analysisId: string): Promise<boolean> {
   try {
     const res = await fetch(`${BASE_URL}/api/analyze/${analysisId}/status`);
-    return res.status === 200;
+    if (res.status !== 200) return false;
+    const data = await res.json();
+    // Only treat as live if session exists AND is still running/waiting
+    return data.exists === true && (data.status === "running" || data.status === "waiting");
   } catch {
     return false;
   }

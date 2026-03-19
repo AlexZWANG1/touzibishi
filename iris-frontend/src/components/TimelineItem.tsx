@@ -53,47 +53,65 @@ export function TimelineItem({ event, isLast }: TimelineItemProps) {
 
   return (
     <div
-      className="group relative flex items-start gap-2 px-1"
-      style={{ minHeight: 24, paddingTop: 2, paddingBottom: 2 }}
+      className="relative flex items-start"
+      style={{ gap: 7, paddingTop: 2.5, paddingBottom: 2.5 }}
     >
-      {/* Dot on the connector line - 6px */}
-      <div className="relative z-10 flex w-[11px] flex-shrink-0 items-center justify-center" style={{ marginTop: 5 }}>
+      {/* Dot */}
+      <div className="relative z-10 flex-shrink-0" style={{ marginTop: 4 }}>
         {isError ? (
           <div
-            className="rounded-full"
             style={{
-              width: 6,
-              height: 6,
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
               background: "var(--iris-bearish)",
             }}
           />
         ) : isRunning ? (
-          <div className="relative flex items-center justify-center">
-            <div
-              className="absolute animate-ping rounded-full opacity-25"
-              style={{ width: 10, height: 10, background: dotColor }}
-            />
-            <div
-              className="rounded-full"
-              style={{ width: 6, height: 6, background: dotColor }}
-            />
-          </div>
+          <div
+            className="animate-pulse"
+            style={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              background: dotColor,
+            }}
+          />
         ) : (
           <div
-            className="rounded-full"
-            style={{ width: 6, height: 6, background: dotColor }}
+            style={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              background: dotColor,
+            }}
           />
         )}
       </div>
 
+      {/* Connector line */}
+      {!isLast && (
+        <div
+          className="absolute"
+          style={{
+            left: 2,
+            top: 9,
+            bottom: -2.5,
+            width: 1,
+            background: "var(--iris-border)",
+          }}
+        />
+      )}
+
       {/* Content */}
-      <div className="flex min-w-0 flex-1 items-center gap-1.5" style={{ paddingTop: 1, paddingBottom: 1 }}>
+      <div className="flex min-w-0 flex-1 items-center gap-1">
         {/* Tool label in teal + raw name as secondary */}
         {toolLabel && (
           <span className="flex flex-shrink-0 items-center gap-1">
             <span
+              className="font-mono"
               style={{
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: 500,
                 color: "var(--iris-data)",
               }}
@@ -102,8 +120,9 @@ export function TimelineItem({ event, isLast }: TimelineItemProps) {
             </span>
             {showRawName && (
               <span
+                className="font-mono"
                 style={{
-                  fontSize: 9,
+                  fontSize: 8,
                   color: "var(--iris-text-muted)",
                   opacity: 0.6,
                 }}
@@ -118,7 +137,7 @@ export function TimelineItem({ event, isLast }: TimelineItemProps) {
         <span
           className="min-w-0 flex-1 truncate"
           style={{
-            fontSize: 11,
+            fontSize: 9,
             color: isError
               ? "var(--iris-bearish)"
               : "var(--iris-text-secondary)",
@@ -132,8 +151,9 @@ export function TimelineItem({ event, isLast }: TimelineItemProps) {
           <span
             className="flex-shrink-0 font-mono"
             style={{
-              fontSize: 9,
+              fontSize: 8,
               color: "var(--iris-text-muted)",
+              opacity: 0.5,
             }}
           >
             {formatDuration(event.duration)}
@@ -142,8 +162,8 @@ export function TimelineItem({ event, isLast }: TimelineItemProps) {
 
         {/* Timestamp */}
         <span
-          className="flex-shrink-0 font-mono"
-          style={{ fontSize: 9, color: "var(--iris-text-muted)", opacity: 0.7 }}
+          className="ml-auto flex-shrink-0 font-mono"
+          style={{ fontSize: 8, color: "var(--iris-text-muted)", opacity: 0.5 }}
         >
           {formatTime(event.timestamp)}
         </span>
@@ -157,55 +177,52 @@ function ThinkingItem({ event }: { event: TimelineEvent }) {
   const fullText = event.fullText || event.message;
 
   return (
-    <div className="relative px-1" style={{ paddingTop: 2, paddingBottom: 2 }}>
-      <div
-        className="cursor-pointer rounded-[2px] px-2 py-1"
+    <div
+      className="cursor-pointer flex items-start"
+      style={{
+        paddingTop: 1,
+        paddingBottom: 1,
+        borderLeft: "2px solid var(--iris-accent-dim)",
+        paddingLeft: 6,
+        marginLeft: 2,
+        background: expanded ? "var(--iris-accent-glow)" : "transparent",
+      }}
+      onClick={() => setExpanded(!expanded)}
+    >
+      <span
+        className="flex-shrink-0"
         style={{
-          borderLeft: "2px solid var(--iris-accent)",
-          background: expanded ? "rgba(201,168,76,0.05)" : "transparent",
+          fontSize: 9,
+          color: "var(--iris-accent-dim)",
+          transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+          transition: "transform 150ms",
+          display: "inline-block",
+          marginTop: 1,
+          marginRight: 4,
         }}
-        onClick={() => setExpanded(!expanded)}
       >
-        <div className="flex items-center gap-1.5">
+        ▶
+      </span>
+      <div className="min-w-0 flex-1">
+        {!expanded ? (
           <span
-            style={{
-              fontSize: 9,
-              color: "var(--iris-accent)",
-              transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
-              transition: "transform 150ms",
-              display: "inline-block",
-            }}
-          >
-            ▶
-          </span>
-          <span
+            className="truncate block font-mono"
             style={{
               fontSize: 10,
-              color: "var(--iris-accent)",
-              fontWeight: 600,
+              color: "var(--iris-text-muted)",
+              lineHeight: 1.4,
             }}
           >
-            AI 思考
+            {event.message}
           </span>
-          {!expanded && (
-            <span
-              className="truncate"
-              style={{
-                fontSize: 10,
-                color: "var(--iris-text-muted)",
-              }}
-            >
-              — {event.message}
-            </span>
-          )}
-        </div>
-        {expanded && (
+        ) : (
           <pre
-            className="mt-1 whitespace-pre-wrap font-mono"
+            className="whitespace-pre-wrap font-mono"
             style={{
               fontSize: 10,
               lineHeight: 1.5,
               color: "var(--iris-text-secondary)",
+              margin: 0,
             }}
           >
             {fullText}

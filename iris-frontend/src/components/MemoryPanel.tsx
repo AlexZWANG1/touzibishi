@@ -8,7 +8,7 @@ export function MemoryPanel() {
 
   if (panel.loading) {
     return (
-      <div className="px-2 py-3 text-[11px] text-[var(--iris-text-muted)]">
+      <div className="px-[8px] py-[10px] font-mono text-[11px] text-[var(--iris-text-muted)]">
         加载记忆数据...
       </div>
     );
@@ -16,14 +16,14 @@ export function MemoryPanel() {
 
   if (panel.calibrationHits === 0 && panel.calibrationMisses === 0 && panel.recentRecalls.length === 0) {
     return (
-      <div className="px-2 py-3 text-[11px] text-[var(--iris-text-muted)]">
+      <div className="px-[8px] py-[10px] font-mono text-[11px] text-[var(--iris-text-muted)]">
         暂无记忆数据
       </div>
     );
   }
 
   return (
-    <div className="p-2">
+    <div className="p-[6px]">
       <CalibrationSummary
         hits={panel.calibrationHits}
         misses={panel.calibrationMisses}

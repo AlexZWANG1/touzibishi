@@ -18,7 +18,8 @@ export function WatchlistRow({ item }: WatchlistRowProps) {
 
   return (
     <tr
-      className="cursor-pointer"
+      className="cursor-pointer transition-colors"
+      style={{ borderBottom: "1px solid var(--iris-border)" }}
       onClick={() => {
         if (item.latest_run_id) {
           window.location.href = `/analysis/${item.latest_run_id}`;
@@ -26,28 +27,30 @@ export function WatchlistRow({ item }: WatchlistRowProps) {
           window.location.href = `/analysis?query=${encodeURIComponent(item.ticker)}`;
         }
       }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--iris-surface)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
     >
       {/* Ticker */}
-      <td className="text-[12px] font-bold" style={{ color: "var(--iris-text)" }}>
+      <td className="font-mono text-[12px] font-bold py-0.5 px-1" style={{ color: "var(--iris-accent)" }}>
         {item.ticker}
       </td>
 
       {/* Company name */}
       <td
-        className="max-w-[200px] truncate text-[11px]"
+        className="font-mono max-w-[180px] truncate text-[11px] py-0.5 px-1"
         style={{ color: "var(--iris-text-muted)" }}
       >
         {item.name ?? "—"}
       </td>
 
       {/* Market Price */}
-      <td className="font-data text-right text-[12px]" style={{ color: "var(--iris-data)" }}>
+      <td className="font-mono text-right text-[11px] py-0.5 px-1" style={{ color: "var(--iris-data)" }}>
         {item.market_price != null ? formatCurrency(item.market_price) : "—"}
       </td>
 
       {/* Gap % */}
       <td
-        className="font-data text-right text-[12px] font-medium"
+        className="font-mono text-right text-[11px] font-bold py-0.5 px-1"
         style={{
           color: isPositiveGap
             ? "#22C55E"
@@ -60,17 +63,17 @@ export function WatchlistRow({ item }: WatchlistRowProps) {
       </td>
 
       {/* Fair Value */}
-      <td className="font-data text-right text-[12px]" style={{ color: fairValid ? "var(--iris-data)" : "var(--iris-text-muted)" }}>
-        {fairValid ? formatCurrency(item.fair_value) : "N/A"}
+      <td className="font-mono text-right text-[11px] py-0.5 px-1" style={{ color: fairValid ? "var(--iris-data)" : "var(--iris-text-muted)" }}>
+        {fairValid ? formatCurrency(item.fair_value!) : "N/A"}
       </td>
 
       {/* Recommendation */}
-      <td className="text-right text-[11px]" style={{ color: "var(--iris-text-secondary)" }}>
+      <td className="font-mono text-right text-[11px] uppercase py-0.5 px-1" style={{ color: "var(--iris-text-secondary)" }}>
         {item.recommendation ?? "—"}
       </td>
 
       {/* Actions */}
-      <td className="text-right text-[11px]">
+      <td className="text-right py-0.5 px-1">
         <button
           onClick={async (e) => {
             e.stopPropagation();
@@ -87,10 +90,25 @@ export function WatchlistRow({ item }: WatchlistRowProps) {
               setReflecting(false);
             }
           }}
-          className="px-1.5 py-0.5 rounded text-[10px] transition-colors"
-          style={{ color: "var(--iris-amber)", opacity: reflecting ? 0.4 : 0.7 }}
-          onMouseEnter={(e) => { if (!reflecting) (e.target as HTMLElement).style.opacity = "1"; }}
-          onMouseLeave={(e) => { if (!reflecting) (e.target as HTMLElement).style.opacity = "0.7"; }}
+          className="font-mono px-1 py-px text-[11px] border transition-colors uppercase tracking-wider"
+          style={{
+            color: "var(--iris-accent)",
+            borderColor: "var(--iris-border)",
+            backgroundColor: "transparent",
+            opacity: reflecting ? 0.4 : 0.7,
+          }}
+          onMouseEnter={(e) => {
+            if (!reflecting) {
+              (e.target as HTMLElement).style.opacity = "1";
+              (e.target as HTMLElement).style.borderColor = "var(--iris-accent)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!reflecting) {
+              (e.target as HTMLElement).style.opacity = "0.7";
+              (e.target as HTMLElement).style.borderColor = "var(--iris-border)";
+            }
+          }}
           title="验证预测"
           disabled={reflecting}
         >

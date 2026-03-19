@@ -126,19 +126,21 @@ class TestBuildDCFBasic:
         data = result.data
 
         # Year 1: rev=110, gp=55, opex=11, ebit=44, tax=8.8, nopat=35.2
-        #          capex=5.5, dwc=1.1, fcf=28.6
+        #          da=5.5 (default=capex_pct), capex=5.5, dwc=1.1
+        #          fcf = nopat + da - capex - dwc = 35.2 + 5.5 - 5.5 - 1.1 = 34.1
         # Year 2: rev=121, gp=60.5, opex=12.1, ebit=48.4, tax=9.68, nopat=38.72
-        #          capex=6.05, dwc=1.21, fcf=31.46
+        #          da=6.05, capex=6.05, dwc=1.21
+        #          fcf = 38.72 + 6.05 - 6.05 - 1.21 = 37.51
         y1 = data["year_by_year"][0]
         assert abs(y1["revenue"] - 110.0) < 0.01
-        assert abs(y1["fcf"] - 28.6) < 0.01
+        assert abs(y1["fcf"] - 34.1) < 0.01
 
         y2 = data["year_by_year"][1]
         assert abs(y2["revenue"] - 121.0) < 0.01
-        assert abs(y2["fcf"] - 31.46) < 0.01
+        assert abs(y2["fcf"] - 37.51) < 0.01
 
-        # TV = 31.46 * 1.03 / (0.10 - 0.03) = 31.46 * 1.03 / 0.07
-        expected_tv = 31.46 * 1.03 / 0.07
+        # TV = 37.51 * 1.03 / (0.10 - 0.03) = 37.51 * 1.03 / 0.07
+        expected_tv = 37.51 * 1.03 / 0.07
         assert abs(data["terminal_value"] - expected_tv) < 0.1
 
     def test_single_segment(self):

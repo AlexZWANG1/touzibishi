@@ -3,17 +3,10 @@
 import type { KnowledgeDocument } from "@/types/knowledge";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
-  note: "笔记",
-  report: "报告",
-  url: "网页",
+  note: "NOTE",
+  report: "RPT",
+  url: "URL",
   pdf: "PDF",
-};
-
-const DOC_TYPE_COLORS: Record<string, string> = {
-  note: "bg-blue-500/20 text-blue-400",
-  report: "bg-green-500/20 text-green-400",
-  url: "bg-purple-500/20 text-purple-400",
-  pdf: "bg-orange-500/20 text-orange-400",
 };
 
 interface Props {
@@ -26,8 +19,8 @@ interface Props {
 export function KnowledgeDocList({ docs, selectedId, onSelect, onDelete }: Props) {
   if (docs.length === 0) {
     return (
-      <div className="py-8 text-center text-xs text-[var(--iris-text-muted)]">
-        还没有上传任何文档
+      <div className="py-4 text-center font-mono text-[11px] text-[var(--iris-text-muted)]">
+        NO DOCUMENTS
       </div>
     );
   }
@@ -41,41 +34,37 @@ export function KnowledgeDocList({ docs, selectedId, onSelect, onDelete }: Props
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-[6px]">
       {Object.entries(grouped).map(([docType, items]) => (
         <div key={docType}>
-          <div className="mb-1 flex items-center gap-1.5 px-1">
-            <span
-              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                DOC_TYPE_COLORS[docType] || "bg-gray-500/20 text-gray-400"
-              }`}
-            >
+          <div className="mb-[2px] flex items-center gap-[6px] px-[4px]">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--iris-accent)]">
               {DOC_TYPE_LABELS[docType] || docType}
             </span>
-            <span className="text-[10px] text-[var(--iris-text-muted)]">
+            <span className="font-mono text-[10px] text-[var(--iris-text-muted)]">
               {items.length}
             </span>
           </div>
-          <div className="space-y-0.5">
+          <div>
             {items.map((doc) => (
               <div
                 key={doc.id}
                 onClick={() => onSelect(doc.id)}
-                className={`group flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 transition-colors ${
+                className={`group flex cursor-pointer items-center justify-between px-[6px] py-[4px] transition-colors ${
                   selectedId === doc.id
-                    ? "bg-[var(--iris-accent)]/10 text-[var(--iris-accent)]"
-                    : "hover:bg-[var(--iris-surface-hover)]"
+                    ? "border-l-2 border-[var(--iris-accent)] bg-[var(--iris-accent)]/5"
+                    : "border-l-2 border-transparent hover:bg-[var(--iris-surface-hover)]"
                 }`}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[11px] font-medium">
+                  <div className="truncate font-mono text-[11px] text-[var(--iris-text)]">
                     {doc.title}
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-[var(--iris-text-muted)]">
+                  <div className="flex items-center gap-[6px] font-mono text-[10px] text-[var(--iris-text-muted)]">
                     {doc.company && (
-                      <span className="font-mono">{doc.company}</span>
+                      <span className="text-[var(--iris-data)]">{doc.company}</span>
                     )}
-                    <span>{doc.chunk_count} chunks</span>
+                    <span>{doc.chunk_count}ch</span>
                     <span>
                       {new Date(doc.created_at).toLocaleDateString("zh-CN")}
                     </span>
@@ -86,11 +75,11 @@ export function KnowledgeDocList({ docs, selectedId, onSelect, onDelete }: Props
                     e.stopPropagation();
                     onDelete(doc.id);
                   }}
-                  className="ml-2 rounded p-1 text-[var(--iris-text-muted)] opacity-0 transition-all hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
+                  className="ml-[4px] p-[2px] text-[var(--iris-text-muted)] opacity-0 transition-all hover:text-red-400 group-hover:opacity-100"
                   title="删除"
                 >
                   <svg
-                    className="h-3 w-3"
+                    className="h-[10px] w-[10px]"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"

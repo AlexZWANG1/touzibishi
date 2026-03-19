@@ -66,10 +66,7 @@ export function PanelTabBar() {
   );
 
   return (
-    <div
-      className="flex flex-shrink-0 border-b border-[var(--iris-border)]"
-      style={{ background: "var(--iris-surface)" }}
-    >
+    <div className="flex flex-shrink-0 border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
       {TABS.map((tab) => {
         const isActive = activeTab === tab.key;
         const count = counts[tab.key];
@@ -78,55 +75,26 @@ export function PanelTabBar() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className="relative flex items-center gap-1 px-3 py-1.5"
-            style={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: isActive
-                ? "#C9A84C"
-                : "var(--iris-text-muted)",
-            }}
+            className={`relative px-[10px] py-[6px] font-mono text-[11px] font-medium cursor-pointer ${
+              isActive
+                ? "text-[var(--iris-accent)]"
+                : "text-[var(--iris-text-muted)] hover:text-[var(--iris-text-secondary)]"
+            }`}
           >
-            {/* SVG icon - 14px */}
-            <svg
-              style={{ width: 14, height: 14 }}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d={tab.iconPath} />
-            </svg>
-
             {/* Label */}
             <span>{tab.label}</span>
 
             {/* Count badge - tiny inline */}
             {count > 0 && (
-              <span
-                style={{
-                  fontSize: 8,
-                  fontWeight: 600,
-                  color: isActive
-                    ? "#C9A84C"
-                    : "var(--iris-text-muted)",
-                  opacity: 0.7,
-                }}
-              >
+              <span className="ml-1 font-mono text-[9px] opacity-60">
                 {count}
               </span>
             )}
 
-            {/* 1px gold bottom border for active tab - no glow */}
+            {/* 1px orange bottom border for active tab */}
             {isActive && (
               <div
-                className="absolute bottom-0 left-1 right-1"
-                style={{
-                  height: 1,
-                  background: "#C9A84C",
-                }}
+                className="absolute bottom-0 left-0 right-0 h-[1px] bg-[var(--iris-accent)]"
               />
             )}
           </button>

@@ -15,36 +15,36 @@ export function CalibrationSummary({
   const accuracy = total > 0 ? (hits / total) * 100 : 0;
 
   return (
-    <div className="space-y-2">
+    <div>
       {/* Inline stats row */}
-      <div className="flex items-center gap-3 text-[12px]">
-        <span className="text-[11px] text-[var(--iris-text-muted)]">命中</span>
-        <span className="font-['JetBrains_Mono',monospace] text-[#22C55E]">{hits}</span>
+      <div className="flex items-center gap-3 font-mono text-[11px]">
+        <span className="text-[10px] text-[var(--iris-text-muted)] uppercase tracking-[0.06em]">命中</span>
+        <span className="font-mono text-[13px] font-bold text-[#22C55E]">{hits}</span>
         <span className="text-[var(--iris-border)]">|</span>
-        <span className="text-[11px] text-[var(--iris-text-muted)]">未中</span>
-        <span className="font-['JetBrains_Mono',monospace] text-[#EF4444]">{misses}</span>
+        <span className="text-[10px] text-[var(--iris-text-muted)] uppercase tracking-[0.06em]">未中</span>
+        <span className="font-mono text-[13px] font-bold text-[#EF4444]">{misses}</span>
         <span className="text-[var(--iris-border)]">|</span>
-        <span className="text-[11px] text-[var(--iris-text-muted)]">准确率</span>
-        <span className="font-['JetBrains_Mono',monospace] text-[#2DD4BF]">{accuracy.toFixed(0)}%</span>
+        <span className="text-[10px] text-[var(--iris-text-muted)] uppercase tracking-[0.06em]">准确率</span>
+        <span className="font-mono text-[13px] font-bold text-[var(--iris-data)]">{accuracy.toFixed(0)}%</span>
       </div>
 
       {/* Recent recalls compact list */}
       {recentRecalls.length > 0 && (
-        <div className="border-t border-[var(--iris-border)] pt-1">
+        <div className="border-t border-[var(--iris-border)] mt-[6px] pt-[4px]">
           {recentRecalls.map((recall, idx) => (
             <div
               key={idx}
-              className="flex items-center justify-between py-0.5 text-[11px]"
+              className="flex items-center justify-between py-[2px] font-mono text-[11px]"
             >
               <div className="flex items-center gap-2">
-                <span className="font-['JetBrains_Mono',monospace] text-[10px] text-[var(--iris-text-muted)]">
+                <span className="text-[10px] text-[var(--iris-text-muted)]">
                   {recall.date}
                 </span>
                 <span className="text-[var(--iris-text)]">
                   {recall.company}
                 </span>
               </div>
-              <span className="font-['JetBrains_Mono',monospace] text-[#2DD4BF]">
+              <span className="text-[var(--iris-data)]">
                 {(recall.relevance * 100).toFixed(0)}%
               </span>
             </div>

@@ -1,0 +1,139 @@
+{
+  "experiences": [
+    {
+      "id": "exp_w_ed394b",
+      "zone": "warning",
+      "level": "pattern",
+      "content": "复盘高增长半导体公司时，如果之前没有结构化保存按季度/年度的 revenue、gross margin、capex、FCF 预测表，事后只能复盘观点不能精确归因预测误差；下次必须在首次分析时同步保存关键经营指标预测基线。",
+      "companies": [
+        "NVDA"
+      ],
+      "sector": "Semiconductors",
+      "confidence": 0.94,
+      "evidence_count": 1,
+      "evidence": [
+        {
+          "date": "2026-03-19",
+          "metric": "forecast_documentation",
+          "predicted": 0,
+          "actual": 1,
+          "source": "历史 NVDA 笔记仅保存 DCF 增速假设与结论，未保存完整经营指标预测表"
+        }
+      ],
+      "source_attribution_id": "",
+      "methodology": {
+        "what_i_did": "回看 NVDA 历史笔记，并尝试用最新财务事实逐项对照旧预测。",
+        "what_went_wrong": "旧分析记录了估值假设和结论，但没有结构化记录可验证的经营指标预测，导致无法精确计算 revenue、margin、FCF 的预测偏差。",
+        "what_to_do_next": [
+          "首次分析时固定输出并保存预测表：至少含未来4-6个季度 revenue、gross margin、opex ratio、capex、FCF。",
+          "区分‘事实预测’与‘估值判断’，复盘时只对事实预测做偏差归因。",
+          "在公司笔记里单独保留 assumptions vs actuals 对照区，便于后续复盘。"
+        ]
+      },
+      "times_retrieved": 0,
+      "times_useful": 0,
+      "created_at": "2026-03-20T00:00:45.209369",
+      "last_validated": "2026-03-20",
+      "status": "active"
+    },
+    {
+      "id": "exp_g_dc21d6",
+      "zone": "golden",
+      "level": "pattern",
+      "content": "分析 NVDA 这类受政策扰动的高增长半导体公司时，应把‘政策/出口限制造成的一次性损失’与‘核心 AI 需求强度’拆开建模；即使存在 4.5B 级别 charge，公司仍可能维持超高收入、毛利率和自由现金流。",
+      "companies": [
+        "NVDA"
+      ],
+      "sector": "Semiconductors",
+      "confidence": 0.82,
+      "evidence_count": 4,
+      "evidence": [
+        {
+          "date": "2026-05-28",
+          "metric": "Q1 FY2026 revenue",
+          "predicted": 0,
+          "actual": 44.1,
+          "source": "NVIDIA Q1 FY2026 earnings release"
+        },
+        {
+          "date": "2026-05-28",
+          "metric": "export-control charge",
+          "predicted": 0,
+          "actual": 4.5,
+          "source": "NVIDIA Q1 FY2026 earnings release"
+        },
+        {
+          "date": "2026-02-25",
+          "metric": "FY2026 revenue",
+          "predicted": 0,
+          "actual": 215.9,
+          "source": "NVIDIA FY2026 earnings release"
+        },
+        {
+          "date": "2026-02-25",
+          "metric": "FY2026 free cash flow",
+          "predicted": 0,
+          "actual": 96.7,
+          "source": "FMP cash flow statement FY2026"
+        }
+      ],
+      "source_attribution_id": "",
+      "methodology": {
+        "what_i_did": "结合 NVDA FY2026 全年与 Q1 FY2026 已披露事实，检查政策冲击是否等同于核心业务转弱。",
+        "what_went_wrong": "若把出口限制简单映射为整体需求塌缩，会低估公司在非受限市场与核心 AI 平台上的需求韧性。",
+        "what_to_do_next": [
+          "对中国受限产品单独列收入与毛利影响，而不是直接下调公司整体增长率。",
+          "用 earnings release 中的 charge、lost revenue、segment commentary 分开归因。",
+          "验证核心需求时优先看总收入、Data Center 增长、gross margin、FCF，而不是只盯一次性损失。"
+        ]
+      },
+      "times_retrieved": 0,
+      "times_useful": 0,
+      "created_at": "2026-03-20T00:00:45.234508",
+      "last_validated": "2026-03-20",
+      "status": "active"
+    },
+    {
+      "id": "exp_g_9dd9cf",
+      "zone": "golden",
+      "level": "pattern",
+      "content": "For mature mega-cap consumer tech like AAPL, review earnings by separating the fundamental thesis from the equity-return thesis: a quarter can disprove the 'mature near-term growth' framing while still leaving the 'valuation already discounts durability' thesis intact.",
+      "companies": [
+        "AAPL"
+      ],
+      "sector": "Consumer Electronics",
+      "confidence": 0.78,
+      "evidence_count": 1,
+      "evidence": [
+        {
+          "date": "FY26 Q1",
+          "metric": "Revenue and EPS",
+          "predicted": 0,
+          "actual": 0,
+          "source": "Stored AAPL earnings review memory: revenue about $143.8B, EPS about $2.84, with iPhone and Services at all-time highs"
+        }
+      ],
+      "source_attribution_id": "",
+      "methodology": {
+        "what_i_did": "Compared prior hypothesis wording ('fundamentally strong but mature growth and subpar returns from valuation') against stored latest earnings summary showing record revenue, EPS, iPhone, and Services.",
+        "what_went_wrong": "The prior framing understated near-term operating upside by leaning too much on maturity and not enough on refresh-cycle and segment-strength variability.",
+        "what_to_do_next": [
+          "When reviewing AAPL, score separately: near-term operating momentum, margin durability, and valuation-implied return.",
+          "Do not treat a stronger quarter as automatic disproof of a valuation-based cautious return thesis.",
+          "Before concluding 'mature growth,' check whether iPhone cycle, Services mix, and buyback-driven EPS can create temporary upside versus baseline assumptions."
+        ]
+      },
+      "times_retrieved": 0,
+      "times_useful": 0,
+      "created_at": "2026-03-20T00:03:35.121345",
+      "last_validated": "2026-03-20",
+      "status": "active"
+    }
+  ],
+  "attribution_log": [],
+  "metadata": {
+    "created": "2026-03-20",
+    "last_updated": "2026-03-20T00:08:27.339764",
+    "entry_count": 3
+  }
+}

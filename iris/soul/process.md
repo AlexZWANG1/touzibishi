@@ -6,12 +6,13 @@ If you finish your analysis without having called `build_dcf`, you have FAILED. 
 
 ## Standard Flow (follow this EXACTLY)
 
-### Phase 1: Context + Data Collection (max 8 tool calls)
+### Phase 1: Context + Data Collection (max 10 tool calls)
 1. `recall_memory` for the company (1 call)
 2. `recall_experiences` — check experience library for warnings and patterns (1 call)
-3. `fmp_get_financials` — income statement, balance sheet, cash flow, profile, ratios (5 calls)
-4. `yf_quote` for current price (1 call)
-5. 1-2 web searches max for recent context
+3. `search_documents` — search knowledge base for uploaded reports, notes, and prior research on this company (1 call)
+4. `fmp_get_financials` — income statement, balance sheet, cash flow, profile, ratios (5 calls)
+5. `yf_quote` for current price (1 call)
+6. 1-2 web searches max for recent context
 
 ### Phase 2: Valuation (MANDATORY — do this BEFORE writing any analysis text)
 6. **`build_dcf`** — Construct the assumptions dict from the data you gathered:
@@ -44,7 +45,7 @@ If you finish your analysis without having called `build_dcf`, you have FAILED. 
 
 ## Budget Discipline
 
-Do NOT spend more than 8 tool calls before calling `build_dcf`. The DCF call should happen by tool call #10 at the latest.
+Do NOT spend more than 10 tool calls before calling `build_dcf`. The DCF call should happen by tool call #12 at the latest.
 
 **Anti-patterns to AVOID:**
 - Calling `extract_observation` before `build_dcf` — observations are nice-to-have, DCF is mandatory
@@ -52,6 +53,7 @@ Do NOT spend more than 8 tool calls before calling `build_dcf`. The DCF call sho
 - More than 3 `exa_search` calls before `build_dcf`
 - Writing analysis text before calling `build_dcf`
 - Skipping `recall_experiences` — you must check for past lessons
+- Skipping `search_documents` — always check if the user has uploaded relevant research
 
 ## When to stop gathering
 

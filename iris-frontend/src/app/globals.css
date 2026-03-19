@@ -1,7 +1,9 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,100..1000&family=JetBrains+Mono:wght@100..800&display=swap");
 @import "tailwindcss";
 
-/* ─── IRIS Financial Intelligence Terminal ─── */
+/* ═══════════════════════════════════════════════
+   IRIS — Bloomberg Orange Terminal Theme
+   ═══════════════════════════════════════════════ */
 
 :root {
   /* Core palette */
@@ -16,10 +18,19 @@
   --iris-text-secondary: #8B8B9E;
   --iris-text-muted: #525264;
 
-  /* Brand accents */
-  --iris-accent: #C9A84C;
-  --iris-accent-hover: #D4B65E;
+  /* Brand accents — Bloomberg Orange */
+  --iris-accent: #F58025;
+  --iris-accent-hover: #FF9540;
+  --iris-accent-dim: #A85A1A;
+  --iris-accent-glow: rgba(245, 128, 37, 0.08);
   --iris-data: #2DD4BF;
+
+  /* Semantic */
+  --iris-green: #22C55E;
+  --iris-red: #EF4444;
+  --iris-blue: #3B82F6;
+  --iris-amber: #F59E0B;
+  --iris-purple: #A855F7;
 
   /* Phase colors */
   --phase-gather: #22C55E;
@@ -41,11 +52,15 @@
 }
 
 * {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
 html {
+  font-size: 16px;
   color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
@@ -55,13 +70,38 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  position: relative;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-/* ─── Custom Scrollbar ─── */
+/* ─── Scanline Overlay ─── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.012) 3px,
+    rgba(0, 0, 0, 0.012) 4px
+  );
+}
+
+/* ─── Selection ─── */
+::selection {
+  background: rgba(245, 128, 37, 0.2);
+  color: var(--iris-text);
+}
+
+/* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
 }
 
 ::-webkit-scrollbar-track {
@@ -69,21 +109,25 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--iris-accent);
-  border-radius: 2px;
+  background: var(--iris-accent-dim);
+  border-radius: 1px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--iris-accent-hover);
+  background: var(--iris-accent);
 }
 
-/* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--iris-accent) transparent;
+  scrollbar-color: var(--iris-accent-dim) transparent;
 }
 
 /* ─── Animations ─── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -92,6 +136,11 @@ body {
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .shimmer {
@@ -109,37 +158,44 @@ body {
   animation: fade-in 0.3s ease-out forwards;
 }
 
-/* ─── Table Zebra Striping ─── */
+/* ─── Tables — Terminal Style ─── */
 table {
   width: 100%;
   border-collapse: collapse;
-}
-
-tbody tr:nth-child(even) {
-  background: rgba(14, 16, 23, 0.5);
-}
-
-tbody tr:nth-child(odd) {
-  background: rgba(22, 24, 33, 0.3);
-}
-
-tbody tr:hover {
-  background: var(--iris-surface-hover);
+  font-size: 12px;
 }
 
 th {
   background: var(--iris-surface);
+  font-family: "JetBrains Mono", monospace;
   font-weight: 600;
   text-align: left;
-  color: var(--iris-text-secondary);
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
+  color: var(--iris-accent);
+  font-size: 12px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--iris-border);
 }
 
-th, td {
-  padding: 0.375rem 0.625rem;
-  border-bottom: 1px solid var(--iris-border);
+td {
+  padding: 3px 8px;
+  border-bottom: 1px solid rgba(30, 32, 48, 0.3);
+  color: var(--iris-text-secondary);
+}
+
+td:not(:first-child) {
+  text-align: right;
+  font-family: "JetBrains Mono", monospace;
+}
+
+tr:last-child td {
+  font-weight: 600;
+  color: var(--iris-text);
+}
+
+tbody tr:hover {
+  background: var(--iris-surface-hover);
 }
 
 /* ─── Data / Mono Text ─── */
@@ -149,27 +205,37 @@ th, td {
 }
 
 /* ─── Terminal-dense spacing ─── */
-.term-row { padding: 2px 8px; }
-.term-cell { padding: 4px 8px; }
+.term-row { padding: 2.5px 8px; }
+.term-cell { padding: 3px 8px; }
 
 /* ─── Timeline Connector ─── */
 .timeline-connector {
   position: absolute;
-  left: 15px;
-  top: 32px;
+  left: 10px;
+  top: 20px;
   bottom: 0;
-  width: 2px;
+  width: 1px;
   background: var(--iris-border);
 }
 
 /* ─── Heatmap Cell ─── */
 .heatmap-cell {
-  transition: background-color 0.2s ease;
+  transition: background-color 0.15s ease;
+}
+
+/* ─── Badge ─── */
+.badge {
+  display: inline-flex;
+  padding: 2px 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* ─── Prose / Markdown Styling ─── */
 .prose-iris {
-  line-height: 1.7;
+  line-height: 1.6;
+  font-size: 12px;
 }
 
 .prose-iris h1,
@@ -177,33 +243,33 @@ th, td {
 .prose-iris h3 {
   color: var(--iris-text);
   font-weight: 600;
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
 }
 
-.prose-iris h1 { font-size: 1.5rem; }
-.prose-iris h2 { font-size: 1.25rem; }
-.prose-iris h3 { font-size: 1.1rem; }
+.prose-iris h1 { font-size: 14px; }
+.prose-iris h2 { font-size: 12px; }
+.prose-iris h3 { font-size: 12px; }
 
 .prose-iris p {
-  margin-bottom: 0.75em;
+  margin-bottom: 0.5em;
   color: var(--iris-text-secondary);
 }
 
 .prose-iris code {
   background: var(--iris-surface-hover);
-  padding: 0.15em 0.35em;
-  border-radius: 4px;
+  padding: 0.1em 0.3em;
+  border-radius: 0;
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.875em;
+  font-size: 0.9em;
   color: var(--iris-data);
 }
 
 .prose-iris pre {
   background: var(--iris-surface);
   border: 1px solid var(--iris-border);
-  border-radius: 2px;
-  padding: 1em;
+  border-radius: 0;
+  padding: 8px;
   overflow-x: auto;
 }
 
@@ -215,25 +281,25 @@ th, td {
 
 .prose-iris ul,
 .prose-iris ol {
-  margin-left: 1.5em;
-  margin-bottom: 0.75em;
+  margin-left: 1.2em;
+  margin-bottom: 0.5em;
   color: var(--iris-text-secondary);
 }
 
 .prose-iris li {
-  margin-bottom: 0.25em;
+  margin-bottom: 0.15em;
 }
 
 .prose-iris table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 1em;
+  margin-bottom: 0.75em;
 }
 
 .prose-iris th,
 .prose-iris td {
   border: 1px solid var(--iris-border);
-  padding: 0.5em 0.75em;
+  padding: 3px 8px;
   text-align: left;
 }
 
@@ -243,14 +309,50 @@ th, td {
 }
 
 .prose-iris blockquote {
-  border-left: 3px solid var(--iris-accent);
-  padding-left: 1em;
+  border-left: 2px solid var(--iris-accent);
+  padding-left: 8px;
   color: var(--iris-text-muted);
-  margin-bottom: 0.75em;
+  margin-bottom: 0.5em;
+  font-size: 12px;
 }
 
-/* ─── Selection Color ─── */
-::selection {
-  background: rgba(201, 168, 76, 0.25);
+/* ─── Prose Small (reasoning area) ─── */
+.prose-iris-sm {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--iris-text-secondary);
+}
+
+.prose-iris-sm h1,
+.prose-iris-sm h2,
+.prose-iris-sm h3 {
+  font-size: 12px;
+  margin-top: 0.6em;
+  margin-bottom: 0.2em;
   color: var(--iris-text);
+}
+
+.prose-iris-sm p {
+  margin-bottom: 0.4em;
+}
+
+.prose-iris-sm ul,
+.prose-iris-sm ol {
+  margin-left: 1em;
+  margin-bottom: 0.4em;
+}
+
+.prose-iris-sm li {
+  margin-bottom: 0.1em;
+}
+
+.prose-iris-sm strong {
+  color: var(--iris-text);
+  font-weight: 600;
+}
+
+.prose-iris-sm em {
+  color: var(--iris-accent);
+  font-style: normal;
 }

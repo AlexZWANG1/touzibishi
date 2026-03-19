@@ -4,9 +4,12 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { startAnalysis } from "@/utils/api";
 
+type AnalysisMode = "analysis" | "learning";
+
 export function SearchBar() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<AnalysisMode>("analysis");
   const router = useRouter();
 
   const handleSubmit = useCallback(
@@ -17,14 +20,14 @@ export function SearchBar() {
 
       setLoading(true);
       try {
-        const res = await startAnalysis({ query: trimmed });
+        const res = await startAnalysis({ query: trimmed, mode });
         router.push(`/analysis/${res.analysisId}`);
       } catch (err) {
-        console.error("Failed to start analysis:", err);
+        console.error("Failed to start:", err);
         setLoading(false);
       }
     },
-    [query, loading, router]
+    [query, loading, router, mode]
   );
 
   return (
@@ -32,15 +35,45 @@ export function SearchBar() {
       <div
         className="relative flex items-center border"
         style={{
-          height: "36px",
-          borderRadius: "3px",
-          backgroundColor: "var(--iris-surface)",
+          height: "28px",
+          backgroundColor: "transparent",
           borderColor: "var(--iris-border)",
         }}
       >
+        {/* Mode toggle */}
+        <button
+          type="button"
+          onClick={() => setMode(mode === "analysis" ? "learning" : "analysis")}
+          className="ml-px flex-shrink-0 flex items-center gap-1 px-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider transition-colors"
+          style={{
+            height: "26px",
+            border: "none",
+            borderRight: "1px solid var(--iris-border)",
+            backgroundColor: mode === "learning" ? "rgba(245,128,37,0.08)" : "transparent",
+            color: mode === "learning" ? "var(--iris-accent)" : "var(--iris-text-muted)",
+          }}
+          title={mode === "analysis" ? "切换到学习模式" : "切换到分析模式"}
+        >
+          {mode === "analysis" ? (
+            <>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              ANL
+            </>
+          ) : (
+            <>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              LRN
+            </>
+          )}
+        </button>
+
         {/* Search icon */}
         <svg
-          className="ml-2.5 h-3.5 w-3.5 flex-shrink-0"
+          className="ml-1.5 h-3 w-3 flex-shrink-0"
           style={{ color: "var(--iris-text-muted)" }}
           fill="none"
           viewBox="0 0 24 24"
@@ -58,15 +91,15 @@ export function SearchBar() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="输入 ticker 或公司名称..."
-          className="h-full flex-1 bg-transparent px-2 text-[12px] outline-none"
+          placeholder={mode === "analysis" ? "TICKER / COMPANY NAME..." : "复盘目标，如「复盘 NVDA」..."}
+          className="h-full flex-1 bg-transparent px-1.5 font-mono text-[12px] outline-none placeholder:text-[var(--iris-text-muted)]"
           style={{
             color: "var(--iris-text)",
             caretColor: "var(--iris-accent)",
           }}
           onFocus={(e) => {
             const container = e.currentTarget.parentElement;
-            if (container) container.style.borderColor = "var(--iris-accent)";
+            if (container) container.style.borderColor = mode === "learning" ? "var(--iris-accent)" : "var(--iris-accent)";
           }}
           onBlur={(e) => {
             const container = e.currentTarget.parentElement;
@@ -78,21 +111,23 @@ export function SearchBar() {
         <button
           type="submit"
           disabled={!query.trim() || loading}
-          className="mr-1 flex-shrink-0 px-3 text-[11px] font-medium tracking-wide disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex-shrink-0 flex items-center justify-center font-mono text-[11px] font-bold uppercase tracking-wider disabled:cursor-not-allowed disabled:opacity-30"
           style={{
-            height: "26px",
-            borderRadius: "2px",
+            height: "28px",
+            width: "28px",
             backgroundColor: "var(--iris-accent)",
             color: "#07080C",
           }}
         >
           {loading ? (
             <div
-              className="mx-auto h-3 w-3 animate-spin rounded-full border border-t-transparent"
+              className="h-2.5 w-2.5 animate-spin border border-t-transparent"
               style={{ borderColor: "#07080C", borderTopColor: "transparent" }}
             />
           ) : (
-            "分析"
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="square" strokeLinejoin="miter" d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
           )}
         </button>
       </div>
