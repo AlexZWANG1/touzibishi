@@ -112,7 +112,34 @@ class SQLiteRetriever(EvidenceRetriever):
                     source_type TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS analysis_runs (
+                    id TEXT PRIMARY KEY,
+                    query TEXT NOT NULL,
+                    ticker TEXT,
+                    status TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    reasoning_text TEXT,
+                    thinking_text TEXT,
+                    timeline_json TEXT,
+                    panels_json TEXT,
+                    recommendation TEXT,
+                    tokens_in INTEGER DEFAULT 0,
+                    tokens_out INTEGER DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_analysis_runs_ticker
+                    ON analysis_runs(ticker);
+                CREATE INDEX IF NOT EXISTS idx_analysis_runs_created_at
+                    ON analysis_runs(created_at);
             """)
+            # Idempotent migration: add ticker column to valuations if missing
+            try:
+                conn.execute("ALTER TABLE valuations ADD COLUMN ticker TEXT")
+            except Exception:
+                pass  # column already exists
+            try:
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_valuations_ticker ON valuations(ticker)")
+            except Exception:
+                pass
 
     def save_observation(self, obs: Observation) -> None:
         with self._conn() as conn:
@@ -263,6 +290,116 @@ class SQLiteRetriever(EvidenceRetriever):
             "hypotheses": hypotheses,
             "other_subjects": other_subjects,
         }
+
+    # ---- analysis_runs CRUD ----
+
+    def save_analysis_run(
+        self,
+        *,
+        id: str,
+        query: str,
+        ticker: str,
+        status: str,
+        reasoning_text: str,
+        thinking_text: str,
+        timeline_json: str,
+        panels_json: str,
+        recommendation: str | None = None,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO analysis_runs
+                   (id, query, ticker, status, reasoning_text, thinking_text,
+                    timeline_json, panels_json, recommendation, tokens_in, tokens_out)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (id, query, ticker, status, reasoning_text, thinking_text,
+                 timeline_json, panels_json, recommendation, tokens_in, tokens_out),
+            )
+
+    def get_analysis_run(self, run_id: str) -> dict | None:
+        with self._conn() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM analysis_runs WHERE id = ?", (run_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_analysis_runs(
+        self, *, ticker: str | None = None, limit: int = 30, offset: int = 0
+    ) -> dict:
+        with self._conn() as conn:
+            conn.row_factory = sqlite3.Row
+            if ticker:
+                total = conn.execute(
+                    "SELECT COUNT(*) FROM analysis_runs WHERE UPPER(ticker) = UPPER(?)",
+                    (ticker,),
+                ).fetchone()[0]
+                rows = conn.execute(
+                    "SELECT * FROM analysis_runs WHERE UPPER(ticker) = UPPER(?) ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                    (ticker, limit, offset),
+                ).fetchall()
+            else:
+                total = conn.execute("SELECT COUNT(*) FROM analysis_runs").fetchone()[0]
+                rows = conn.execute(
+                    "SELECT * FROM analysis_runs ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
+                ).fetchall()
+        return {
+            "items": [dict(r) for r in rows],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    def get_latest_run_for_ticker(self, ticker: str) -> dict | None:
+        with self._conn() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM analysis_runs WHERE UPPER(ticker) = UPPER(?) ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                (ticker,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def save_valuation_record(
+        self,
+        *,
+        ticker: str,
+        fair_value: float,
+        current_price: float,
+        gap_pct: float,
+        run_id: str,
+    ) -> None:
+        import uuid
+        val_id = str(uuid.uuid4())
+        data = json.dumps({
+            "fair_value": fair_value,
+            "current_price": current_price,
+            "gap_pct": gap_pct,
+            "run_id": run_id,
+        })
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO valuations (id, data, ticker) VALUES (?, ?, ?)",
+                (val_id, data, ticker),
+            )
+
+    def get_latest_valuation(self, ticker: str) -> dict | None:
+        with self._conn() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM valuations WHERE UPPER(ticker) = UPPER(?) ORDER BY rowid DESC LIMIT 1",
+                (ticker,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_tracked_tickers(self) -> list[str]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT UPPER(ticker) AS ticker FROM analysis_runs WHERE ticker IS NOT NULL ORDER BY ticker"
+            ).fetchall()
+        return [r[0] for r in rows]
 
     # ---- vector search methods ----
 
