@@ -66,13 +66,10 @@ class AnalysisSession:
 
     # ── Accumulator state ─────────────────────────────────────
     accumulated_timeline: list = field(default_factory=list)
-    accumulated_reasoning: str = ""
-    accumulated_thinking: str = ""
+    _raw_text: str = ""  # All LLM text collected raw, parsed later in snapshot()
     accumulated_panels: dict = field(default_factory=dict)
     accumulated_frontend_panels: dict = field(default_factory=_default_frontend_panels)
     pending_valuation: dict | None = None
-    _in_thinking: bool = False
-    _current_thinking_buffer: str = ""
 
     def touch(self) -> None:
         """Update last_activity timestamp."""
@@ -132,67 +129,8 @@ class AnalysisSession:
 
     def _handle_text_delta(self, event: HarnessEvent) -> None:
         content = event.data.get("content", "")
-        if not content:
-            return
-
-        open_idx = content.find("<thinking>")
-        close_idx = content.find("</thinking>")
-
-        if open_idx != -1 and close_idx != -1 and close_idx > open_idx:
-            # Both open and close in same chunk
-            before = content[:open_idx]
-            inside = content[open_idx + 10:close_idx]
-            after = content[close_idx + 11:]
-            if before:
-                self.accumulated_reasoning += before
-            if inside:
-                self.accumulated_thinking += inside + "\n---\n"
-            # Emit thinking timeline entry
-            self._emit_thinking_entry(inside)
-            if after:
-                self.accumulated_reasoning += after
-            self._in_thinking = False
-            self._current_thinking_buffer = ""
-        elif open_idx != -1:
-            # Entering thinking block
-            before = content[:open_idx]
-            after = content[open_idx + 10:]
-            if before:
-                self.accumulated_reasoning += before
-            if after:
-                self.accumulated_thinking += after
-            self._in_thinking = True
-            self._current_thinking_buffer = after
-        elif close_idx != -1:
-            # Exiting thinking block
-            before = content[:close_idx]
-            after = content[close_idx + 11:]
-            if before:
-                self.accumulated_thinking += before
-                self._current_thinking_buffer += before
-            self.accumulated_thinking += "\n---\n"
-            # Emit thinking timeline entry with full block text
-            self._emit_thinking_entry(self._current_thinking_buffer)
-            if after:
-                self.accumulated_reasoning += after
-            self._in_thinking = False
-            self._current_thinking_buffer = ""
-        else:
-            # No tags — route based on current state
-            if self._in_thinking:
-                self.accumulated_thinking += content
-                self._current_thinking_buffer += content
-            else:
-                self.accumulated_reasoning += content
-
-    def _emit_thinking_entry(self, full_text: str) -> None:
-        """Add a thinking timeline entry with the full block text."""
-        self.accumulated_timeline.append({
-            "tool": "thinking",
-            "status": "complete",
-            "timestamp": time.time(),
-            "fullText": full_text,
-        })
+        if content:
+            self._raw_text += content
 
     # ── Panel extraction helpers ──────────────────────────────
 
@@ -405,18 +343,83 @@ class AnalysisSession:
             data_panel["metrics"].extend(metrics)
         data_panel["loading"] = False
 
+    # ── Text parsing ────────────────────────────────────────────
+
+    @staticmethod
+    def _split_thinking_blocks(raw: str) -> tuple[str, str, list[dict]]:
+        """
+        Parse <thinking>...</thinking> blocks from complete LLM text.
+
+        Works on the full accumulated text — never on streaming fragments —
+        so tags are always intact regardless of how they were chunked.
+
+        Returns (reasoning, thinking, thinking_timeline_entries).
+        """
+        OPEN = "<thinking>"
+        CLOSE = "</thinking>"
+        reasoning_parts: list[str] = []
+        thinking_parts: list[str] = []
+        thinking_entries: list[dict] = []
+
+        pos = 0
+        while pos < len(raw):
+            open_idx = raw.find(OPEN, pos)
+            if open_idx == -1:
+                reasoning_parts.append(raw[pos:])
+                break
+
+            # Text before the thinking block → reasoning
+            reasoning_parts.append(raw[pos:open_idx])
+
+            close_idx = raw.find(CLOSE, open_idx + len(OPEN))
+            if close_idx == -1:
+                # Unclosed block — treat the rest as thinking
+                inside = raw[open_idx + len(OPEN):]
+                thinking_parts.append(inside)
+                thinking_entries.append({
+                    "tool": "thinking",
+                    "status": "complete",
+                    "timestamp": time.time(),
+                    "message": inside.strip().split("\n")[0][:80],
+                    "fullText": inside.strip(),
+                })
+                break
+
+            inside = raw[open_idx + len(OPEN):close_idx]
+            thinking_parts.append(inside)
+            thinking_entries.append({
+                "tool": "thinking",
+                "status": "complete",
+                "timestamp": time.time(),
+                "message": inside.strip().split("\n")[0][:80],
+                "fullText": inside.strip(),
+            })
+            pos = close_idx + len(CLOSE)
+
+        return (
+            "".join(reasoning_parts).strip(),
+            "\n---\n".join(thinking_parts).strip(),
+            thinking_entries,
+        )
+
     # ── Snapshot ──────────────────────────────────────────────
 
     def snapshot(self) -> dict:
         """
         Return a snapshot of accumulated data for persistence.
 
-        Returns dict with reasoning_text, thinking_text, timeline, panels.
+        Parses <thinking> blocks from the complete raw text — never from
+        streaming fragments — so tag boundaries are always correct.
         """
+        reasoning, thinking, thinking_entries = self._split_thinking_blocks(self._raw_text)
+
+        # Merge thinking entries into the timeline
+        timeline = list(self.accumulated_timeline) + thinking_entries
+
         return {
-            "reasoning_text": self.accumulated_reasoning,
-            "thinking_text": self.accumulated_thinking,
-            "timeline": list(self.accumulated_timeline),
+            "reasoning_text": reasoning,
+            "thinking_text": thinking,
+            "timeline": timeline,
             "panels": self.accumulated_frontend_panels,
         }
 

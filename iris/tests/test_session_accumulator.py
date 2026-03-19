@@ -101,9 +101,11 @@ class TestTextDelta:
             data={"content": "by 15% year-over-year."},
         ))
 
-        assert session.accumulated_reasoning == "Apple's revenue grew by 15% year-over-year."
+        snap = session.snapshot()
+        assert snap["reasoning_text"] == "Apple's revenue grew by 15% year-over-year."
 
     def test_accumulates_thinking_blocks(self, session):
+        """Thinking blocks split from reasoning even when tags span chunks."""
         session.accumulate_raw(HarnessEvent(
             type=EventType.TEXT_DELTA,
             data={"content": "Before thinking. <thinking>I need to analyze"},
@@ -117,9 +119,11 @@ class TestTextDelta:
             data={"content": "</thinking>After thinking."},
         ))
 
-        assert "Before thinking. " in session.accumulated_reasoning
-        assert "After thinking." in session.accumulated_reasoning
-        assert "I need to analyze the revenue trends carefully." in session.accumulated_thinking
+        snap = session.snapshot()
+        assert "Before thinking." in snap["reasoning_text"]
+        assert "After thinking." in snap["reasoning_text"]
+        assert "<thinking>" not in snap["reasoning_text"]
+        assert "I need to analyze the revenue trends carefully." in snap["thinking_text"]
 
     def test_thinking_block_creates_timeline_entry(self, session):
         session.accumulate_raw(HarnessEvent(
@@ -127,34 +131,44 @@ class TestTextDelta:
             data={"content": "<thinking>Deep analysis here.</thinking>"},
         ))
 
-        # Should create a thinking timeline entry
+        snap = session.snapshot()
         thinking_entries = [
-            e for e in session.accumulated_timeline if e["tool"] == "thinking"
+            e for e in snap["timeline"] if e.get("tool") == "thinking"
         ]
         assert len(thinking_entries) == 1
         assert "Deep analysis here." in thinking_entries[0]["fullText"]
 
-    def test_thinking_across_multiple_chunks(self, session):
+    def test_thinking_tags_split_across_chunks(self, session):
+        """The real streaming scenario: tags split across token boundaries."""
+        # Simulate: "<th" + "inking" + ">" + "内容" + "</thi" + "nking>"
+        for chunk in ["<th", "inking", ">\n分析 NVDA", "\n准备构建 DCF", "</thi", "nking>", "结论"]:
+            session.accumulate_raw(HarnessEvent(
+                type=EventType.TEXT_DELTA,
+                data={"content": chunk},
+            ))
+
+        snap = session.snapshot()
+        assert "<thinking>" not in snap["reasoning_text"]
+        assert "</thinking>" not in snap["reasoning_text"]
+        assert "结论" in snap["reasoning_text"]
+        assert "分析 NVDA" in snap["thinking_text"]
+        assert "准备构建 DCF" in snap["thinking_text"]
+
+        thinking_entries = [e for e in snap["timeline"] if e.get("tool") == "thinking"]
+        assert len(thinking_entries) == 1
+
+    def test_multiple_thinking_blocks(self, session):
         session.accumulate_raw(HarnessEvent(
             type=EventType.TEXT_DELTA,
-            data={"content": "<thinking>Part one "},
-        ))
-        session.accumulate_raw(HarnessEvent(
-            type=EventType.TEXT_DELTA,
-            data={"content": "part two "},
-        ))
-        session.accumulate_raw(HarnessEvent(
-            type=EventType.TEXT_DELTA,
-            data={"content": "part three</thinking>"},
+            data={"content": "A<thinking>first</thinking>B<thinking>second</thinking>C"},
         ))
 
-        assert "Part one part two part three" in session.accumulated_thinking
-        # Thinking timeline entry should contain full text
-        thinking_entries = [
-            e for e in session.accumulated_timeline if e["tool"] == "thinking"
-        ]
-        assert len(thinking_entries) == 1
-        assert "Part one part two part three" in thinking_entries[0]["fullText"]
+        snap = session.snapshot()
+        assert snap["reasoning_text"] == "ABC"
+        assert "first" in snap["thinking_text"]
+        assert "second" in snap["thinking_text"]
+        thinking_entries = [e for e in snap["timeline"] if e.get("tool") == "thinking"]
+        assert len(thinking_entries) == 2
 
 
 # ── Panel extraction tests ───────────────────────────────────

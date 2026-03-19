@@ -22,7 +22,7 @@ interface AnalysisStore {
   timeline: TimelineEvent[];
   reasoningText: string;
   thinkingText: string;
-  _inThinkingBlock: boolean;
+  _rawTextBuffer: string;
   currentPhase: Phase;
   pendingQuestion: PendingQuestion | null;
   activeTab: ActiveTab;
@@ -82,7 +82,7 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   timeline: [],
   reasoningText: "",
   thinkingText: "",
-  _inThinkingBlock: false,
+  _rawTextBuffer: "",
   currentPhase: "gather",
   pendingQuestion: null,
   activeTab: "data",
@@ -93,7 +93,7 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   memoryPanel: initialMemoryPanel,
 
   startAnalysis: async (query: string, contextDocs?: string[]) => {
-    set({ pageState: "RUNNING", timeline: [], reasoningText: "", thinkingText: "", _inThinkingBlock: false, currentPhase: "gather" });
+    set({ pageState: "RUNNING", timeline: [], reasoningText: "", thinkingText: "", _rawTextBuffer: "", currentPhase: "gather", isReplay: false });
     try {
       const response = await api.startAnalysis({
         query,
@@ -229,52 +229,14 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
         const content = event.data.content as string;
         if (content) {
           set((s) => {
-            // Stream-aware state machine for <thinking> blocks
-            let inThinking = s._inThinkingBlock;
-            let thinkingBuf = s.thinkingText;
-            let reasoningBuf = s.reasoningText;
-
-            // Check for tag transitions within this chunk
-            const openIdx = content.indexOf("<thinking>");
-            const closeIdx = content.indexOf("</thinking>");
-
-            if (openIdx !== -1 && closeIdx !== -1 && closeIdx > openIdx) {
-              // Both open and close in same chunk
-              const before = content.slice(0, openIdx);
-              const inside = content.slice(openIdx + 10, closeIdx);
-              const after = content.slice(closeIdx + 12);
-              if (before) reasoningBuf += before;
-              if (inside) thinkingBuf += inside + "\n---\n";
-              if (after) reasoningBuf += after;
-              inThinking = false;
-            } else if (openIdx !== -1) {
-              // Entering thinking block
-              const before = content.slice(0, openIdx);
-              const after = content.slice(openIdx + 10);
-              if (before) reasoningBuf += before;
-              if (after) thinkingBuf += after;
-              inThinking = true;
-            } else if (closeIdx !== -1) {
-              // Exiting thinking block
-              const before = content.slice(0, closeIdx);
-              const after = content.slice(closeIdx + 12);
-              if (before) thinkingBuf += before;
-              thinkingBuf += "\n---\n";
-              if (after) reasoningBuf += after;
-              inThinking = false;
-            } else {
-              // No tags — route based on current state
-              if (inThinking) {
-                thinkingBuf += content;
-              } else {
-                reasoningBuf += content;
-              }
-            }
-
+            // Append to raw buffer, then reparse from complete text.
+            // This handles <thinking> tags split across SSE chunks correctly.
+            const raw = s._rawTextBuffer + content;
+            const { reasoning, thinking } = _splitThinkingBlocks(raw);
             return {
-              reasoningText: reasoningBuf,
-              thinkingText: thinkingBuf,
-              _inThinkingBlock: inThinking,
+              _rawTextBuffer: raw,
+              reasoningText: reasoning,
+              thinkingText: thinking,
             };
           });
         }
@@ -427,7 +389,7 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
       timeline: [],
       reasoningText: "",
       thinkingText: "",
-      _inThinkingBlock: false,
+      _rawTextBuffer: "",
       currentPhase: "gather",
       pendingQuestion: null,
       activeTab: "data",
@@ -444,6 +406,48 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
  * Extract panel data from tool_end results based on tool name.
  * Maps backend ToolResult.data shapes to frontend panel state.
  */
+/**
+ * Parse <thinking>...</thinking> blocks from complete text.
+ *
+ * Works on the full accumulated buffer — never on individual SSE chunks —
+ * so tags are always intact regardless of how they were chunked by streaming.
+ */
+function _splitThinkingBlocks(raw: string): { reasoning: string; thinking: string } {
+  const OPEN = "<thinking>";
+  const CLOSE = "</thinking>";
+  const reasoningParts: string[] = [];
+  const thinkingParts: string[] = [];
+
+  let pos = 0;
+  while (pos < raw.length) {
+    const openIdx = raw.indexOf(OPEN, pos);
+    if (openIdx === -1) {
+      reasoningParts.push(raw.slice(pos));
+      break;
+    }
+
+    reasoningParts.push(raw.slice(pos, openIdx));
+
+    const closeIdx = raw.indexOf(CLOSE, openIdx + OPEN.length);
+    if (closeIdx === -1) {
+      // Unclosed block — tag might still be streaming in.
+      // Don't include the partial <thinking>... in reasoning yet;
+      // keep it as-is so next reparse picks it up when the close tag arrives.
+      // For now, show nothing for the incomplete block.
+      break;
+    }
+
+    thinkingParts.push(raw.slice(openIdx + OPEN.length, closeIdx));
+    pos = closeIdx + CLOSE.length;
+  }
+
+  return {
+    reasoning: reasoningParts.join(""),
+    thinking: thinkingParts.join("\n---\n"),
+  };
+}
+
+
 function _extractPanelData(
   tool: string,
   result: Record<string, unknown>,
