@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type { WatchlistItem } from "@/types/analysis";
+import { startAnalysis } from "@/utils/api";
 import { formatCurrency } from "@/utils/formatters";
 
 interface WatchlistRowProps {
@@ -8,6 +10,7 @@ interface WatchlistRowProps {
 }
 
 export function WatchlistRow({ item }: WatchlistRowProps) {
+  const [reflecting, setReflecting] = useState(false);
   const fairValid = item.fair_value != null && item.fair_value > 0 && !isNaN(item.fair_value);
   const gapPct = fairValid && item.gap != null ? item.gap * 100 : null;
   const isPositiveGap = gapPct != null && gapPct > 0;
@@ -69,17 +72,29 @@ export function WatchlistRow({ item }: WatchlistRowProps) {
       {/* Actions */}
       <td className="text-right text-[11px]">
         <button
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
-            window.location.href = `/analysis?query=${encodeURIComponent(`复盘 ${item.ticker} 的最新财报表现`)}&mode=learning`;
+            if (reflecting) return;
+            setReflecting(true);
+            try {
+              const res = await startAnalysis({
+                query: `复盘 ${item.ticker} 的最新财报表现`,
+                mode: 'learning',
+              });
+              window.location.href = `/analysis/${res.analysisId}`;
+            } catch (err) {
+              console.error('Failed to start reflection:', err);
+              setReflecting(false);
+            }
           }}
           className="px-1.5 py-0.5 rounded text-[10px] transition-colors"
-          style={{ color: "var(--iris-amber)", opacity: 0.7 }}
-          onMouseEnter={(e) => { (e.target as HTMLElement).style.opacity = "1"; }}
-          onMouseLeave={(e) => { (e.target as HTMLElement).style.opacity = "0.7"; }}
+          style={{ color: "var(--iris-amber)", opacity: reflecting ? 0.4 : 0.7 }}
+          onMouseEnter={(e) => { if (!reflecting) (e.target as HTMLElement).style.opacity = "1"; }}
+          onMouseLeave={(e) => { if (!reflecting) (e.target as HTMLElement).style.opacity = "0.7"; }}
           title="验证预测"
+          disabled={reflecting}
         >
-          复盘
+          {reflecting ? "..." : "复盘"}
         </button>
       </td>
     </tr>
