@@ -545,29 +545,7 @@ async def upload_knowledge_url(req: KnowledgeUrlRequest):
     return result
 
 
-@app.post("/api/knowledge/upload-file")
-async def upload_knowledge_file(
-    file: bytes = None,
-    title: str = None,
-    company: Optional[str] = None,
-    tags: Optional[str] = None,
-):
-    """Upload a file (PDF or text) to the knowledge base.
-
-    Accepts multipart/form-data with a file field.
-    """
-    from fastapi import File, Form, UploadFile
-
-    # Re-declare with proper FastAPI annotations — this endpoint uses the
-    # actual decorated version below.
-    pass
-
-
-# Override with proper signature for multipart upload
 from fastapi import File, Form, UploadFile
-
-# Remove the stub and create proper endpoint
-app.routes = [r for r in app.routes if not (hasattr(r, 'path') and r.path == '/api/knowledge/upload-file')]
 
 
 @app.post("/api/knowledge/upload-file")
