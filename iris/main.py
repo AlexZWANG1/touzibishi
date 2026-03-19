@@ -28,6 +28,10 @@ from tools.memory import (
     check_calibration, CHECK_CALIBRATION_SCHEMA,
 )
 from tools.semantic_search import memory_search, MEMORY_SEARCH_SCHEMA
+from tools.knowledge_ingest import (
+    upload_document, UPLOAD_DOCUMENT_SCHEMA,
+    search_documents, SEARCH_DOCUMENTS_SCHEMA,
+)
 
 
 def _cli_event_handler(event: HarnessEvent):
@@ -103,6 +107,12 @@ def build_harness(
         Tool(memory_search, MEMORY_SEARCH_SCHEMA, retriever=retriever),
     ]
 
+    # Knowledge tools (human materials)
+    knowledge_tools = [
+        Tool(upload_document, UPLOAD_DOCUMENT_SCHEMA, retriever=retriever),
+        Tool(search_documents, SEARCH_DOCUMENTS_SCHEMA, retriever=retriever),
+    ]
+
     # Skill tools (hypothesis, dcf, etc.) — auto-discovered
     skills_dir = skills_cfg.get("dir", "./skills")
     skill_tools, skill_soul = load_skills(
@@ -115,7 +125,7 @@ def build_harness(
     if skill_soul:
         full_soul = base_soul + "\n\n---\n\n" + skill_soul
 
-    all_tools = core_tools + memory_tools + skill_tools
+    all_tools = core_tools + memory_tools + knowledge_tools + skill_tools
 
     harness = Harness(
         llm=OpenAIClient(),

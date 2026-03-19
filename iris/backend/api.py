@@ -107,6 +107,26 @@ class MemoryWriteRequest(BaseModel):
     content: str
 
 
+class KnowledgeNoteRequest(BaseModel):
+    title: str
+    content: str
+    company: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
+class KnowledgeUrlRequest(BaseModel):
+    url: str
+    title: Optional[str] = None
+    company: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
+class KnowledgeSearchRequest(BaseModel):
+    query: str
+    top_k: Optional[int] = 5
+    company: Optional[str] = None
+
+
 # ── Memory helpers ───────────────────────────────────────────
 
 _MEMORY_TYPES = ("companies", "sectors", "patterns", "calibration")
@@ -460,6 +480,142 @@ async def get_calibration(company: Optional[str] = Query(default=None)):
     """Delegate to check_calibration() tool."""
     result = check_calibration(company=company)
     return result.to_dict()
+
+
+# ── Knowledge endpoints ──────────────────────────────────
+
+@app.get("/api/knowledge")
+async def list_knowledge(
+    company: Optional[str] = Query(default=None),
+    doc_type: Optional[str] = Query(default=None),
+):
+    """List all knowledge documents."""
+    retriever = _get_retriever()
+    return retriever.list_documents(company=company, doc_type=doc_type)
+
+
+@app.get("/api/knowledge/{doc_id}")
+async def get_knowledge_doc(doc_id: str):
+    """Get a specific knowledge document with full content."""
+    retriever = _get_retriever()
+    doc = retriever.get_document(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return doc
+
+
+@app.post("/api/knowledge/upload-note")
+async def upload_knowledge_note(req: KnowledgeNoteRequest):
+    """Upload a text note to the knowledge base."""
+    retriever = _get_retriever()
+    result = retriever.save_document(
+        title=req.title,
+        doc_type="note",
+        content_text=req.content,
+        company=req.company,
+        tags=req.tags,
+    )
+    return result
+
+
+@app.post("/api/knowledge/upload-url")
+async def upload_knowledge_url(req: KnowledgeUrlRequest):
+    """Fetch URL content and save to the knowledge base."""
+    from tools.search import web_fetch
+
+    fetch_result = web_fetch(url=req.url)
+    if fetch_result.status != "ok":
+        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {fetch_result.error}")
+
+    content = fetch_result.data.get("content", "")
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="Fetched URL content is empty")
+
+    title = req.title or fetch_result.data.get("title", req.url)
+
+    retriever = _get_retriever()
+    result = retriever.save_document(
+        title=title,
+        doc_type="url",
+        content_text=content,
+        source_path=req.url,
+        company=req.company,
+        tags=req.tags,
+    )
+    return result
+
+
+from fastapi import File, Form, UploadFile
+
+
+@app.post("/api/knowledge/upload-file")
+async def upload_knowledge_file(
+    file: UploadFile = File(...),
+    title: str = Form(None),
+    company: str = Form(None),
+    tags: str = Form(None),
+):
+    """Upload a file (PDF or text) to the knowledge base."""
+    content_bytes = await file.read()
+    filename = file.filename or "untitled"
+
+    # Determine doc_type and extract text
+    if filename.lower().endswith(".pdf"):
+        try:
+            from PyPDF2 import PdfReader
+            import io
+            reader = PdfReader(io.BytesIO(content_bytes))
+            pages_text = [page.extract_text() or "" for page in reader.pages]
+            content_text = "\n\n".join(pages_text)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse PDF: {e}")
+        doc_type = "pdf"
+    else:
+        # Assume text-based file
+        try:
+            content_text = content_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            content_text = content_bytes.decode("utf-8", errors="replace")
+        doc_type = "report"
+
+    if not content_text.strip():
+        raise HTTPException(status_code=400, detail="Extracted content is empty")
+
+    effective_title = title or filename
+    tag_list = json.loads(tags) if tags else None
+
+    retriever = _get_retriever()
+    result = retriever.save_document(
+        title=effective_title,
+        doc_type=doc_type,
+        content_text=content_text,
+        source_path=filename,
+        company=company,
+        tags=tag_list,
+    )
+    return result
+
+
+@app.delete("/api/knowledge/{doc_id}")
+async def delete_knowledge_doc(doc_id: str):
+    """Delete a knowledge document and its chunks."""
+    retriever = _get_retriever()
+    deleted = retriever.delete_document(doc_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"ok": True}
+
+
+@app.post("/api/knowledge/search")
+async def search_knowledge(req: KnowledgeSearchRequest):
+    """Search knowledge base for relevant passages."""
+    retriever = _get_retriever()
+    results = retriever.semantic_search(
+        query=req.query,
+        top_k=req.top_k or 5,
+        source_category="human_knowledge",
+    )
+    return {"query": req.query, "results": results, "count": len(results)}
 
 
 # ── Session cleanup background task ─────────────────────────

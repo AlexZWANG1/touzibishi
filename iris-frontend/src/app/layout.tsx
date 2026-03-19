@@ -43,6 +43,12 @@ export default function RootLayout({
                 首页
               </a>
               <a
+                href="/knowledge"
+                className="text-[11px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)]"
+              >
+                知识库
+              </a>
+              <a
                 href="/memory"
                 className="text-[11px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)]"
               >

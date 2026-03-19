@@ -1,10 +1,14 @@
 import json
 import math
 import sqlite3
+import uuid
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from core.schemas import Observation, Hypothesis, EvidenceCard, ValuationOutput, TradeScore, AuditTrail
+from tools.embedder import Embedder
+from tools.chunker import chunk_text
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -70,6 +74,7 @@ class SQLiteRetriever(EvidenceRetriever):
     def __init__(self, db_path: str, usage_tracker: Callable[..., None] | None = None):
         self.db_path = db_path
         self._usage_tracker = usage_tracker
+        self.embedder = Embedder(usage_tracker=usage_tracker)
         self._init_db()
 
     def set_usage_tracker(self, usage_tracker: Callable[..., None] | None):
@@ -130,6 +135,34 @@ class SQLiteRetriever(EvidenceRetriever):
                     ON analysis_runs(ticker);
                 CREATE INDEX IF NOT EXISTS idx_analysis_runs_created_at
                     ON analysis_runs(created_at);
+
+                CREATE TABLE IF NOT EXISTS knowledge_documents (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    doc_type TEXT NOT NULL,
+                    source_path TEXT,
+                    content_text TEXT NOT NULL,
+                    tags TEXT DEFAULT '[]',
+                    company TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_kdocs_company ON knowledge_documents(company);
+                CREATE INDEX IF NOT EXISTS idx_kdocs_doc_type ON knowledge_documents(doc_type);
+
+                CREATE TABLE IF NOT EXISTS knowledge_chunks (
+                    id TEXT PRIMARY KEY,
+                    document_id TEXT NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    char_offset_start INTEGER,
+                    char_offset_end INTEGER,
+                    embedding TEXT,
+                    embedding_model TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (document_id) REFERENCES knowledge_documents(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_kchunks_doc ON knowledge_chunks(document_id);
             """)
             # Idempotent migration: add ticker column to valuations if missing
             try:
@@ -138,6 +171,11 @@ class SQLiteRetriever(EvidenceRetriever):
                 pass  # column already exists
             try:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_valuations_ticker ON valuations(ticker)")
+            except Exception:
+                pass
+            # Idempotent migration: add embedding_model column to embeddings
+            try:
+                conn.execute("ALTER TABLE embeddings ADD COLUMN embedding_model TEXT DEFAULT 'text-embedding-3-small'")
             except Exception:
                 pass
 
@@ -404,71 +442,208 @@ class SQLiteRetriever(EvidenceRetriever):
     # ---- vector search methods ----
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
-        """Call OpenAI embeddings API. Returns one embedding vector per input text."""
-        import os
-        import openai
-        client = openai.OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_BASE_URL"),
-        )
-        response = client.embeddings.create(
-            model=os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"),
-            input=texts,
-        )
-        usage = getattr(response, "usage", None)
-        if self._usage_tracker:
-            prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
-            try:
-                self._usage_tracker(input_tokens=prompt_tokens)
-            except TypeError:
-                # Backward-compatible callback signature support.
-                self._usage_tracker(prompt_tokens)
-        return [item.embedding for item in response.data]
+        """Delegate to Embedder abstraction."""
+        return self.embedder.embed(texts)
 
     def save_embedding(self, id: str, content: str, source_type: str) -> None:
         """Embed content and store in embeddings table. Best-effort: catches exceptions."""
         try:
-            from datetime import datetime, timezone
             vectors = self._embed([content])
             embedding_json = json.dumps(vectors[0])
             with self._conn() as conn:
                 conn.execute(
-                    "INSERT OR REPLACE INTO embeddings (id, content, embedding, source_type, created_at) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (id, content, embedding_json, source_type, datetime.now(timezone.utc).isoformat()),
+                    "INSERT OR REPLACE INTO embeddings (id, content, embedding, source_type, created_at, embedding_model) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (id, content, embedding_json, source_type,
+                     datetime.now(timezone.utc).isoformat(), self.embedder.model_id),
                 )
         except Exception:
             pass  # best-effort
 
     def semantic_search(
-        self, query: str, top_k: int = 5, source_type: str = None
+        self, query: str, top_k: int = 5, source_type: str = None,
+        source_category: str = "all",
     ) -> list[dict]:
-        """Embed query, load all embeddings, rank by cosine similarity. Returns list of dicts."""
+        """Unified semantic search across AI memory and human knowledge.
+
+        source_category: "ai_memory", "human_knowledge", or "all" (default).
+        """
         try:
             query_vec = self._embed([query])[0]
-            with self._conn() as conn:
-                if source_type:
-                    rows = conn.execute(
-                        "SELECT id, content, embedding, source_type FROM embeddings WHERE source_type = ?",
-                        (source_type,),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT id, content, embedding, source_type FROM embeddings"
-                    ).fetchall()
-            if not rows:
-                return []
-            scored = []
-            for row in rows:
-                emb = json.loads(row[2])
-                score = cosine_similarity(query_vec, emb)
-                scored.append({
-                    "id": row[0],
-                    "content": row[1],
-                    "source_type": row[3],
-                    "score": score,
-                })
-            scored.sort(key=lambda x: x["score"], reverse=True)
-            return scored[:top_k]
         except Exception:
             return []
+
+        scored = []
+
+        # Search AI memory (embeddings table)
+        if source_category in ("all", "ai_memory"):
+            try:
+                with self._conn() as conn:
+                    if source_type:
+                        rows = conn.execute(
+                            "SELECT id, content, embedding, source_type FROM embeddings WHERE source_type = ?",
+                            (source_type,),
+                        ).fetchall()
+                    else:
+                        rows = conn.execute(
+                            "SELECT id, content, embedding, source_type FROM embeddings"
+                        ).fetchall()
+                for row in rows:
+                    emb = json.loads(row[2])
+                    score = cosine_similarity(query_vec, emb)
+                    scored.append({
+                        "id": row[0],
+                        "content": row[1],
+                        "source_type": row[3],
+                        "source_category": "ai_memory",
+                        "score": score,
+                    })
+            except Exception:
+                pass
+
+        # Search human knowledge (knowledge_chunks table)
+        if source_category in ("all", "human_knowledge"):
+            try:
+                with self._conn() as conn:
+                    rows = conn.execute(
+                        "SELECT kc.id, kc.content, kc.embedding, kc.document_id, kd.title, kd.doc_type "
+                        "FROM knowledge_chunks kc "
+                        "JOIN knowledge_documents kd ON kc.document_id = kd.id "
+                        "WHERE kc.embedding IS NOT NULL"
+                    ).fetchall()
+                for row in rows:
+                    emb = json.loads(row[2])
+                    score = cosine_similarity(query_vec, emb)
+                    scored.append({
+                        "id": row[0],
+                        "content": row[1],
+                        "source_type": "knowledge",
+                        "source_category": "human_knowledge",
+                        "document_id": row[3],
+                        "document_title": row[4],
+                        "doc_type": row[5],
+                        "score": score,
+                    })
+            except Exception:
+                pass
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        return scored[:top_k]
+
+    # ---- knowledge document methods ----
+
+    def save_document(
+        self,
+        title: str,
+        doc_type: str,
+        content_text: str,
+        source_path: str = None,
+        company: str = None,
+        tags: list[str] = None,
+    ) -> dict:
+        """Save a document, chunk it, embed chunks. Returns document metadata."""
+        doc_id = f"kdoc_{uuid.uuid4().hex[:8]}"
+        now = datetime.now(timezone.utc).isoformat()
+        tags_json = json.dumps(tags or [])
+
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO knowledge_documents (id, title, doc_type, source_path, content_text, tags, company, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (doc_id, title, doc_type, source_path, content_text, tags_json, company, now, now),
+            )
+
+        # Chunk and embed
+        chunks = chunk_text(content_text)
+        chunk_ids = []
+        for chunk in chunks:
+            chunk_id = f"kchunk_{uuid.uuid4().hex[:8]}"
+            embedding_json = None
+            model_id = None
+            try:
+                vectors = self._embed([chunk.content])
+                embedding_json = json.dumps(vectors[0])
+                model_id = self.embedder.model_id
+            except Exception:
+                pass  # best-effort embedding
+
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO knowledge_chunks (id, document_id, chunk_index, content, char_offset_start, char_offset_end, embedding, embedding_model, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (chunk_id, doc_id, chunk.chunk_index, chunk.content,
+                     chunk.char_offset_start, chunk.char_offset_end,
+                     embedding_json, model_id, now),
+                )
+            chunk_ids.append(chunk_id)
+
+        return {
+            "id": doc_id,
+            "title": title,
+            "doc_type": doc_type,
+            "chunk_count": len(chunk_ids),
+            "company": company,
+        }
+
+    def list_documents(self, company: str = None, doc_type: str = None) -> list[dict]:
+        """List knowledge documents with metadata."""
+        with self._conn() as conn:
+            conn.row_factory = sqlite3.Row
+            query = "SELECT id, title, doc_type, source_path, tags, company, created_at, updated_at FROM knowledge_documents"
+            conditions = []
+            params = []
+            if company:
+                conditions.append("UPPER(company) = UPPER(?)")
+                params.append(company)
+            if doc_type:
+                conditions.append("doc_type = ?")
+                params.append(doc_type)
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            query += " ORDER BY created_at DESC"
+            rows = conn.execute(query, params).fetchall()
+
+        results = []
+        for row in rows:
+            d = dict(row)
+            d["tags"] = json.loads(d.get("tags") or "[]")
+            # Get chunk count
+            with self._conn() as conn:
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM knowledge_chunks WHERE document_id = ?",
+                    (d["id"],),
+                ).fetchone()[0]
+            d["chunk_count"] = count
+            results.append(d)
+        return results
+
+    def get_document(self, doc_id: str) -> dict | None:
+        """Get full document with content and chunk count."""
+        with self._conn() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM knowledge_documents WHERE id = ?", (doc_id,)
+            ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["tags"] = json.loads(d.get("tags") or "[]")
+        with self._conn() as conn:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM knowledge_chunks WHERE document_id = ?",
+                (doc_id,),
+            ).fetchone()[0]
+        d["chunk_count"] = count
+        return d
+
+    def delete_document(self, doc_id: str) -> bool:
+        """Delete document and its chunks. Returns True if found."""
+        with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT id FROM knowledge_documents WHERE id = ?", (doc_id,)
+            ).fetchone()
+            if not existing:
+                return False
+            conn.execute("DELETE FROM knowledge_chunks WHERE document_id = ?", (doc_id,))
+            conn.execute("DELETE FROM knowledge_documents WHERE id = ?", (doc_id,))
+        return True
