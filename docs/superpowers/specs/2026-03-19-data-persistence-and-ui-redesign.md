@@ -50,14 +50,31 @@ CREATE INDEX IF NOT EXISTS idx_analysis_runs_ticker ON analysis_runs(ticker);
 CREATE INDEX IF NOT EXISTS idx_analysis_runs_created ON analysis_runs(created_at DESC);
 ```
 
+### Schema Migrations for Existing Tables
+
+The `valuations` table currently has no `ticker` column (only `id` and `data`). The `trade_scores` table has no `ticker` column either (only `id`, `hypothesis_id`, `data`). Both need a `ticker` column for direct watchlist queries:
+
+```sql
+-- Added to _init_db() alongside CREATE TABLE IF NOT EXISTS
+-- SQLite ALTER TABLE is safe — adds column with NULL default to existing rows
+ALTER TABLE valuations ADD COLUMN ticker TEXT;
+ALTER TABLE trade_scores ADD COLUMN ticker TEXT;
+CREATE INDEX IF NOT EXISTS idx_valuations_ticker ON valuations(ticker);
+CREATE INDEX IF NOT EXISTS idx_trade_scores_ticker ON trade_scores(ticker);
+```
+
+The `ALTER TABLE` calls should be wrapped in try/except to handle the case where columns already exist (idempotent migration). The `ValuationOutput` Pydantic model does not need a `ticker` field — the ticker is stored as a table column alongside the JSON `data` blob, matching the existing pattern used by `hypotheses` (which has `company` column + `data`).
+
 ### Activate Existing Dead Tables
 
-These tables already exist in `retrieval.py` with full CRUD methods. The change is making tools actually call the save methods:
+These tables already exist in `retrieval.py` with full CRUD methods. Changes needed:
 
-- **`build_dcf`** → calls `retriever.save_valuation()` after computing results
-- **`create_hypothesis`** → calls `retriever.save_hypothesis()` after creating hypothesis
-- **`add_evidence_card`** → updates hypothesis evidence_log via retriever
+- **`build_dcf`** → calls `retriever.save_valuation(valuation, id, ticker=ticker)` after computing results. The `save_valuation()` method signature gains an optional `ticker` parameter.
+- **`create_hypothesis`** → already calls `retriever.save_hypothesis()` (confirmed in `iris/skills/hypothesis/tools.py:172,232`). No change needed — this is NOT dead code.
+- **`add_evidence_card`** → already updates hypothesis evidence_log in `iris/skills/hypothesis/tools.py`. No change needed.
 - **Analysis completion** → calls `retriever.save_audit_trail()` to capture full audit
+
+**Note:** `save_valuation()` and `save_trade_score()` method signatures must be updated to accept and persist the `ticker` parameter.
 
 ### Data Flow (After)
 
@@ -95,16 +112,74 @@ class AnalysisSession:
     accumulated_panels: dict = field(default_factory=dict)
 ```
 
-`sse_bridge.py` is modified so `harness_event_to_sse()` also writes to the session accumulator. This ensures data is captured server-side even if the browser disconnects.
+`sse_bridge.py`'s `harness_event_to_sse()` remains a pure function (event → dict). The accumulation happens in `api.py`'s `on_event` callback, which already has access to the session object:
+
+```python
+# In api.py start_analysis()
+def on_event(event: HarnessEvent) -> None:
+    sse = harness_event_to_sse(event)
+    if sse is not None:
+        session.events.put(sse)
+        session.accumulate(sse)  # NEW: server-side accumulation
+        session.touch()
+```
+
+This avoids changing `harness_event_to_sse()`'s pure function signature.
 
 ### API Changes
 
 #### New Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /api/history` | GET | List analysis runs (paginated, filterable by ticker) |
-| `GET /api/history/{run_id}` | GET | Full snapshot for replay |
+**`GET /api/history?ticker=AAPL&limit=30&offset=0`**
+
+Returns paginated list of analysis runs. All query params optional.
+
+```json
+{
+  "items": [
+    {
+      "id": "abc123def456",
+      "query": "分析 NVDA 在 AI 基础设施赛道的投资机会",
+      "ticker": "NVDA",
+      "status": "complete",
+      "created_at": "2026-03-19T10:30:00Z",
+      "tokens_in": 8500,
+      "tokens_out": 3800
+    }
+  ],
+  "total": 42,
+  "limit": 30,
+  "offset": 0
+}
+```
+
+**`GET /api/history/{run_id}`**
+
+Returns full snapshot for replay. The response shape matches what `loadSnapshot()` expects on the frontend.
+
+```json
+{
+  "id": "abc123def456",
+  "query": "分析 NVDA",
+  "ticker": "NVDA",
+  "status": "complete",
+  "created_at": "2026-03-19T10:30:00Z",
+  "reasoning_text": "...",
+  "thinking_text": "...",
+  "timeline": [
+    {"id": "tool-yf_quote-1710...", "timestamp": 1710..., "tool": "yf_quote", "message": "...", "phase": "gather", "color": "green", "status": "complete"},
+    {"id": "thinking-1710...", "tool": "thinking", "message": "preview...", "fullText": "...", "phase": "gather", "color": "gold", "status": "complete"}
+  ],
+  "panels": {
+    "data": {"metrics": [...], "financialTables": [...]},
+    "model": {"fairValue": {...}, "sensitivityData": [...], ...},
+    "comps": {"peers": [...], "scatterData": [...]},
+    "memory": {"calibrationHits": 0, "calibrationMisses": 0, "recentRecalls": [...]}
+  },
+  "tokens_in": 8500,
+  "tokens_out": 3800
+}
+```
 
 #### Modified Endpoints
 
@@ -117,7 +192,7 @@ class AnalysisSession:
 
 - `api.py`: `_parse_company_file()`, `_extract_number()`, `_extract_section()`, `_compute_alerts()`, `_extract_kill_section()`, `_check_calibration_warning()` — all regex-based parsers
 - `memory.py`: `_extract_fair_value()` — regex extraction
-- `memory.py`: `_append_calibration_entry()` regex logic — replaced with DB read
+- `memory.py`: `_append_calibration_entry()` regex logic — replaced with DB read. The new implementation queries `valuations` table for the latest `predicted` value for the ticker. If no valuation exists (e.g., `build_dcf` was never called), no calibration entry is created — this is correct behavior since there's nothing to calibrate.
 
 ### Watchlist Data Sources (After)
 
@@ -129,8 +204,9 @@ class AnalysisSession:
 | fair_value | `valuations` table | Latest record for ticker |
 | gap | Computed | `(fair_value - market_price) / market_price` |
 | thesis | `hypotheses` table | Latest record's `thesis` field |
-| recommendation | `trade_scores` table | Latest record's `recommendation` field |
+| recommendation | `trade_scores` table | Latest record for ticker (uses new `ticker` column) |
 | alerts | Computed from DB | Kill criteria from hypotheses + staleness from analysis_runs |
+| latest_run_id | `analysis_runs` table | Most recent run_id for this ticker (for click → replay) |
 
 ## Frontend Changes
 
@@ -194,6 +270,17 @@ loadSnapshot: (snapshot: AnalysisSnapshot) => void
 // Sets pageState to "COMPLETE"
 ```
 
+## Key Invariant: Session ID = analysis_runs ID
+
+The `session.id` (generated in `sessions.py` as `uuid.uuid4().hex[:16]`) is reused as the `analysis_runs.id`. This is critical because:
+
+1. `POST /api/analyze` returns `analysisId` (= session.id) to the frontend
+2. Frontend navigates to `/analysis/{analysisId}` and connects SSE via session.id
+3. When analysis completes, `analysis_runs` is written with `id = session.id`
+4. Later, `/analysis/{same_id}` can fall back to `GET /api/history/{same_id}`
+
+If these IDs diverged, the dual-mode detection on the analysis page would break.
+
 ## Edge Cases
 
 | Scenario | Behavior |
@@ -211,11 +298,11 @@ loadSnapshot: (snapshot: AnalysisSnapshot) => void
 ### Backend
 - `iris/backend/api.py` — rewrite watchlist endpoint, add history endpoints, delete regex functions
 - `iris/backend/sessions.py` — add accumulator fields to AnalysisSession
-- `iris/backend/sse_bridge.py` — accumulate into session alongside SSE conversion
+- `iris/backend/sse_bridge.py` — no change needed (accumulation happens in api.py's on_event callback)
 - `iris/tools/memory.py` — delete `_extract_fair_value`, change calibration to read from DB
-- `iris/tools/retrieval.py` — add `analysis_runs` table to `_init_db`, add save/query methods
-- `iris/skills/dcf/tool.py` — call `save_valuation()` after DCF computation
-- `iris/skills/hypothesis/tool.py` — call `save_hypothesis()` after creation
+- `iris/tools/retrieval.py` — add `analysis_runs` table to `_init_db`, add `ticker` column to `valuations` and `trade_scores` (ALTER TABLE with try/except for idempotency), add save/query methods for analysis_runs
+- `iris/skills/dcf/tools.py` — call `save_valuation()` after DCF computation (note: file is `tools.py` plural)
+- `iris/skills/hypothesis/tools.py` — already calls `save_hypothesis()`, no change needed
 - `iris/core/harness.py` — call `save_audit_trail()` on run completion
 
 ### Frontend
