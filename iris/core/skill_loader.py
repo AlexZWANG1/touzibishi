@@ -24,12 +24,17 @@ class SkillLoadError(Exception):
 def load_skills(
     skills_dir: str,
     context: dict | None = None,
+    skill_names: list[str] | None = None,
 ) -> tuple[list[Tool], str]:
     """
     Scan skills/ folder. For each subfolder:
       - SKILL.md → collected into skill_soul text
       - tools.py → register(context) or TOOLS list → tools
       - config.yaml → loaded into skill-specific config namespace
+
+    Args:
+        skill_names: If provided, only load these skill directories.
+                     If None, load all (original behavior).
 
     Returns (all_skill_tools, combined_skill_soul_text).
     """
@@ -43,6 +48,8 @@ def load_skills(
 
     for skill_dir in sorted(skills_path.iterdir()):
         if not skill_dir.is_dir() or skill_dir.name.startswith((".", "_")):
+            continue
+        if skill_names is not None and skill_dir.name not in skill_names:
             continue
 
         skill_name = skill_dir.name

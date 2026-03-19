@@ -62,12 +62,20 @@ def get(key_path: str, default: Any = None) -> Any:
     return node
 
 
-def load_soul(soul_dir: Path = None) -> str:
-    """Load the Prompt layer from soul/*.md files (directory scan)."""
+def load_soul(soul_dir: Path = None, file_list: list[str] = None) -> str:
+    """Load the Prompt layer from soul/*.md files.
+
+    Args:
+        soul_dir: Directory containing soul .md files.
+        file_list: If provided, only load these filenames (in order).
+                   If None, load all .md files (original behavior).
+    """
     soul_dir = soul_dir or Path(__file__).parent.parent / "soul"
-    parts = []
-    for md_file in sorted(soul_dir.glob("*.md")):
-        parts.append(md_file.read_text(encoding="utf-8"))
+    if file_list is not None:
+        files = [soul_dir / f for f in file_list if (soul_dir / f).exists()]
+    else:
+        files = sorted(soul_dir.glob("*.md"))
+    parts = [f.read_text(encoding="utf-8") for f in files]
     return "\n\n---\n\n".join(parts) if parts else FALLBACK_SOUL
 
 

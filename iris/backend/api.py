@@ -88,6 +88,7 @@ app.add_middleware(
 class AnalyzeRequest(BaseModel):
     query: str
     contextDocs: Optional[list[str]] = None
+    mode: Optional[str] = "analysis"
 
 
 class AnalyzeResponse(BaseModel):
@@ -151,6 +152,42 @@ def _memory_file_path(memory_type: str, filename: str) -> Path:
     return base / memory_type / filename
 
 
+# ── Recommendation extraction ────────────────────────────────
+
+_REC_KEYWORDS = [
+    "strong buy", "strong sell",
+    "buy", "sell", "hold",
+    "overweight", "underweight", "equal-weight", "equal weight",
+    "outperform", "underperform", "market perform",
+    "accumulate", "reduce",
+]
+_REC_PATTERN = re.compile(
+    r"\b(?:recommendation|rating|verdict|conclusion)\s*[:\-–—]\s*"
+    r"(" + "|".join(re.escape(k) for k in _REC_KEYWORDS) + r")\b",
+    re.IGNORECASE,
+)
+_REC_FALLBACK = re.compile(
+    r"\b(" + "|".join(re.escape(k) for k in _REC_KEYWORDS) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def _extract_recommendation(text: str | None) -> str | None:
+    """Extract a recommendation keyword (BUY/SELL/HOLD/etc.) from reasoning text."""
+    if not text:
+        return None
+    # Prefer explicit "Recommendation: BUY" style
+    m = _REC_PATTERN.search(text)
+    if m:
+        return m.group(1).upper()
+    # Fallback: scan last 500 chars for a standalone keyword
+    tail = text[-500:]
+    m = _REC_FALLBACK.search(tail)
+    if m:
+        return m.group(1).upper()
+    return None
+
+
 # ── Analysis endpoints ───────────────────────────────────────
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
@@ -158,18 +195,29 @@ async def start_analysis(req: AnalyzeRequest):
     """Start a new analysis run. Returns session ID and SSE stream URL."""
     from main import build_harness
 
+    # Validate mode
+    mode = req.mode or "analysis"
+    if mode not in ("analysis", "learning"):
+        raise HTTPException(status_code=400, detail=f"Invalid mode: {mode}")
+
     # Build harness with event callback that feeds the session queue
-    harness, _retriever = build_harness(streaming=True)
+    harness, _retriever = build_harness(streaming=True, mode=mode)
 
     session = create_session(harness)
 
     # Create the on_event callback that pushes to session.events
     def on_event(event: HarnessEvent) -> None:
-        sse = harness_event_to_sse(event)
-        if sse is not None:
-            session.events.put(sse)
-            session.touch()
-        session.accumulate_raw(event)  # raw event, not truncated
+        try:
+            sse = harness_event_to_sse(event)
+            if sse is not None:
+                session.events.put(sse)
+                session.touch()
+        except Exception:
+            pass  # SSE serialization errors should not block accumulation
+        try:
+            session.accumulate_raw(event)  # raw event, not truncated
+        except Exception:
+            pass  # Log but don't crash the harness
 
     harness.on_event = on_event
 
@@ -203,16 +251,23 @@ async def start_analysis(req: AnalyzeRequest):
                         run_id=session.id,
                     )
 
+            # Use accumulated reasoning text, or fall back to result.reply
+            reasoning_text = snap["reasoning_text"] or result.reply or ""
+
+            # Extract recommendation from the final reasoning text
+            rec = _extract_recommendation(reasoning_text)
+
             # Save the full analysis run
             retriever.save_analysis_run(
                 id=session.id,
                 query=req.query,
                 ticker=ticker,
                 status="complete" if result.ok else "error",
-                reasoning_text=snap["reasoning_text"],
+                reasoning_text=reasoning_text,
                 thinking_text=snap["thinking_text"],
                 timeline_json=json.dumps(snap["timeline"], ensure_ascii=False, default=str),
                 panels_json=json.dumps(snap["panels"], ensure_ascii=False, default=str),
+                recommendation=rec,
                 tokens_in=result.total_input_tokens,
                 tokens_out=result.total_output_tokens,
             )

@@ -8,7 +8,8 @@ interface WatchlistRowProps {
 }
 
 export function WatchlistRow({ item }: WatchlistRowProps) {
-  const gapPct = item.gap != null ? item.gap * 100 : null;
+  const fairValid = item.fair_value != null && item.fair_value > 0 && !isNaN(item.fair_value);
+  const gapPct = fairValid && item.gap != null ? item.gap * 100 : null;
   const isPositiveGap = gapPct != null && gapPct > 0;
   const isNegativeGap = gapPct != null && gapPct < 0;
 
@@ -56,13 +57,30 @@ export function WatchlistRow({ item }: WatchlistRowProps) {
       </td>
 
       {/* Fair Value */}
-      <td className="font-data text-right text-[12px]" style={{ color: "var(--iris-data)" }}>
-        {item.fair_value != null ? formatCurrency(item.fair_value) : "—"}
+      <td className="font-data text-right text-[12px]" style={{ color: fairValid ? "var(--iris-data)" : "var(--iris-text-muted)" }}>
+        {fairValid ? formatCurrency(item.fair_value) : "N/A"}
       </td>
 
       {/* Recommendation */}
       <td className="text-right text-[11px]" style={{ color: "var(--iris-text-secondary)" }}>
         {item.recommendation ?? "—"}
+      </td>
+
+      {/* Actions */}
+      <td className="text-right text-[11px]">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            window.location.href = `/analysis?query=${encodeURIComponent(`复盘 ${item.ticker} 的最新财报表现`)}&mode=learning`;
+          }}
+          className="px-1.5 py-0.5 rounded text-[10px] transition-colors"
+          style={{ color: "var(--iris-amber)", opacity: 0.7 }}
+          onMouseEnter={(e) => { (e.target as HTMLElement).style.opacity = "1"; }}
+          onMouseLeave={(e) => { (e.target as HTMLElement).style.opacity = "0.7"; }}
+          title="验证预测"
+        >
+          复盘
+        </button>
       </td>
     </tr>
   );

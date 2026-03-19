@@ -96,3 +96,50 @@ knowledge:
 
 skills:
   dir: "./skills"
+
+# ── Mode-specific overrides ──
+modes:
+  analysis:
+    soul_files: [role.md, process.md]
+    skills: [hypothesis, dcf, trading, experience]
+    tool_injection_mode: "dynamic"
+    always_exposed_tools:
+      - recall_memory
+      - save_memory
+      - save_experience
+      - recall_experiences
+      - memory_search
+      - search_documents
+      - build_dcf
+      - get_comps
+      - create_hypothesis
+      - extract_observation
+      - add_evidence_card
+      - exa_search
+      - web_fetch
+      - fmp_get_financials
+      - fred_get_macro
+      - yf_quote
+      - yf_history
+      - upload_document
+    max_tool_rounds: 25
+    max_total_tool_calls: 60
+    max_wall_time_seconds: 480
+
+  learning:
+    soul_files: [role.md, reflection.md]
+    skills: [reflection, experience]
+    tool_injection_mode: "all"
+    always_exposed_tools:
+      - recall_memory
+      - save_memory
+      - recall_experiences
+      - save_experience
+      - fmp_get_financials
+      - yf_quote
+      - check_calibration
+      - memory_search
+      - search_documents
+    max_tool_rounds: 40
+    max_total_tool_calls: 120
+    max_wall_time_seconds: 600

@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from core.config import load_config, load_soul, DB_PATH
+from core.config import load_config, load_soul, register_skill_config, DB_PATH
 from core.harness import Harness, HarnessConfig, HarnessEvent, EventType
 from core.loop_detector import LoopDetectionConfig
 from core.skill_loader import load_skills
@@ -79,12 +79,24 @@ def build_harness(
     db_path: str = None,
     on_event=None,
     streaming: bool = False,
+    mode: str = "analysis",
 ) -> tuple[Harness, SQLiteRetriever]:
     cfg = load_config()
     h = cfg["harness"]
     budget_cfg = cfg.get("budget", {})
     loop_cfg = cfg.get("loop_detection", {})
     skills_cfg = cfg.get("skills", {})
+    mode_cfg = cfg.get("modes", {}).get(mode, {})
+
+    # Mode overrides harness defaults
+    max_tool_rounds = mode_cfg.get("max_tool_rounds", h.get("max_tool_rounds", 25))
+    max_total_tool_calls = mode_cfg.get("max_total_tool_calls", h.get("max_total_tool_calls", 60))
+    max_wall_time = mode_cfg.get("max_wall_time_seconds", h.get("max_wall_time_seconds", 480.0))
+    tool_injection_mode = mode_cfg.get("tool_injection_mode", h.get("tool_injection_mode", "dynamic"))
+    mode_exposed_tools = mode_cfg.get("always_exposed_tools")
+    always_exposed = tuple(mode_exposed_tools) if mode_exposed_tools else tuple(
+        h.get("always_exposed_tools", ["query_knowledge", "memory_search"])
+    )
 
     db = db_path or DB_PATH
     retriever = SQLiteRetriever(db)
@@ -113,36 +125,49 @@ def build_harness(
         Tool(search_documents, SEARCH_DOCUMENTS_SCHEMA, retriever=retriever),
     ]
 
-    # Skill tools (hypothesis, dcf, etc.) — auto-discovered
+    # Skill tools — mode-filtered
     skills_dir = skills_cfg.get("dir", "./skills")
+    skill_name_list = mode_cfg.get("skills")  # None = load all
     skill_tools, skill_soul = load_skills(
-        skills_dir, context={"retriever": retriever}
+        skills_dir,
+        context={"retriever": retriever, "mode": mode},
+        skill_names=skill_name_list,
     )
 
-    # Soul = base soul files + skill soul text
-    base_soul = load_soul()
+    # Register mode in skill config so tools can read it
+    register_skill_config("_runtime", {"mode": mode})
+
+    # Soul — mode-filtered
+    soul_file_list = mode_cfg.get("soul_files")  # None = load all
+    base_soul = load_soul(file_list=soul_file_list)
     full_soul = base_soul
     if skill_soul:
         full_soul = base_soul + "\n\n---\n\n" + skill_soul
 
-    all_tools = core_tools + memory_tools + knowledge_tools + skill_tools
+    # Tool set — filter by mode's always_exposed_tools if defined
+    all_candidate_tools = core_tools + memory_tools + knowledge_tools + skill_tools
+    if mode_exposed_tools:
+        exposed_set = set(mode_exposed_tools)
+        all_tools = [t for t in all_candidate_tools if t.name in exposed_set]
+    else:
+        all_tools = all_candidate_tools
 
     harness = Harness(
         llm=OpenAIClient(),
         tools=all_tools,
         soul=full_soul,
         config=HarnessConfig(
-            max_tool_rounds=h.get("max_tool_rounds", 25),
-            max_total_tool_calls=h.get("max_total_tool_calls", 60),
-            max_wall_time_seconds=h.get("max_wall_time_seconds", 480.0),
+            max_tool_rounds=max_tool_rounds,
+            max_total_tool_calls=max_total_tool_calls,
+            max_wall_time_seconds=max_wall_time,
             max_retries=h.get("max_retries", 3),
             retry_base_delay=h.get("retry_base_delay", 1.0),
             context_limit_chars=h.get("context_limit_chars", 300000),
             compress_threshold_chars=h.get("compress_threshold_chars", 5000),
             tool_compress_overrides=h.get("tool_compress_overrides", {}),
-            tool_injection_mode=h.get("tool_injection_mode", "dynamic"),
+            tool_injection_mode=tool_injection_mode,
             max_tools_per_round=h.get("max_tools_per_round", 10),
-            always_exposed_tools=tuple(h.get("always_exposed_tools", ["query_knowledge", "memory_search"])),
+            always_exposed_tools=always_exposed,
             tool_triggers=h.get("tool_triggers", {}),
             include_flush_in_tool_rounds=budget_cfg.get("include_flush_in_tool_rounds", True),
             include_compaction_in_tool_rounds=budget_cfg.get("include_compaction_in_tool_rounds", True),

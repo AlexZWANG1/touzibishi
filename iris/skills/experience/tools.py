@@ -139,8 +139,23 @@ SAVE_EXPERIENCE_SCHEMA = make_tool_schema(
             "type": "string",
             "description": "ID of the attribution that generated this experience (if any)",
         },
+        "methodology": {
+            "type": "object",
+            "description": (
+                "Procedural knowledge: what method you used, what went wrong, "
+                "what to do next time. Be specific about tools and data sources."
+            ),
+            "properties": {
+                "what_i_did": {"type": "string", "description": "Method used in this analysis"},
+                "what_went_wrong": {"type": "string", "description": "Filled during reflection: why the prediction deviated"},
+                "what_to_do_next": {
+                    "type": "array", "items": {"type": "string"},
+                    "description": "Filled during reflection: actionable steps for next time",
+                },
+            },
+        },
     },
-    required=["zone", "level", "content", "companies", "confidence"],
+    required=["content", "companies", "confidence"],
 )
 
 RUN_REFLECTION_SCHEMA = make_tool_schema(
@@ -284,28 +299,30 @@ def recall_experiences(
 
     _save_library(library)
 
-    # Split into zones
+    # Split into zones (entries without zone, e.g. from analysis mode, are excluded)
     warnings = [
         {
             "id": e["id"],
             "content": e["content"],
-            "level": e["level"],
+            "level": e.get("level", "factual"),
             "confidence": e.get("confidence", 0.5),
             "evidence_count": e.get("evidence_count", 0),
             "companies": e.get("companies", []),
+            "methodology": e.get("methodology"),
         }
-        for e, _ in top_entries if e["zone"] == "warning"
+        for e, _ in top_entries if e.get("zone") == "warning"
     ]
     goldens = [
         {
             "id": e["id"],
             "content": e["content"],
-            "level": e["level"],
+            "level": e.get("level", "factual"),
             "confidence": e.get("confidence", 0.5),
             "evidence_count": e.get("evidence_count", 0),
             "companies": e.get("companies", []),
+            "methodology": e.get("methodology"),
         }
-        for e, _ in top_entries if e["zone"] == "golden"
+        for e, _ in top_entries if e.get("zone") == "golden"
     ]
 
     return ToolResult.ok({
@@ -322,16 +339,26 @@ def recall_experiences(
 
 
 def save_experience(
-    zone: str,
-    level: str,
-    content: str,
-    companies: list[str],
-    confidence: float,
+    zone: str = None,
+    level: str = None,
+    content: str = "",
+    companies: list[str] = None,
+    confidence: float = 0.5,
     sector: str = "",
     evidence: list[dict] = None,
     source_attribution_id: str = "",
+    methodology: dict = None,
 ) -> ToolResult:
     """Save a new experience entry with FLEX-style three-way dedup."""
+    # Mode-awareness: in analysis mode, strip zone/level
+    runtime_cfg = get_skill_config("_runtime")
+    current_mode = runtime_cfg.get("mode", "learning") if runtime_cfg else "learning"
+    if current_mode == "analysis":
+        zone = None
+        level = None
+
+    companies = companies or []
+
     cfg = get_skill_config("experience")
     update_cfg = cfg.get("update", {})
     quality_cfg = cfg.get("quality", {})
@@ -353,6 +380,7 @@ def save_experience(
                 "content": content,
                 "companies": companies,
                 "confidence": confidence,
+                "methodology": methodology,
             },
         })
 
@@ -418,7 +446,8 @@ def save_experience(
         })
 
     # Novel — insert new
-    new_id = f"exp_{zone[0]}_{uuid.uuid4().hex[:6]}"
+    zone_prefix = zone[0] if zone else "p"  # "p" for pending (analysis mode)
+    new_id = f"exp_{zone_prefix}_{uuid.uuid4().hex[:6]}"
     new_entry = {
         "id": new_id,
         "zone": zone,
@@ -430,6 +459,7 @@ def save_experience(
         "evidence_count": len(evidence) if evidence else 1,
         "evidence": evidence or [],
         "source_attribution_id": source_attribution_id,
+        "methodology": methodology,
         "times_retrieved": 0,
         "times_useful": 0,
         "created_at": datetime.now().isoformat(),

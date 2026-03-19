@@ -38,6 +38,7 @@ export interface InputRequestEvent {
 export interface AnalysisStartRequest {
   query: string;
   contextDocs?: string[];
+  mode?: 'analysis' | 'learning';
 }
 
 export interface AnalysisStartResponse {
