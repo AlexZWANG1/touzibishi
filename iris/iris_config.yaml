@@ -25,6 +25,7 @@ harness:
     - memory_search
     - recall_memory
     - save_memory
+    - search_documents
     - build_dcf
     - get_comps
   tool_triggers:
@@ -42,6 +43,8 @@ harness:
     check_calibration: ["校准", "calibration", "偏差", "bias"]
     query_knowledge: ["历史", "知识", "query", "已研究"]
     memory_search: ["语义搜索", "semantic", "相关记忆"]
+    upload_document: ["上传", "文档", "upload", "document", "保存文档"]
+    search_documents: ["知识库", "文档搜索", "研报", "笔记", "knowledge"]
     yf_quote: ["股价", "报价", "price", "quote", "市值", "pe", "市盈率"]
     yf_history: ["走势", "历史价格", "k线", "history", "趋势", "回撤"]
 
@@ -86,6 +89,10 @@ cross_session:
 memory:
   base_dir: "./memory"
   calibration_review_days: 90
+
+knowledge:
+  chunk_size: 800
+  chunk_overlap: 200
 
 skills:
   dir: "./skills"
