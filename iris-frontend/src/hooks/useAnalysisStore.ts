@@ -12,7 +12,7 @@ import type {
   AnalysisSnapshot,
 } from "@/types/analysis";
 import type { SSEEvent } from "@/types/api";
-import { translateToolStart, TOOL_TAB_MAP } from "@/utils/eventTranslator";
+import { translateToolStart } from "@/utils/eventTranslator";
 import * as api from "@/utils/api";
 
 interface AnalysisStore {
@@ -144,7 +144,7 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
       await api.continueAnalysis(analysisId, message);
       // Add user message to timeline + insert turn marker in text buffer
       set((state) => {
-        const newRaw = state._rawTextBuffer + `\n\n---\n\n**> ${message}**\n\n`;
+        const newRaw = state._rawTextBuffer + `\n\n<!---TURN--->\n${message}\n<!---TURN--->\n\n`;
         const { reasoning, thinking } = _splitThinkingBlocks(newRaw);
         return {
         pageState: "RUNNING",
@@ -176,7 +176,7 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
     try {
       const response = await api.resumeAnalysis(analysisId, message);
       set((state) => {
-        const newRaw = state._rawTextBuffer + `\n\n---\n\n**> ${message}**\n\n`;
+        const newRaw = state._rawTextBuffer + `\n\n<!---TURN--->\n${message}\n<!---TURN--->\n\n`;
         const { reasoning, thinking } = _splitThinkingBlocks(newRaw);
         return {
           pageState: "RUNNING",
@@ -288,11 +288,8 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
           return { timeline: updatedTimeline };
         });
 
-        // Auto-switch tab if user hasn't manually switched in last 5 seconds
-        const tabTarget = TOOL_TAB_MAP[tool];
-        if (tabTarget && Date.now() - state.lastUserTabSwitch > 5000) {
-          set({ activeTab: tabTarget as ActiveTab });
-        }
+        // Keep right-side chat stable; skill tabs are user-driven.
+        // We no longer auto-switch tabs on tool completion.
 
         // Extract panel data from tool results
         if (result && typeof result === "object") {

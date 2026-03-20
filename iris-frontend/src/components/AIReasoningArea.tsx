@@ -29,25 +29,21 @@ interface ChatSegment {
   content: string;
 }
 
+const TURN_SENTINEL = "<!---TURN--->";
+
 function splitIntoChatSegments(text: string): ChatSegment[] {
   if (!text) return [];
 
-  // Split on the turn separator pattern: ---\n\n**> message**\n\n
-  // The user message pattern is: **> some text**
-  const parts = text.split(/\n*---\n*/);
+  const parts = text.split(TURN_SENTINEL);
   const segments: ChatSegment[] = [];
 
-  for (const part of parts) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-
-    // Check if this part is a user message: starts with **> and ends with **
-    const userMatch = trimmed.match(/^\*\*>\s*([\s\S]*?)\*\*$/);
-    if (userMatch) {
-      segments.push({ role: "user", content: userMatch[1].trim() });
-    } else {
-      segments.push({ role: "ai", content: trimmed });
-    }
+  for (let i = 0; i < parts.length; i++) {
+    const content = parts[i].trim();
+    if (!content) continue;
+    segments.push({
+      role: i % 2 === 0 ? "ai" : "user",
+      content,
+    });
   }
 
   return segments;

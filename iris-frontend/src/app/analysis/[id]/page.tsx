@@ -4,16 +4,24 @@ import { useParams } from "next/navigation";
 import { useEffect } from "react";
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 import { useAnalysisStream } from "@/hooks/useAnalysisStream";
+import { useShallow } from "zustand/react/shallow";
 import { PhaseIndicator } from "@/components/PhaseIndicator";
-import { StreamingTimeline } from "@/components/StreamingTimeline";
-import { ReportPanel } from "@/components/AIReasoningArea";
-import { SteeringInput } from "@/components/SteeringInput";
-import { ResumeBar } from "@/components/ResumeBar";
-import { PendingQuestionCard } from "@/components/PendingQuestionCard";
-import { PanelTabBar } from "@/components/PanelTabBar";
+import { DebugPanel } from "@/components/DebugPanel";
+import { ChatPanel } from "@/components/ChatPanel";
 import { DataPanel } from "@/components/DataPanel";
 import { ModelPanel } from "@/components/ModelPanel";
 import { CompsPanel } from "@/components/CompsPanel";
+import type { ActiveTab } from "@/types/analysis";
+
+/**
+ * Skill tabs — only shown when they have data.
+ * These appear as small pills above the chat when relevant.
+ */
+const SKILL_TABS: { key: ActiveTab; label: string }[] = [
+  { key: "data", label: "数据" },
+  { key: "model", label: "模型" },
+  { key: "comps", label: "可比" },
+];
 
 export default function AnalysisPage() {
   const params = useParams();
@@ -23,11 +31,34 @@ export default function AnalysisPage() {
   const isReplay = useAnalysisStore((s) => s.isReplay);
   const analysisQuery = useAnalysisStore((s) => s.analysisQuery);
   const activeTab = useAnalysisStore((s) => s.activeTab);
-  const pendingQuestion = useAnalysisStore((s) => s.pendingQuestion);
+  const setActiveTab = useAnalysisStore((s) => s.setActiveTab);
+
+  // Check which skill tabs have data
+  const tabsWithData = useAnalysisStore(
+    useShallow((s) => ({
+      data:
+        s.dataPanel.metrics.length > 0 ||
+        s.dataPanel.financialTables.length > 0,
+      model:
+        s.modelPanel.fairValue !== null || s.modelPanel.yearByYear.length > 0,
+      comps: s.compsPanel.peers.length > 0,
+    }))
+  );
+
+  const visibleSkillTabs = SKILL_TABS.filter((t) => tabsWithData[t.key as keyof typeof tabsWithData]);
+  const hasActiveSkillTab = activeTab !== "report" && visibleSkillTabs.some((t) => t.key === activeTab);
 
   useEffect(() => {
-    useAnalysisStore.setState({ analysisId: id, pageState: "IDLE" });
+    const { reset } = useAnalysisStore.getState();
+    reset();
+    useAnalysisStore.setState({ analysisId: id, pageState: "IDLE", activeTab: "report" });
   }, [id]);
+
+  useEffect(() => {
+    if (activeTab !== "report" && !visibleSkillTabs.some((tab) => tab.key === activeTab)) {
+      setActiveTab("report");
+    }
+  }, [activeTab, setActiveTab, visibleSkillTabs]);
 
   useAnalysisStream(id);
 
@@ -45,11 +76,12 @@ export default function AnalysisPage() {
           REPLAY // 历史回看
         </div>
       )}
+
       {/* Main content area */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Left Panel - fixed 320px log panel */}
-        <div className="flex w-[320px] shrink-0 flex-col border-r border-[var(--iris-border)]">
-          {/* Query display */}
+        {/* Left Panel — Debug: logs / thinking / memory */}
+        <div className="flex w-[300px] shrink-0 flex-col border-r border-[var(--iris-border)] bg-[var(--iris-surface)]">
+          {/* Query + Phase header */}
           {analysisQuery && (
             <div className="shrink-0 border-b border-[var(--iris-border)] px-[10px] py-[6px]">
               <p className="font-mono text-[12px] text-[var(--iris-text)] truncate">
@@ -58,61 +90,90 @@ export default function AnalysisPage() {
               </p>
             </div>
           )}
-          {/* Phase Indicator */}
           <div className="shrink-0 border-b border-[var(--iris-border)] px-[8px] py-[4px]">
             <PhaseIndicator />
           </div>
 
-          {/* Timeline - scrollable center */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-[6px] py-[4px]">
-            {pageState === "IDLE" ? (
-              <div className="flex h-full items-center justify-center">
-                <p className="font-mono text-[11px] text-[var(--iris-text-muted)]">
-                  WAITING...
-                </p>
-              </div>
-            ) : (
-              <StreamingTimeline />
-            )}
+          {/* Debug tabs content */}
+          <div className="flex-1 min-h-0">
+            <DebugPanel />
           </div>
-
-          {/* Left panel bottom spacer */}
         </div>
 
-        {/* Right Panel - flex-1 */}
+        {/* Right Panel — Chat + conditional skill panels */}
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* Tab Bar */}
-          <PanelTabBar />
+          {/* Skill tab pills — only shown when skills produce data */}
+          {visibleSkillTabs.length > 0 && (
+            <div
+              className="flex-shrink-0 flex items-center gap-1 border-b border-[var(--iris-border)]"
+              style={{ padding: "6px 24px" }}
+            >
+              {/* Chat tab (always first, default) */}
+              <button
+                onClick={() => setActiveTab("report")}
+                className="font-mono transition-colors"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  padding: "4px 12px",
+                  borderRadius: "6px",
+                  border: "none",
+                  cursor: "pointer",
+                  background:
+                    activeTab === "report"
+                      ? "var(--iris-accent)"
+                      : "transparent",
+                  color:
+                    activeTab === "report"
+                      ? "#fff"
+                      : "var(--iris-text-secondary)",
+                }}
+              >
+                对话
+              </button>
 
-          {/* Panel Content */}
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {pageState === "IDLE" ? (
-              <div className="flex h-full items-center justify-center">
-                <p className="font-mono text-[11px] text-[var(--iris-text-muted)]">
-                  LOADING PANELS...
-                </p>
-              </div>
-            ) : (
-              <>
-                {activeTab === "report" && <ReportPanel />}
+              {/* Skill tabs */}
+              {visibleSkillTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className="font-mono transition-colors"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    padding: "4px 12px",
+                    borderRadius: "6px",
+                    border: "none",
+                    cursor: "pointer",
+                    background:
+                      activeTab === tab.key
+                        ? "var(--iris-accent)"
+                        : "transparent",
+                    color:
+                      activeTab === tab.key
+                        ? "#fff"
+                        : "var(--iris-text-secondary)",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Panel content */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {hasActiveSkillTab ? (
+              <div className="h-full overflow-y-auto">
                 {activeTab === "data" && <DataPanel />}
                 {activeTab === "model" && <ModelPanel />}
                 {activeTab === "comps" && <CompsPanel />}
-              </>
+              </div>
+            ) : (
+              <ChatPanel />
             )}
           </div>
         </div>
-      </div>
-
-      {/* Bottom: Steering Input / Resume Bar / Pending Question */}
-      <div className="shrink-0 border-t border-[var(--iris-border)] p-[6px_10px] bg-[var(--iris-bg)]">
-        {pageState === "WAITING" && pendingQuestion ? (
-          <PendingQuestionCard />
-        ) : isReplay ? (
-          <ResumeBar />
-        ) : (
-          <SteeringInput />
-        )}
       </div>
     </div>
   );
