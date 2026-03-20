@@ -37,6 +37,13 @@ export function useAnalysisStream(analysisId: string | null) {
 
   const connectSSE = useCallback(
     (id: string) => {
+      // Close any existing connection first — prevents multiple consumers
+      // splitting events from the same backend Queue
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
       const es = new EventSource(`${baseUrl}/api/analyze/${id}/stream`);
       eventSourceRef.current = es;
