@@ -66,12 +66,20 @@ export function PhaseIndicator() {
       {/* Status on the right */}
       <div className="ml-auto flex items-center">
         {isComplete && (
-          <span
-            className="font-mono"
-            style={{ fontSize: 12, color: "var(--iris-data)", fontWeight: 500 }}
-          >
-            完成
-          </span>
+          <>
+            <span
+              className="mx-0.5"
+              style={{ fontSize: 11, color: "var(--iris-text-secondary)" }}
+            >
+              ›
+            </span>
+            <span
+              className="font-mono"
+              style={{ fontSize: 12, color: "var(--iris-data)", fontWeight: 500 }}
+            >
+              完成
+            </span>
+          </>
         )}
         {pageState === "RUNNING" && (
           <span

@@ -7,7 +7,6 @@ import { useAnalysisStream } from "@/hooks/useAnalysisStream";
 import { PhaseIndicator } from "@/components/PhaseIndicator";
 import { StreamingTimeline } from "@/components/StreamingTimeline";
 import { ReportPanel } from "@/components/AIReasoningArea";
-import { MemorySummary } from "@/components/MemorySummary";
 import { SteeringInput } from "@/components/SteeringInput";
 import { PendingQuestionCard } from "@/components/PendingQuestionCard";
 import { PanelTabBar } from "@/components/PanelTabBar";
@@ -76,10 +75,7 @@ export default function AnalysisPage() {
             )}
           </div>
 
-          {/* Memory summary - bottom of sidebar */}
-          <div className="shrink-0 border-t border-[var(--iris-border)]" style={{ maxHeight: "120px", overflowY: "auto" }}>
-            <MemorySummary />
-          </div>
+          {/* Left panel bottom spacer */}
         </div>
 
         {/* Right Panel - flex-1 */}
