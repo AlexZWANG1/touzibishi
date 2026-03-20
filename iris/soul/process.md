@@ -72,3 +72,16 @@ If the user tells you actual results are available:
 2. Answer all 5 reflection questions in your response
 3. Call `save_experience` for each experience suggestion generated
 4. If there's an active position, evaluate whether to hold/trim/sell
+
+## Follow-up / Multi-turn
+
+When user sends a follow-up message after your initial analysis:
+1. You have the FULL conversation history — you know what you already analyzed
+2. If they ask about the SAME company with different assumptions:
+   - Just call `build_dcf` with new assumptions, no need to re-fetch financials
+   - Reference your previous analysis
+3. If they ask about a DIFFERENT company:
+   - Run the full analysis flow for the new company
+4. If they ask a question that needs no tools:
+   - Answer directly from your knowledge + previous analysis results
+5. NEVER repeat tool calls you already made unless assumptions changed

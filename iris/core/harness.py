@@ -161,9 +161,10 @@ class Harness:
         messages.extend(prior_messages)
         messages.append({"role": "user", "content": self.context.build_user_message(user_input, context_docs)})
 
+        self._messages = messages
+
         tool_log: list[dict] = []
         recent_tool_names: list[str] = []
-        main_round = 0
 
         self._emit(
             EventType.RUN_START,
@@ -174,6 +175,53 @@ class Harness:
                 "loop_status": loop_detector.status(),
             },
         )
+
+        return self._main_loop(budget, loop_detector, messages, tool_log, recent_tool_names)
+
+    def continue_run(self, user_input: str, on_event=None, context_docs=None) -> HarnessResult:
+        """Continue an existing conversation with preserved message history."""
+        if not hasattr(self, '_messages') or not self._messages:
+            raise RuntimeError("No prior run to continue")
+
+        if on_event:
+            self.on_event = on_event
+
+        self._abort.clear()
+        self._current_run_id = f"run_{uuid.uuid4().hex[:12]}"
+
+        budget = BudgetTracker(self._budget_policy())
+        self._active_budget = budget
+
+        # Append new user message to existing conversation
+        self._messages.append({"role": "user", "content": self.context.build_user_message(user_input, context_docs)})
+
+        # Fresh loop detector and tool tracking for this turn
+        loop_detector = LoopDetector(self.config.loop_detection)
+        tool_log: list[dict] = []
+        recent_tool_names: list[str] = []
+
+        self._emit(
+            EventType.RUN_START,
+            {
+                "run_id": self._current_run_id,
+                "subject": self.context.extract_subject(user_input),
+                "budget": budget.remaining_dict(),
+                "is_continuation": True,
+            },
+        )
+
+        return self._main_loop(budget, loop_detector, self._messages, tool_log, recent_tool_names)
+
+    def _main_loop(
+        self,
+        budget: BudgetTracker,
+        loop_detector: LoopDetector,
+        messages: list[dict],
+        tool_log: list[dict],
+        recent_tool_names: list[str],
+    ) -> HarnessResult:
+        """Core agent loop shared by run() and continue_run()."""
+        main_round = 0
 
         while True:
             if self._abort.is_set():

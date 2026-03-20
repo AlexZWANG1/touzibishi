@@ -125,6 +125,16 @@ export async function getHistoryDetail(runId: string): Promise<AnalysisSnapshot>
   return request<AnalysisSnapshot>(`/api/history/${encodeURIComponent(runId)}`);
 }
 
+export async function continueAnalysis(
+  analysisId: string,
+  message: string
+): Promise<{ status: string; turn: number }> {
+  return request(`/api/analyze/${encodeURIComponent(analysisId)}/continue`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
 export async function probeSession(analysisId: string): Promise<{ live: boolean; query?: string }> {
   try {
     const res = await fetch(`${BASE_URL}/api/analyze/${analysisId}/status`);

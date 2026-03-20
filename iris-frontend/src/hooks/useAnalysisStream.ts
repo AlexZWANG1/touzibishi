@@ -30,9 +30,10 @@ const SSE_EVENT_TYPES: SSEEventType[] = [
 export function useAnalysisStream(analysisId: string | null) {
   const handleSSEEvent = useAnalysisStore((s) => s.handleSSEEvent);
   const loadSnapshot = useAnalysisStore((s) => s.loadSnapshot);
+  const pageState = useAnalysisStore((s) => s.pageState);
   const eventSourceRef = useRef<EventSource | null>(null);
   const retriesRef = useRef(0);
-  const resolvedRef = useRef(false);
+  const initializedRef = useRef(false);
 
   const connectSSE = useCallback(
     (id: string) => {
@@ -80,9 +81,10 @@ export function useAnalysisStream(analysisId: string | null) {
     [handleSSEEvent]
   );
 
+  // Initial connection: probe to check if live or replay
   useEffect(() => {
-    if (!analysisId || resolvedRef.current) return;
-    resolvedRef.current = true;
+    if (!analysisId || initializedRef.current) return;
+    initializedRef.current = true;
 
     (async () => {
       const probe = await probeSession(analysisId);
@@ -108,7 +110,20 @@ export function useAnalysisStream(analysisId: string | null) {
         eventSourceRef.current = null;
       }
       retriesRef.current = 0;
-      resolvedRef.current = false;
+      initializedRef.current = false;
     };
   }, [analysisId, connectSSE, loadSnapshot]);
+
+  // Reconnect SSE when pageState goes back to RUNNING (multi-turn continuation)
+  useEffect(() => {
+    if (
+      analysisId &&
+      initializedRef.current &&
+      pageState === "RUNNING" &&
+      !eventSourceRef.current
+    ) {
+      retriesRef.current = 0;
+      connectSSE(analysisId);
+    }
+  }, [analysisId, pageState, connectSSE]);
 }

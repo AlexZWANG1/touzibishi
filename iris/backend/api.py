@@ -9,6 +9,7 @@ load_dotenv()
 import asyncio
 import functools
 import json
+import logging
 import re
 import threading
 import time
@@ -188,6 +189,50 @@ def _extract_recommendation(text: str | None) -> str | None:
     return None
 
 
+logger = logging.getLogger(__name__)
+
+
+# ── DB persistence helper ────────────────────────────────────
+
+def _save_to_db(session: AnalysisSession, snap: dict, ticker: str | None, result) -> None:
+    """Persist analysis results to the retriever DB. Shared by initial run and continuations."""
+    retriever = _get_retriever()
+
+    # Save valuation record if build_dcf was called
+    if session.pending_valuation and ticker:
+        pv = session.pending_valuation
+        fv = pv.get("fair_value") or pv.get("fair_value_per_share")
+        if fv is not None:
+            retriever.save_valuation_record(
+                ticker=ticker,
+                fair_value=fv,
+                current_price=pv.get("current_price", 0),
+                gap_pct=pv.get("gap_pct", 0),
+                run_id=session.id,
+            )
+
+    # Use accumulated reasoning text, or fall back to result.reply
+    reasoning_text = snap["reasoning_text"] or result.reply or ""
+
+    # Extract recommendation from the final reasoning text
+    rec = _extract_recommendation(reasoning_text)
+
+    # Save the full analysis run
+    retriever.save_analysis_run(
+        id=session.id,
+        query=session.query,
+        ticker=ticker,
+        status="complete" if result.ok else "error",
+        reasoning_text=reasoning_text,
+        thinking_text=snap["thinking_text"],
+        timeline_json=json.dumps(snap["timeline"], ensure_ascii=False, default=str),
+        panels_json=json.dumps(snap["panels"], ensure_ascii=False, default=str),
+        recommendation=rec,
+        tokens_in=result.total_input_tokens,
+        tokens_out=result.total_output_tokens,
+    )
+
+
 # ── Analysis endpoints ───────────────────────────────────────
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
@@ -235,42 +280,8 @@ async def start_analysis(req: AnalyzeRequest):
 
             # --- Persist to DB ---
             snap = session.snapshot()
-            retriever = _get_retriever()
             ticker = _extract_ticker(req.query, session)
-
-            # Save valuation record if build_dcf was called
-            if session.pending_valuation and ticker:
-                pv = session.pending_valuation
-                fv = pv.get("fair_value") or pv.get("fair_value_per_share")
-                if fv is not None:
-                    retriever.save_valuation_record(
-                        ticker=ticker,
-                        fair_value=fv,
-                        current_price=pv.get("current_price", 0),
-                        gap_pct=pv.get("gap_pct", 0),
-                        run_id=session.id,
-                    )
-
-            # Use accumulated reasoning text, or fall back to result.reply
-            reasoning_text = snap["reasoning_text"] or result.reply or ""
-
-            # Extract recommendation from the final reasoning text
-            rec = _extract_recommendation(reasoning_text)
-
-            # Save the full analysis run
-            retriever.save_analysis_run(
-                id=session.id,
-                query=req.query,
-                ticker=ticker,
-                status="complete" if result.ok else "error",
-                reasoning_text=reasoning_text,
-                thinking_text=snap["thinking_text"],
-                timeline_json=json.dumps(snap["timeline"], ensure_ascii=False, default=str),
-                panels_json=json.dumps(snap["panels"], ensure_ascii=False, default=str),
-                recommendation=rec,
-                tokens_in=result.total_input_tokens,
-                tokens_out=result.total_output_tokens,
-            )
+            _save_to_db(session, snap, ticker, result)
 
             session.events.put({
                 "event": "analysis_complete",
@@ -284,7 +295,7 @@ async def start_analysis(req: AnalyzeRequest):
                     "toolLog": result.tool_log,
                 },
             })
-            session.status = "complete"
+            session.status = "idle"
         except Exception as e:
             session.events.put({
                 "event": "error",
@@ -380,6 +391,67 @@ async def respond_to_input(analysis_id: str, req: RespondRequest):
     session.user_input_event.set()
     session.touch()
     return {"ok": True}
+
+
+@app.post("/api/analyze/{analysis_id}/continue")
+async def continue_analysis(analysis_id: str, req: SteerRequest):
+    """Continue a completed analysis with a follow-up message."""
+    session = get_session(analysis_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    if session.status == "running":
+        raise HTTPException(status_code=400, detail="Session is still running")
+
+    session.status = "running"
+    session.turn_count += 1
+
+    # Re-create event callback
+    def on_event(event: HarnessEvent) -> None:
+        try:
+            sse = harness_event_to_sse(event)
+            if sse:
+                session.events.put(sse)
+                session.touch()
+            session.accumulate_raw(event)
+        except Exception as e:
+            logger.error(f"Event callback error: {e}")
+
+    def run_continuation():
+        try:
+            result = session.harness.continue_run(
+                user_input=req.message,
+                on_event=on_event,
+            )
+            # Save updated snapshot
+            snap = session.snapshot()
+            ticker = _extract_ticker(snap.get("reasoning_text", ""), session)
+            _save_to_db(session, snap, ticker, result)
+
+            session.events.put({
+                "event": "analysis_complete",
+                "data": {
+                    "ok": result.ok,
+                    "reply": result.reply,
+                    "error": result.error,
+                    "runId": result.run_id,
+                    "totalInputTokens": result.total_input_tokens,
+                    "totalOutputTokens": result.total_output_tokens,
+                    "toolLog": result.tool_log,
+                    "turn": session.turn_count,
+                },
+            })
+            session.status = "idle"
+        except Exception as e:
+            logger.exception(f"Continuation failed: {e}")
+            session.events.put({"event": "error", "data": {"message": str(e)}})
+            session.status = "error"
+        finally:
+            session.events.put(None)
+
+    thread = threading.Thread(target=run_continuation, daemon=True)
+    thread.start()
+
+    return {"status": "continuing", "turn": session.turn_count}
 
 
 # ── Memory endpoints ─────────────────────────────────────────

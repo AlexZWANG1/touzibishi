@@ -4,15 +4,16 @@ import { useState, useCallback } from "react";
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 
 const PLACEHOLDERS: Record<string, string> = {
-  IDLE: "等待分析开始...",
+  IDLE: "继续对话... 比如'WACC 改成 12% 再算一遍'",
   RUNNING: "引导分析方向，例如：重点关注 FCF margin...",
   WAITING: "等待回复问题...",
-  COMPLETE: "分析已完成。输入新问题继续探索...",
+  COMPLETE: "继续对话... 比如'WACC 改成 12% 再算一遍'",
 };
 
 export function SteeringInput() {
   const [message, setMessage] = useState("");
   const sendSteering = useAnalysisStore((s) => s.sendSteering);
+  const continueAnalysis = useAnalysisStore((s) => s.continueAnalysis);
   const pageState = useAnalysisStore((s) => s.pageState);
 
   const handleSubmit = useCallback(
@@ -20,13 +21,19 @@ export function SteeringInput() {
       e.preventDefault();
       const trimmed = message.trim();
       if (!trimmed) return;
-      sendSteering(trimmed);
+
+      if (pageState === "RUNNING") {
+        sendSteering(trimmed);
+      } else {
+        // COMPLETE or IDLE with an existing analysis — continue the conversation
+        continueAnalysis(trimmed);
+      }
       setMessage("");
     },
-    [message, sendSteering]
+    [message, sendSteering, continueAnalysis, pageState]
   );
 
-  const isDisabled = pageState !== "RUNNING" && pageState !== "COMPLETE";
+  const isDisabled = pageState === "WAITING";
   const placeholder = PLACEHOLDERS[pageState] || PLACEHOLDERS.RUNNING;
 
   return (

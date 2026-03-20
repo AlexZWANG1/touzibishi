@@ -35,6 +35,7 @@ interface AnalysisStore {
 
   startAnalysis: (query: string, contextDocs?: string[]) => Promise<void>;
   sendSteering: (message: string) => Promise<void>;
+  continueAnalysis: (message: string) => Promise<void>;
   respondToInput: (response: string) => Promise<void>;
   setActiveTab: (tab: ActiveTab) => void;
   handleSSEEvent: (event: SSEEvent) => void;
@@ -129,6 +130,18 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
       }));
     } catch (error) {
       console.error("Failed to send steering:", error);
+    }
+  },
+
+  continueAnalysis: async (message: string) => {
+    const { analysisId } = get();
+    if (!analysisId) return;
+    try {
+      await api.continueAnalysis(analysisId, message);
+      // Don't reset panels/timeline — append to existing
+      set({ pageState: "RUNNING" });
+    } catch (error) {
+      console.error("Failed to continue analysis:", error);
     }
   },
 
@@ -271,7 +284,7 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
         };
         set((s) => ({
           pageState: "COMPLETE",
-          reasoningText: ok && reply ? reply : s.reasoningText,
+          reasoningText: s.reasoningText || (ok && reply ? reply : ""),
           timeline: [
             ...s.timeline,
             {

@@ -59,7 +59,8 @@ class AnalysisSession:
     harness: Harness
     events: queue.Queue  # Queue[dict] — threading.Queue, NOT asyncio.Queue
     query: str = ""
-    status: Literal["running", "waiting", "complete", "error"] = "running"
+    status: Literal["running", "waiting", "complete", "error", "idle"] = "running"
+    turn_count: int = 0
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     user_input_event: threading.Event = field(default_factory=threading.Event)
     user_input_response: str | None = None
