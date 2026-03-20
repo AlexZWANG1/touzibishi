@@ -15,26 +15,17 @@ from tools.search import (
     web_fetch, WEB_FETCH_SCHEMA,
 )
 from tools.financials import (
-    fmp_get_financials, FMP_GET_FINANCIALS_SCHEMA,
-    fred_get_macro, FRED_GET_MACRO_SCHEMA,
+    financials, FINANCIALS_SCHEMA,
+    macro, MACRO_SCHEMA,
 )
 from tools.market import (
-    yf_quote, YF_QUOTE_SCHEMA,
-    yf_history, YF_HISTORY_SCHEMA,
-)
-from tools.memory import (
-    recall_memory, RECALL_MEMORY_SCHEMA,
-    save_memory, SAVE_MEMORY_SCHEMA,
-    check_calibration, CHECK_CALIBRATION_SCHEMA,
-)
-from tools.semantic_search import memory_search, MEMORY_SEARCH_SCHEMA
-from tools.knowledge_ingest import (
-    upload_document, UPLOAD_DOCUMENT_SCHEMA,
-    search_documents, SEARCH_DOCUMENTS_SCHEMA,
+    quote, QUOTE_SCHEMA,
+    history, HISTORY_SCHEMA,
 )
 from tools.unified_memory import (
     remember, REMEMBER_SCHEMA,
     recall, RECALL_SCHEMA,
+    search_knowledge, SEARCH_KNOWLEDGE_SCHEMA,
 )
 
 
@@ -99,7 +90,7 @@ def build_harness(
     tool_injection_mode = mode_cfg.get("tool_injection_mode", h.get("tool_injection_mode", "dynamic"))
     mode_exposed_tools = mode_cfg.get("always_exposed_tools")
     always_exposed = tuple(mode_exposed_tools) if mode_exposed_tools else tuple(
-        h.get("always_exposed_tools", ["query_knowledge", "memory_search"])
+        h.get("always_exposed_tools", ["remember", "recall"])
     )
 
     db = db_path or DB_PATH
@@ -109,30 +100,17 @@ def build_harness(
     core_tools = [
         Tool(exa_search, EXA_SEARCH_SCHEMA),
         Tool(web_fetch, WEB_FETCH_SCHEMA),
-        Tool(fmp_get_financials, FMP_GET_FINANCIALS_SCHEMA),
-        Tool(fred_get_macro, FRED_GET_MACRO_SCHEMA),
-        Tool(yf_quote, YF_QUOTE_SCHEMA),
-        Tool(yf_history, YF_HISTORY_SCHEMA),
+        Tool(financials, FINANCIALS_SCHEMA),
+        Tool(macro, MACRO_SCHEMA),
+        Tool(quote, QUOTE_SCHEMA),
+        Tool(history, HISTORY_SCHEMA),
     ]
 
     # Memory tools
     memory_tools = [
-        Tool(recall_memory, RECALL_MEMORY_SCHEMA),
-        Tool(save_memory, SAVE_MEMORY_SCHEMA),
-        Tool(check_calibration, CHECK_CALIBRATION_SCHEMA),
-        Tool(memory_search, MEMORY_SEARCH_SCHEMA, retriever=retriever),
-    ]
-
-    # Knowledge tools (human materials)
-    knowledge_tools = [
-        Tool(upload_document, UPLOAD_DOCUMENT_SCHEMA, retriever=retriever),
-        Tool(search_documents, SEARCH_DOCUMENTS_SCHEMA, retriever=retriever),
-    ]
-
-    # Unified memory tools (primary — replaces old memory/experience/search tools)
-    unified_tools = [
         Tool(remember, REMEMBER_SCHEMA, retriever=retriever),
         Tool(recall, RECALL_SCHEMA, retriever=retriever),
+        Tool(search_knowledge, SEARCH_KNOWLEDGE_SCHEMA, retriever=retriever),
     ]
 
     # Skill tools — mode-filtered
@@ -155,7 +133,7 @@ def build_harness(
         full_soul = base_soul + "\n\n---\n\n" + skill_soul
 
     # Tool set — filter by mode's always_exposed_tools if defined
-    all_candidate_tools = core_tools + unified_tools + memory_tools + knowledge_tools + skill_tools
+    all_candidate_tools = core_tools + memory_tools + skill_tools
     if mode_exposed_tools:
         exposed_set = set(mode_exposed_tools)
         all_tools = [t for t in all_candidate_tools if t.name in exposed_set]

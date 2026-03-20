@@ -57,9 +57,8 @@ def _get_retriever() -> SQLiteRetriever:
 def _extract_ticker(query: str, session: AnalysisSession) -> str | None:
     """Best-effort ticker extraction from query and tool results."""
     tool_results = session.accumulated_panels
-    # Prefer market-data tools; build_dcf may be invoked with placeholder strings
-    # for generic/meta questions and can create false ticker pollution.
-    for tool_name in ["yf_quote", "fmp_get_financials"]:
+    # Prefer market-data tools.
+    for tool_name in ["quote", "financials", "valuation", "yf_quote", "fmp_get_financials", "build_dcf"]:
         result = tool_results.get(tool_name, {})
         if isinstance(result, dict) and result.get("ticker"):
             return result["ticker"].upper()
@@ -249,7 +248,7 @@ def _save_to_db(session: AnalysisSession, snap: dict, ticker: str | None, result
     """Persist analysis results to the retriever DB. Shared by initial run and continuations."""
     retriever = _get_retriever()
 
-    # Save valuation record if build_dcf was called
+    # Save valuation record if valuation model was produced
     if session.pending_valuation and ticker:
         pv = session.pending_valuation
         fv = pv.get("fair_value") or pv.get("fair_value_per_share")
@@ -277,7 +276,7 @@ def _save_to_db(session: AnalysisSession, snap: dict, ticker: str | None, result
                         ).strftime("%Y-%m-%d"),
                         "run_id": session.id,
                     },
-                    source=f"build_dcf in {session.id}",
+                    source=f"valuation in {session.id}",
                 )
             except Exception:
                 pass  # best-effort
@@ -364,6 +363,12 @@ async def start_analysis(req: AnalyzeRequest):
                     "event": "system",
                     "data": {"message": "已识别为问候/能力咨询，使用轻量回复模式"},
                 })
+                # Initialize _messages so continue_run works for follow-up turns
+                harness._messages = [
+                    harness.context.build_system_message(harness.soul, []),
+                    {"role": "user", "content": req.query},
+                    {"role": "assistant", "content": reply},
+                ]
                 result = SimpleNamespace(
                     ok=True,
                     reply=reply,
@@ -752,8 +757,8 @@ async def delete_memory(memory_type: str, filename: str):
 
 @app.get("/api/watchlist")
 async def get_watchlist():
-    """Build watchlist from DB (structured data) + live yf_quote prices."""
-    from tools.market import yf_quote
+    """Build watchlist from DB (structured data) + live quote prices."""
+    from tools.market import quote
 
     retriever = _get_retriever()
     tickers = retriever.get_tracked_tickers()
@@ -764,7 +769,7 @@ async def get_watchlist():
 
     async def fetch_quote(t: str) -> dict:
         try:
-            result = await loop.run_in_executor(None, functools.partial(yf_quote, t))
+            result = await loop.run_in_executor(None, functools.partial(quote, t))
             if result.status == "ok":
                 return result.data
         except Exception:

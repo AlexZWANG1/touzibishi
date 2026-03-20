@@ -322,7 +322,12 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
       case "text": {
         const content = event.data.content as string;
         if (content) {
-          set({ reasoningText: content });
+          const { reasoning, thinking } = _splitThinkingBlocks(content);
+          set({
+            _rawTextBuffer: content,
+            reasoningText: reasoning,
+            thinkingText: thinking,
+          });
         }
         break;
       }
@@ -343,9 +348,13 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
           reply?: string;
           error?: string;
         };
-        set((s) => ({
+        set((s) => {
+          const fallbackText = ok && reply && !s.reasoningText ? reply : "";
+          return {
           pageState: "COMPLETE",
-          reasoningText: s.reasoningText || (ok && reply ? reply : ""),
+          reasoningText: s.reasoningText || fallbackText,
+          // Keep _rawTextBuffer in sync so multi-turn continuation includes prior text
+          _rawTextBuffer: s._rawTextBuffer || fallbackText,
           timeline: [
             ...s.timeline,
             {
@@ -358,7 +367,7 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
               status: ok ? "complete" : "error",
             },
           ],
-        }));
+        };});
         break;
       }
 
@@ -515,9 +524,8 @@ function _splitThinkingBlocks(raw: string): { reasoning: string; thinking: strin
     const closeIdx = raw.indexOf(CLOSE, openIdx + OPEN.length);
     if (closeIdx === -1) {
       // Unclosed block — tag might still be streaming in.
-      // Don't include the partial <thinking>... in reasoning yet;
-      // keep it as-is so next reparse picks it up when the close tag arrives.
-      // For now, show nothing for the incomplete block.
+      // Capture what we have so far as in-progress thinking.
+      thinkingParts.push(raw.slice(openIdx + OPEN.length));
       break;
     }
 
@@ -525,10 +533,29 @@ function _splitThinkingBlocks(raw: string): { reasoning: string; thinking: strin
     pos = closeIdx + CLOSE.length;
   }
 
+  // During streaming, the buffer may end with a partial "<thinking>" or
+  // "</thinking>" prefix (e.g. "<thi", "</think") before the full tag has
+  // arrived. Strip any such trailing prefix so it never flashes in the UI.
+  let reasoning = reasoningParts.join("");
+  reasoning = _trimPartialTag(reasoning);
+
   return {
-    reasoning: reasoningParts.join(""),
+    reasoning,
     thinking: thinkingParts.join("\n---\n"),
   };
+}
+
+/** Remove a trailing partial `<thinking>` or `</thinking>` tag prefix. */
+function _trimPartialTag(text: string): string {
+  const tags = ["<thinking>", "</thinking>"];
+  for (const tag of tags) {
+    for (let len = tag.length - 1; len >= 1; len--) {
+      if (text.endsWith(tag.slice(0, len))) {
+        return text.slice(0, -len);
+      }
+    }
+  }
+  return text;
 }
 
 
@@ -538,6 +565,16 @@ function _extractPanelData(
   set: (fn: (s: AnalysisStore) => Partial<AnalysisStore>) => void
 ) {
   switch (tool) {
+    case "valuation": {
+      const dcf = (result.dcf as Record<string, unknown>) || result;
+      const comps = result.comps as Record<string, unknown> | undefined;
+      _extractPanelData("build_dcf", dcf, set);
+      if (comps && typeof comps === "object") {
+        _extractPanelData("get_comps", comps, set);
+      }
+      break;
+    }
+
     case "build_dcf": {
       // Backend: {fair_value_per_share, current_price, gap_pct, year_by_year, sensitivity, implied_multiples, ...}
       const fv = result.fair_value_per_share as number | undefined;
@@ -644,6 +681,7 @@ function _extractPanelData(
       break;
     }
 
+    case "financials":
     case "fmp_get_financials": {
       // Backend: {ticker, statement_type, period, data: [...financial rows...]}
       const stType = result.statement_type as string || "";
@@ -728,6 +766,7 @@ function _extractPanelData(
       break;
     }
 
+    case "quote":
     case "yf_quote": {
       // Backend: {ticker, name, price, market_cap, pe_trailing, pe_forward, ev_ebitda, ...}
       const newMetrics: import("@/types/analysis").MetricItem[] = [];
@@ -746,14 +785,19 @@ function _extractPanelData(
       break;
     }
 
+    case "recall":
     case "recall_memory": {
-      if (result.content) {
+      if (result.total_results || result.content) {
         set((s) => ({
           memoryPanel: {
             ...s.memoryPanel,
             recentRecalls: [
               ...s.memoryPanel.recentRecalls,
-              { company: (result.company as string) || "?", date: new Date().toISOString().split("T")[0], relevance: 1 },
+              {
+                company: (result.subject as string) || (result.company as string) || "?",
+                date: new Date().toISOString().split("T")[0],
+                relevance: typeof result.total_results === "number" ? Math.min(1, (result.total_results as number) / 10) : 1,
+              },
             ],
             loading: false,
           },

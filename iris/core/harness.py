@@ -68,6 +68,10 @@ class HarnessConfig:
     compress_threshold_chars: int = 5000
     tool_compress_overrides: dict[str, int] = field(
         default_factory=lambda: {
+            "financials": 8000,
+            "macro": 8000,
+            "valuation": 10000,
+            # legacy aliases
             "fmp_get_financials": 8000,
             "fred_get_macro": 8000,
             "fmp_financials": 8000,
@@ -77,7 +81,7 @@ class HarnessConfig:
 
     tool_injection_mode: str = "dynamic"  # dynamic | all
     max_tools_per_round: int = 10
-    always_exposed_tools: tuple[str, ...] = ("query_knowledge", "memory_search")
+    always_exposed_tools: tuple[str, ...] = ("remember", "recall")
     tool_triggers: dict[str, list[str]] = field(default_factory=dict)
 
     include_flush_in_tool_rounds: bool = True
@@ -440,20 +444,14 @@ class Harness:
         tools_called = {entry["tool"] for entry in tool_log}
 
         # Only steer for analysis runs (skip if this looks like a simple Q&A or learning session)
-        if not tools_called & {"fmp_get_financials", "fmp_financials"}:
+        if "financials" not in tools_called:
             return None
 
-        if "build_dcf" not in tools_called:
+        if "valuation" not in tools_called:
             return (
                 "You haven't built a valuation model yet. "
-                "Call build_dcf with assumptions derived from the financial data you've gathered. "
+                "Call valuation with mode='dcf' or mode='full' using assumptions derived from the financial data. "
                 "A complete analysis requires a quantitative valuation anchor."
-            )
-
-        if "get_comps" not in tools_called:
-            return (
-                "You've built a DCF but haven't cross-checked against peer multiples. "
-                "Consider calling get_comps for validation before finalizing."
             )
 
         return None
@@ -650,82 +648,21 @@ class Harness:
             return []
 
         tools = list(self.tool_registry.values())
-        if self.config.tool_injection_mode == "all":
-            return [t.schema for t in tools]
+        selected = [t.name for t in tools]
 
-        max_tools = max(1, min(self.config.max_tools_per_round, len(tools)))
-        context = self._recent_context_text(messages).lower()
-        signals = self._detect_artifact_signals(context)
-
-        always = [n for n in self.config.always_exposed_tools if n in self.tool_registry]
-        trigger_map = self.config.tool_triggers or {}
-
-        scored: list[tuple[float, str]] = []
-        for tool in tools:
-            keywords = trigger_map.get(tool.name, [])
-            score = 0.0
-            for kw in keywords:
-                if kw and kw.lower() in context:
-                    score += 2.0
-
-            if tool.name in recent_tool_names[-4:]:
-                score += 0.4
-
-            if signals["has_observation"] and tool.name == "add_evidence_card":
-                score += 1.2
-            if signals["has_hypothesis"] and tool.name in {"add_evidence_card", "run_valuation", "compute_trade_score", "build_dcf", "get_comps"}:
-                score += 1.5
-            if signals["has_valuation"] and tool.name in {"compute_trade_score", "get_comps"}:
-                score += 1.5
-            if signals["has_trade_score"] and tool.name == "write_audit_trail":
-                score += 1.5
-
-            scored.append((score, tool.name))
-
-        selected: list[str] = []
-        for name in always:
-            if len(selected) >= max_tools:
-                break
-            if name not in selected:
-                selected.append(name)
-
-        for _, name in sorted(scored, key=lambda x: (x[0], x[1]), reverse=True):
-            if len(selected) >= max_tools:
-                break
-            if name in selected:
-                continue
-            selected.append(name)
-
-        # Audit: log tool selection scoring
+        # Routing simplification: expose all tools each round and let the LLM choose.
         self._emit(
             EventType.TOOLS_SCORED,
             {
                 "run_id": self._current_run_id,
-                "scores": {name: score for score, name in sorted(scored, key=lambda x: x[0], reverse=True)},
-                "signals": signals,
-                "always_exposed": always,
+                "scores": {},
+                "signals": {},
+                "always_exposed": selected,
                 "selected": selected,
             },
         )
 
-        if not selected:
-            fallback = [
-                "query_knowledge",
-                "memory_search",
-                "exa_search",
-                "web_fetch",
-                "fmp_get_financials",
-                "fred_get_macro",
-                "extract_observation",
-                "create_hypothesis",
-                "add_evidence_card",
-                "run_valuation",
-                "compute_trade_score",
-                "write_audit_trail",
-            ]
-            selected = [n for n in fallback if n in self.tool_registry][:max_tools]
-
-        return [self.tool_registry[name].schema for name in selected]
+        return [t.schema for t in tools]
 
     def _recent_context_text(self, messages: list[dict]) -> str:
         considered = [m for m in messages if m.get("role") in {"user", "assistant", "tool"}]
@@ -897,7 +834,7 @@ class Harness:
         budget = self._active_budget or BudgetTracker(self._budget_policy())
         knowledge_tools = [
             t for t in self.tool_registry.values()
-            if t.name in {"extract_observation", "create_hypothesis", "add_evidence_card", "query_knowledge"}
+            if t.name in {"remember", "create_hypothesis", "add_evidence_card"}
         ]
         self.context.memory_flush(messages, knowledge_tools, budget)
 

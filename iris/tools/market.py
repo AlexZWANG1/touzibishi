@@ -8,8 +8,8 @@ import yfinance as yf
 from .base import ToolResult, make_tool_schema
 
 
-YF_QUOTE_SCHEMA = make_tool_schema(
-    name="yf_quote",
+QUOTE_SCHEMA = make_tool_schema(
+    name="quote",
     description=(
         "Get current stock quote and key statistics: price, market cap, P/E, 52-week range, "
         "volume, dividend yield, beta, etc. Use when you need real-time price or valuation snapshot."
@@ -24,8 +24,8 @@ YF_QUOTE_SCHEMA = make_tool_schema(
 )
 
 
-YF_HISTORY_SCHEMA = make_tool_schema(
-    name="yf_history",
+HISTORY_SCHEMA = make_tool_schema(
+    name="history",
     description=(
         "Get historical price data for a stock. Returns OHLCV (open, high, low, close, volume). "
         "Use for price trend analysis, drawdown calculation, or chart data."
@@ -50,7 +50,7 @@ YF_HISTORY_SCHEMA = make_tool_schema(
 )
 
 
-def yf_quote(ticker: str) -> ToolResult:
+def quote(ticker: str) -> ToolResult:
     """Get current quote and key stats via yfinance."""
     try:
         t = yf.Ticker(ticker)
@@ -99,7 +99,7 @@ def yf_quote(ticker: str) -> ToolResult:
         return ToolResult.fail(f"yfinance error: {str(e)}", recoverable=True)
 
 
-def yf_history(ticker: str, period: str = "6mo", interval: str = "1d") -> ToolResult:
+def history(ticker: str, period: str = "6mo", interval: str = "1d") -> ToolResult:
     """Get historical OHLCV data via yfinance."""
     try:
         t = yf.Ticker(ticker)
@@ -138,3 +138,16 @@ def yf_history(ticker: str, period: str = "6mo", interval: str = "1d") -> ToolRe
 
     except Exception as e:
         return ToolResult.fail(f"yfinance history error: {str(e)}", recoverable=True)
+
+
+# Backward-compatible aliases (legacy names)
+YF_QUOTE_SCHEMA = QUOTE_SCHEMA
+YF_HISTORY_SCHEMA = HISTORY_SCHEMA
+
+
+def yf_quote(ticker: str) -> ToolResult:
+    return quote(ticker=ticker)
+
+
+def yf_history(ticker: str, period: str = "6mo", interval: str = "1d") -> ToolResult:
+    return history(ticker=ticker, period=period, interval=interval)

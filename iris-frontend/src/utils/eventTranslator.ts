@@ -10,38 +10,36 @@ const TOOL_MESSAGE_MAP: Record<string, (args: Record<string, unknown>) => string
       return `阅读: ${args.url || "网页"}`;
     }
   },
-  fmp_get_financials: (args) =>
+  financials: (args) =>
     `拉取 ${args.ticker || ""} ${args.statement_type || "财务"} 数据`,
-  fred_get_macro: (args) => `拉取宏观数据: ${args.series_id || ""}`,
-  recall_memory: (args) => `回忆 ${args.company || ""} 历史分析`,
-  save_memory: () => `保存分析记忆`,
-  build_dcf: () => `构建 DCF 模型`,
-  get_comps: (args) => `对比同行: ${args.peers || ""}`,
-  extract_observation: (args) => {
-    const claim = String(args.claim || "");
-    return `提取观察: ${claim.slice(0, 40)}${claim.length > 40 ? "..." : ""}`;
-  },
+  macro: (args) => `拉取宏观数据: ${args.series_id || ""}`,
+  quote: (args) => `获取行情: ${args.ticker || ""}`,
+  history: (args) => `读取历史价格: ${args.ticker || ""}`,
+  valuation: (args) => `估值计算: ${args.mode || "full"}`,
   create_hypothesis: (args) => `创建投资假说: ${args.company || ""}`,
   add_evidence_card: () => `评估证据`,
-  memory_search: (args) => {
-    const query = String(args.query || "");
-    return `搜索相关记忆: ${query.slice(0, 30)}${query.length > 30 ? "..." : ""}`;
-  },
+  remember: () => `写入记忆`,
+  recall: (args) => `检索记忆: ${args.subject || ""}`,
+  search_knowledge: (args) => `检索知识库: ${args.query || ""}`,
+  generate_trade_signal: (args) => `生成交易信号: ${args.ticker || ""}`,
+  get_portfolio: () => `查看持仓`,
 };
 
 export const TOOL_PHASE_MAP: Record<string, Phase> = {
-  recall_memory: "gather",
   exa_search: "gather",
   web_fetch: "gather",
-  fmp_get_financials: "gather",
-  fred_get_macro: "gather",
-  memory_search: "gather",
-  extract_observation: "analyze",
+  financials: "gather",
+  macro: "gather",
+  quote: "gather",
+  history: "gather",
   create_hypothesis: "analyze",
   add_evidence_card: "analyze",
-  build_dcf: "evaluate",
-  get_comps: "evaluate",
-  save_memory: "finalize",
+  valuation: "evaluate",
+  remember: "finalize",
+  recall: "gather",
+  search_knowledge: "gather",
+  generate_trade_signal: "evaluate",
+  get_portfolio: "finalize",
 };
 
 const PHASE_COLOR_MAP: Record<Phase, EventColor> = {
@@ -52,10 +50,11 @@ const PHASE_COLOR_MAP: Record<Phase, EventColor> = {
 };
 
 export const TOOL_TAB_MAP: Record<string, string> = {
-  fmp_get_financials: "data",
-  fred_get_macro: "data",
-  build_dcf: "model",
-  get_comps: "comps",
+  financials: "data",
+  macro: "data",
+  quote: "data",
+  history: "data",
+  valuation: "model",
 };
 
 export function translateToolStart(

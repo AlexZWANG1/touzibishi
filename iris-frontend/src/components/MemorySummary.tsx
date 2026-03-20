@@ -50,7 +50,7 @@ export function MemorySummary() {
                 lineHeight: 1.6,
               }}
             >
-              {recall}
+              {recall.company} ({recall.date})
             </p>
           ))}
         </div>

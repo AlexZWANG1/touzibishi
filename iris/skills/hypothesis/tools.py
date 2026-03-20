@@ -1,40 +1,19 @@
 """
-Hypothesis Tracking Skill — migrated from tools/knowledge.py.
+Hypothesis Tracking Skill.
 
-Tools: extract_observation, create_hypothesis, add_evidence_card, query_knowledge
+Tools: create_hypothesis, add_evidence_card
 """
 
 import uuid
 from datetime import datetime
 
 from core.config import get_skill_config
-from core.schemas import (
-    Observation, Driver, KillCriterion, EvidenceCard, Hypothesis,
-)
+from core.schemas import Driver, KillCriterion, EvidenceCard, Hypothesis
 from tools.base import Tool, ToolResult, make_tool_schema
 from tools.retrieval import EvidenceRetriever
 
 
 # ── Tool Schemas ──────────────────────────────────────────────
-
-EXTRACT_OBSERVATION_SCHEMA = make_tool_schema(
-    name="extract_observation",
-    description=(
-        "Extract and save a structured observation from source material. "
-        "One observation = one atomic factual claim or viewpoint. "
-        "Call this for each significant piece of information."
-    ),
-    properties={
-        "subject": {"type": "string", "description": "Company ticker or topic, e.g. 'NVDA'"},
-        "claim": {"type": "string", "description": "The core claim in one concise sentence"},
-        "source": {"type": "string", "description": "Source name/URL"},
-        "fact_or_view": {"type": "string", "enum": ["fact", "view"]},
-        "relevance": {"type": "number", "minimum": 0, "maximum": 1, "description": "Relevance to investment thesis"},
-        "citation": {"type": "string", "description": "Exact quote or paraphrase from source"},
-        "time_str": {"type": "string", "description": "Date of information in YYYY-MM-DD format"},
-    },
-    required=["subject", "claim", "source", "fact_or_view", "relevance", "citation", "time_str"],
-)
 
 CREATE_HYPOTHESIS_SCHEMA = make_tool_schema(
     name="create_hypothesis",
@@ -80,12 +59,19 @@ CREATE_HYPOTHESIS_SCHEMA = make_tool_schema(
 ADD_EVIDENCE_CARD_SCHEMA = make_tool_schema(
     name="add_evidence_card",
     description=(
-        "Evaluate an observation as evidence for/against the hypothesis and update belief confidence. "
-        "Call this for each observation after hypothesis is created."
+        "Evaluate evidence for/against the hypothesis and update belief confidence "
+        "with a Bayesian-style score update."
     ),
     properties={
         "hypothesis_id": {"type": "string", "description": "ID from create_hypothesis"},
-        "observation_id": {"type": "string", "description": "ID from extract_observation"},
+        "observation_id": {
+            "type": "string",
+            "description": "Optional existing observation ID. If omitted, tool will create an inline evidence ID.",
+        },
+        "evidence_text": {
+            "type": "string",
+            "description": "Optional short evidence statement when no observation_id is provided.",
+        },
         "direction": {"type": "string", "enum": ["supports", "refutes", "mixed", "neutral"]},
         "reliability": {"type": "number", "minimum": 0, "maximum": 1, "description": "Source credibility (earnings call=0.9, blog=0.3)"},
         "independence": {"type": "number", "minimum": 0, "maximum": 1, "description": "How independent from existing evidence"},
@@ -93,52 +79,11 @@ ADD_EVIDENCE_CARD_SCHEMA = make_tool_schema(
         "driver_link": {"type": "string", "description": "Which driver this evidence relates to"},
         "reasoning": {"type": "string", "description": "Why you rated direction/reliability/independence/novelty this way"},
     },
-    required=["hypothesis_id", "observation_id", "direction", "reliability",
+    required=["hypothesis_id", "direction", "reliability",
               "independence", "novelty", "driver_link", "reasoning"],
 )
 
-QUERY_KNOWLEDGE_SCHEMA = make_tool_schema(
-    name="query_knowledge",
-    description=(
-        "Query saved observations and hypotheses. Use before searching again to avoid duplication, "
-        "or to retrieve existing hypothesis ID."
-    ),
-    properties={
-        "subject": {"type": "string", "description": "Company ticker to query"},
-        "object_type": {"type": "string", "enum": ["observations", "hypotheses", "both"]},
-    },
-    required=["subject"],
-)
-
-
 # ── Tool Implementations ──────────────────────────────────────
-
-def extract_observation(
-    retriever: EvidenceRetriever,
-    subject: str, claim: str, source: str,
-    fact_or_view: str, relevance: float, citation: str,
-    time_str: str, extracted_by: str = "iris",
-) -> ToolResult:
-    if not citation.strip():
-        return ToolResult.fail(
-            "citation must not be empty",
-            hint="Provide an exact quote or paraphrase from the source",
-        )
-    try:
-        obs = Observation(
-            id=f"obs_{uuid.uuid4().hex[:8]}",
-            subject=subject, claim=claim, source=source,
-            fact_or_view=fact_or_view, relevance=relevance,
-            citation=citation,
-            time=datetime.fromisoformat(time_str),
-            extracted_at=datetime.now(),
-            extracted_by=extracted_by,
-        )
-        retriever.save_observation(obs)
-        return ToolResult.ok({"id": obs.id, "subject": obs.subject, "claim": obs.claim})
-    except Exception as e:
-        return ToolResult.fail(f"Failed to save observation: {e}")
-
 
 def create_hypothesis(
     retriever: EvidenceRetriever,
@@ -183,9 +128,11 @@ def create_hypothesis(
 
 def add_evidence_card(
     retriever: EvidenceRetriever,
-    hypothesis_id: str, observation_id: str,
+    hypothesis_id: str,
     direction: str, reliability: float, independence: float,
     novelty: float, driver_link: str, reasoning: str,
+    observation_id: str = "",
+    evidence_text: str = "",
 ) -> ToolResult:
     if not reasoning.strip():
         return ToolResult.fail(
@@ -202,7 +149,7 @@ def add_evidence_card(
 
     card = EvidenceCard(
         id=f"ev_{uuid.uuid4().hex[:8]}",
-        observation_id=observation_id,
+        observation_id=observation_id or f"obs_inline_{uuid.uuid4().hex[:8]}",
         hypothesis_id=hypothesis_id,
         direction=direction,
         reliability=reliability,
@@ -232,33 +179,13 @@ def add_evidence_card(
     retriever.save_hypothesis(hyp)
     return ToolResult.ok({
         "evidence_id": card.id,
+        "observation_id": card.observation_id,
+        "evidence_text": evidence_text or None,
         "direction": direction,
         "old_confidence": round(old_confidence, 1),
         "delta": round(delta, 2),
         "new_confidence": round(hyp.confidence, 1),
     })
-
-
-def query_knowledge(
-    retriever: EvidenceRetriever,
-    subject: str,
-    object_type: str = "both",
-) -> ToolResult:
-    result: dict = {}
-    if object_type in ("observations", "both"):
-        obs = retriever.query_observations(subject=subject)
-        result["observations"] = [
-            {"id": o.id, "claim": o.claim, "source": o.source, "relevance": o.relevance}
-            for o in obs
-        ]
-    if object_type in ("hypotheses", "both"):
-        hyps = retriever.list_hypotheses(company=subject)
-        result["hypotheses"] = [
-            {"id": h.id, "thesis": h.thesis, "confidence": h.confidence,
-             "evidence_count": len(h.evidence_log)}
-            for h in hyps
-        ]
-    return ToolResult.ok(result)
 
 
 # ── Registration ──────────────────────────────────────────────
@@ -270,8 +197,6 @@ def register(context: dict) -> list[Tool]:
         raise ValueError("hypothesis skill requires 'retriever' in context")
 
     return [
-        Tool(extract_observation, EXTRACT_OBSERVATION_SCHEMA, retriever=retriever),
         Tool(create_hypothesis, CREATE_HYPOTHESIS_SCHEMA, retriever=retriever),
         Tool(add_evidence_card, ADD_EVIDENCE_CARD_SCHEMA, retriever=retriever),
-        Tool(query_knowledge, QUERY_KNOWLEDGE_SCHEMA, retriever=retriever),
     ]

@@ -27,4 +27,6 @@ Risk = probability of permanent capital loss × magnitude. Volatility is not ris
 
 ## When Analysis is Complete
 
-Give a clear summary: recommendation, confidence level, key reasoning, any experiences from the library that influenced your judgment, and what would change your mind.
+Give a clear summary: recommendation, confidence level, key reasoning, and what would change your mind.
+
+After delivering results, use `remember` to save key lessons and conclusions — what you got right, what surprised you, what you'd do differently. This builds your long-term knowledge for future analyses.

@@ -16,34 +16,41 @@ harness:
   context_limit_chars: 300000
   compress_threshold_chars: 5000
   tool_compress_overrides:
-    fmp_get_financials: 8000
-    fred_get_macro: 8000
-  tool_injection_mode: "dynamic"   # "dynamic" or "all"
+    financials: 8000
+    macro: 8000
+    valuation: 10000
+  tool_injection_mode: "all"   # expose all tools every round
   max_tools_per_round: 10
   always_exposed_tools:
-    - recall
+    - exa_search
+    - web_fetch
+    - financials
+    - macro
+    - quote
+    - history
+    - valuation
+    - create_hypothesis
+    - add_evidence_card
     - remember
-    - build_dcf
-    - get_comps
+    - recall
+    - search_knowledge
+    - generate_trade_signal
+    - get_portfolio
   tool_triggers:
     exa_search: ["搜索", "查找", "search", "find", "新闻", "news"]
     web_fetch: ["网页", "网页内容", "链接", "url", "fetch", "抓取"]
-    fmp_get_financials: ["财报", "收入", "利润", "revenue", "earnings", "估值", "pe", "p/e"]
-    fred_get_macro: ["宏观", "利率", "gdp", "cpi", "失业率", "macro", "fed"]
-    extract_observation: ["观察", "事实", "提取", "observation", "extract"]
+    financials: ["财报", "收入", "利润", "revenue", "earnings", "估值", "pe", "p/e"]
+    macro: ["宏观", "利率", "gdp", "cpi", "失业率", "macro", "fed"]
     create_hypothesis: ["假设", "thesis", "hypothesis"]
     add_evidence_card: ["证据", "支持", "反驳", "evidence"]
-    build_dcf: ["估值", "valuation", "dcf", "fair value", "公允价值"]
-    get_comps: ["comps", "可比", "同行", "peers", "对比"]
-    recall_memory: ["记忆", "回忆", "memory", "历史分析"]
-    save_memory: ["保存", "save", "记录"]
-    check_calibration: ["校准", "calibration", "偏差", "bias"]
-    query_knowledge: ["历史", "知识", "query", "已研究"]
-    memory_search: ["语义搜索", "semantic", "相关记忆"]
-    upload_document: ["上传", "文档", "upload", "document", "保存文档"]
-    search_documents: ["知识库", "文档搜索", "研报", "笔记", "knowledge"]
-    yf_quote: ["股价", "报价", "price", "quote", "市值", "pe", "市盈率"]
-    yf_history: ["走势", "历史价格", "k线", "history", "趋势", "回撤"]
+    valuation: ["估值", "valuation", "dcf", "comps", "fair value", "公允价值", "可比", "同行"]
+    quote: ["股价", "报价", "price", "quote", "市值", "pe", "市盈率"]
+    history: ["走势", "历史价格", "k线", "history", "趋势", "回撤"]
+    remember: ["保存", "remember", "记录", "写入记忆"]
+    recall: ["记忆", "回忆", "memory", "检索", "历史分析"]
+    search_knowledge: ["知识库", "文档", "研报", "笔记", "knowledge", "报告", "上传"]
+    generate_trade_signal: ["交易信号", "建仓", "减仓", "买入", "卖出", "trade signal"]
+    get_portfolio: ["持仓", "组合", "portfolio", "仓位"]
 
 budget:
   include_flush_in_tool_rounds: true
@@ -69,7 +76,7 @@ compaction:
     enabled: true
     prompt: |
       Context is about to be compacted. Review the conversation and save any key findings
-      that should persist across sessions. Use extract_observation for important facts/data.
+      that should persist across sessions. Use remember for durable facts/notes.
       Use create_hypothesis if a thesis has formed but not been saved.
       Reply with a brief note of what you saved, or "Nothing to save" if all key info is already persisted.
 
@@ -98,43 +105,46 @@ skills:
 modes:
   analysis:
     soul_files: [role.md, v0.1.md, self_check.md, steering.md]
-    skills: [hypothesis, dcf, trading, experience]
-    tool_injection_mode: "dynamic"
+    skills: [hypothesis, valuation, trading]
+    tool_injection_mode: "all"
     always_exposed_tools:
-      - recall
-      - remember
-      - build_dcf
-      - get_comps
-      - create_hypothesis
-      - add_evidence_card
-      - check_calibration
       - exa_search
       - web_fetch
-      - fmp_get_financials
-      - fred_get_macro
-      - yf_quote
-      - yf_history
-      - upload_document
+      - financials
+      - macro
+      - quote
+      - history
+      - valuation
+      - create_hypothesis
+      - add_evidence_card
+      - remember
+      - recall
+      - search_knowledge
+      - generate_trade_signal
+      - get_portfolio
     max_tool_rounds: 25
     max_total_tool_calls: 60
     max_wall_time_seconds: 480
 
   learning:
-    soul_files: [role.md, reflection.md]
-    skills: [reflection, experience]
+    soul_files: [role.md, reflection.md, steering.md]
+    skills: [hypothesis, valuation, trading]
     tool_injection_mode: "all"
     always_exposed_tools:
-      - recall
+      - exa_search
+      - web_fetch
+      - financials
+      - macro
+      - quote
+      - history
+      - valuation
+      - create_hypothesis
+      - add_evidence_card
       - remember
-      - recall_experiences
-      - save_experience
-      - run_reflection
-      - distill_patterns
-      - fmp_get_financials
-      - yf_quote
-      - check_calibration
-      - memory_search
-      - search_documents
+      - recall
+      - search_knowledge
+      - generate_trade_signal
+      - get_portfolio
     max_tool_rounds: 40
     max_total_tool_calls: 120
     max_wall_time_seconds: 600

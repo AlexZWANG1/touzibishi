@@ -1,18 +1,14 @@
 """
-Trading Decision Skill — trade signals, paper portfolio, and P&L attribution.
+Trading Decision Skill — trade signals and paper portfolio.
 
 Tools:
   generate_trade_signal: Evaluate buy/hold/sell based on hypothesis + valuation
-  record_trade:          Log a paper trade (buy or sell) into portfolio
   get_portfolio:         View current paper portfolio with live P&L
-  run_attribution:       Compare predictions vs actuals, decompose returns
 """
 
 import json
-import uuid
-from datetime import datetime, date
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
 
 from core.config import get_skill_config
 from tools.base import Tool, ToolResult, make_tool_schema
@@ -99,47 +95,18 @@ GENERATE_TRADE_SIGNAL_SCHEMA = make_tool_schema(
     ],
 )
 
-RECORD_TRADE_SCHEMA = make_tool_schema(
-    name="record_trade",
-    description=(
-        "Record a paper trade into the portfolio. Call this after the user confirms "
-        "a trade signal. For BUY: allocates cash to position. For SELL: closes position "
-        "and records P&L."
-    ),
-    properties={
-        "ticker": {"type": "string"},
-        "action": {
-            "type": "string", "enum": ["BUY", "SELL", "TRIM"],
-            "description": "Trade action",
-        },
-        "shares": {
-            "type": "number",
-            "description": "Number of shares. For BUY: shares to purchase. "
-                           "For SELL: shares to sell (use 0 for full close). "
-                           "For TRIM: shares to reduce.",
-        },
-        "price": {
-            "type": "number",
-            "description": "Execution price per share",
-        },
-        "hypothesis_id": {"type": "string"},
-        "reasoning": {"type": "string", "description": "Why this trade now"},
-    },
-    required=["ticker", "action", "shares", "price", "hypothesis_id", "reasoning"],
-)
-
 GET_PORTFOLIO_SCHEMA = make_tool_schema(
     name="get_portfolio",
     description=(
         "View current paper portfolio: positions, cost basis, unrealized P&L, "
-        "cash balance, and sector weights. Call yf_quote first to get live prices, "
+        "cash balance, and sector weights. Call quote first to get live prices, "
         "then pass them here for P&L calculation."
     ),
     properties={
         "live_prices": {
             "type": "object",
             "description": "Dict of ticker -> current price, e.g. {'NVDA': 142.5, 'AAPL': 195.0}. "
-                           "Fetch via yf_quote before calling this tool.",
+                           "Fetch via quote before calling this tool.",
         },
     },
     required=[],
@@ -404,120 +371,6 @@ def _calc_shares(portfolio: dict, target_weight: float, price: float) -> int:
     return int(target_value / price) if price > 0 else 0
 
 
-def record_trade(
-    ticker: str,
-    action: str,
-    shares: float,
-    price: float,
-    hypothesis_id: str,
-    reasoning: str,
-) -> ToolResult:
-    """Record a paper trade."""
-    portfolio = _load_portfolio()
-    ticker = ticker.upper()
-    trade_id = f"trade_{uuid.uuid4().hex[:8]}"
-    now = datetime.now().isoformat()
-
-    trade_event = {
-        "id": trade_id,
-        "ticker": ticker,
-        "action": action,
-        "shares": shares,
-        "price": price,
-        "hypothesis_id": hypothesis_id,
-        "reasoning": reasoning,
-        "timestamp": now,
-    }
-
-    if action == "BUY":
-        cost = shares * price
-        if cost > portfolio["cash"]:
-            return ToolResult.fail(
-                f"Insufficient cash: need ${cost:,.2f}, have ${portfolio['cash']:,.2f}",
-                hint="Reduce share count or sell existing position first",
-            )
-        portfolio["cash"] -= cost
-
-        if ticker in portfolio["positions"]:
-            pos = portfolio["positions"][ticker]
-            total_shares = pos["shares"] + shares
-            pos["avg_cost"] = (
-                (pos["avg_cost"] * pos["shares"] + price * shares) / total_shares
-            )
-            pos["shares"] = total_shares
-        else:
-            total_invested = sum(
-                p["shares"] * p["avg_cost"]
-                for p in portfolio["positions"].values()
-            )
-            total_value = portfolio["cash"] + cost + total_invested
-            portfolio["positions"][ticker] = {
-                "shares": shares,
-                "avg_cost": price,
-                "entry_date": now,
-                "hypothesis_id": hypothesis_id,
-                "sector": "",  # will be set by AI context
-                "target_weight": cost / total_value if total_value > 0 else 0,
-            }
-
-    elif action in ("SELL", "TRIM"):
-        if ticker not in portfolio["positions"]:
-            return ToolResult.fail(
-                f"No position in {ticker} to sell",
-                hint="Check get_portfolio for current holdings",
-            )
-        pos = portfolio["positions"][ticker]
-        sell_shares = pos["shares"] if (action == "SELL" and shares == 0) else shares
-
-        if sell_shares > pos["shares"]:
-            return ToolResult.fail(
-                f"Cannot sell {sell_shares} shares — only hold {pos['shares']}",
-            )
-
-        proceeds = sell_shares * price
-        pnl = (price - pos["avg_cost"]) * sell_shares
-        pnl_pct = (price - pos["avg_cost"]) / pos["avg_cost"] * 100
-
-        portfolio["cash"] += proceeds
-        trade_event["pnl"] = round(pnl, 2)
-        trade_event["pnl_pct"] = round(pnl_pct, 2)
-
-        remaining = pos["shares"] - sell_shares
-        if remaining <= 0:
-            # Full close — record as completed round-trip
-            portfolio["closed_trades"].append({
-                "ticker": ticker,
-                "entry_price": pos["avg_cost"],
-                "exit_price": price,
-                "shares": sell_shares,
-                "entry_date": pos["entry_date"],
-                "exit_date": now,
-                "pnl": round(pnl, 2),
-                "pnl_pct": round(pnl_pct, 2),
-                "hypothesis_id": hypothesis_id,
-                "holding_days": (
-                    datetime.fromisoformat(now) - datetime.fromisoformat(pos["entry_date"])
-                ).days if pos.get("entry_date") else None,
-            })
-            del portfolio["positions"][ticker]
-        else:
-            pos["shares"] = remaining
-
-    portfolio["trade_log"].append(trade_event)
-    _save_portfolio(portfolio)
-
-    return ToolResult.ok({
-        "trade_id": trade_id,
-        "action": action,
-        "ticker": ticker,
-        "shares": shares,
-        "price": price,
-        "cash_remaining": round(portfolio["cash"], 2),
-        "pnl": trade_event.get("pnl"),
-        "pnl_pct": trade_event.get("pnl_pct"),
-    })
-
-
 def get_portfolio(live_prices: dict = None) -> ToolResult:
     """View current paper portfolio with P&L."""
     portfolio = _load_portfolio()
@@ -578,145 +431,11 @@ def get_portfolio(live_prices: dict = None) -> ToolResult:
     })
 
 
-def run_attribution(
-    ticker: str,
-    original_assumptions: dict,
-    actual_results: dict,
-    entry_price: float,
-    current_price: float,
-    benchmark_return: float,
-    hypothesis_id: str,
-    sector_return: float = None,
-    position_weight: float = None,
-) -> ToolResult:
-    """
-    P&L attribution: compare predictions vs actuals, decompose return.
-
-    Returns assumption-level errors, return decomposition, and
-    experience library entries (golden/warning zone suggestions).
-    """
-    # ── Step 1: Assumption-level error analysis ──
-    assumption_errors = {}
-    total_abs_error = 0
-    for key in original_assumptions:
-        predicted = original_assumptions[key]
-        actual = actual_results.get(key)
-        if actual is not None and isinstance(predicted, (int, float)) and isinstance(actual, (int, float)):
-            error = predicted - actual
-            abs_error = abs(error)
-            assumption_errors[key] = {
-                "predicted": round(predicted, 4),
-                "actual": round(actual, 4),
-                "error": round(error, 4),
-                "abs_error": round(abs_error, 4),
-                "direction": "overestimate" if error > 0 else "underestimate",
-            }
-            total_abs_error += abs_error
-
-    # Rank by error magnitude
-    ranked_errors = sorted(
-        assumption_errors.items(),
-        key=lambda x: x[1]["abs_error"],
-        reverse=True,
-    )
-
-    # ── Step 2: Return decomposition ──
-    stock_return = (current_price - entry_price) / entry_price if entry_price > 0 else 0
-    alpha_vs_benchmark = stock_return - benchmark_return
-    alpha_vs_sector = (stock_return - sector_return) if sector_return is not None else None
-
-    decomposition = {
-        "stock_return": round(stock_return * 100, 2),
-        "benchmark_return": round(benchmark_return * 100, 2),
-        "alpha_vs_benchmark": round(alpha_vs_benchmark * 100, 2),
-    }
-    if alpha_vs_sector is not None:
-        decomposition["sector_return"] = round(sector_return * 100, 2)
-        decomposition["alpha_vs_sector"] = round(alpha_vs_sector * 100, 2)
-
-    # Sizing attribution: did conviction match outcome?
-    sizing_assessment = None
-    if position_weight is not None:
-        if stock_return > 0.10 and position_weight < 0.02:
-            sizing_assessment = "undersized_winner"
-        elif stock_return < -0.10 and position_weight > 0.03:
-            sizing_assessment = "oversized_loser"
-        elif stock_return > 0 and position_weight >= 0.02:
-            sizing_assessment = "well_sized_winner"
-        elif stock_return < 0 and position_weight <= 0.02:
-            sizing_assessment = "well_sized_loser"
-        else:
-            sizing_assessment = "neutral"
-        decomposition["position_weight"] = round(position_weight * 100, 2)
-        decomposition["sizing_assessment"] = sizing_assessment
-
-    # ── Step 3: Generate experience library suggestions ──
-    experiences = []
-
-    # Biggest error → Warning zone candidate
-    if ranked_errors:
-        worst_key, worst_err = ranked_errors[0]
-        if worst_err["abs_error"] > 0.03:  # >3pp error is notable
-            experiences.append({
-                "zone": "warning",
-                "level": "factual",
-                "content": (
-                    f"{ticker}: {worst_key} was {worst_err['direction']}d by "
-                    f"{worst_err['abs_error']*100:.1f}pp "
-                    f"(predicted {worst_err['predicted']:.3f}, "
-                    f"actual {worst_err['actual']:.3f})"
-                ),
-                "confidence": 0.7,
-            })
-
-    # Accurate predictions → Golden zone
-    accurate = [
-        (k, v) for k, v in assumption_errors.items()
-        if v["abs_error"] < 0.02  # within 2pp
-    ]
-    for key, err in accurate:
-        experiences.append({
-            "zone": "golden",
-            "level": "factual",
-            "content": (
-                f"{ticker}: {key} prediction was accurate "
-                f"(predicted {err['predicted']:.3f}, actual {err['actual']:.3f}, "
-                f"error {err['abs_error']*100:.1f}pp)"
-            ),
-            "confidence": 0.6,
-        })
-
-    # Sizing lesson
-    if sizing_assessment in ("undersized_winner", "oversized_loser"):
-        experiences.append({
-            "zone": "warning",
-            "level": "pattern",
-            "content": (
-                f"{ticker}: {sizing_assessment.replace('_', ' ')}. "
-                f"Position weight was {position_weight*100:.1f}%, "
-                f"stock returned {stock_return*100:.1f}%."
-            ),
-            "confidence": 0.5,
-        })
-
-    return ToolResult.ok({
-        "ticker": ticker,
-        "hypothesis_id": hypothesis_id,
-        "assumption_errors": dict(ranked_errors),
-        "largest_error_source": ranked_errors[0][0] if ranked_errors else None,
-        "return_decomposition": decomposition,
-        "experience_suggestions": experiences,
-        "attribution_date": date.today().isoformat(),
-    })
-
-
 # ── Registration ─────────────────────────────────────────────
 
 def register(context: dict) -> list[Tool]:
     """Called by skill_loader with shared dependencies."""
     return [
         Tool(generate_trade_signal, GENERATE_TRADE_SIGNAL_SCHEMA),
-        Tool(record_trade, RECORD_TRADE_SCHEMA),
         Tool(get_portfolio, GET_PORTFOLIO_SCHEMA),
-        Tool(run_attribution, RUN_ATTRIBUTION_SCHEMA),
     ]

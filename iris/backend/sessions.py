@@ -121,7 +121,14 @@ class AnalysisSession:
 
         # Extract frontend-shaped panel data
         if result and isinstance(result, dict):
-            if tool == "build_dcf":
+            if tool == "valuation":
+                self._extract_valuation_panels(result)
+            elif tool == "financials":
+                self._extract_data_panel(result)
+            elif tool == "quote":
+                self._extract_quote_metrics(result)
+            # Backward compatibility for old tool names
+            elif tool == "build_dcf":
                 self.pending_valuation = result
                 self._extract_model_panel(result)
             elif tool == "get_comps":
@@ -135,6 +142,24 @@ class AnalysisSession:
         content = event.data.get("content", "")
         if content:
             self._raw_text += content
+
+    def _extract_valuation_panels(self, result: dict) -> None:
+        """Extract both model and comps panels from unified valuation result."""
+        dcf = result.get("dcf")
+        comps = result.get("comps")
+
+        if isinstance(dcf, dict):
+            self.pending_valuation = dcf
+            self._extract_model_panel(dcf)
+        elif result.get("fair_value_per_share") is not None:
+            # If valuation tool flattened DCF outputs at top-level.
+            self.pending_valuation = result
+            self._extract_model_panel(result)
+
+        if isinstance(comps, dict):
+            self._extract_comps_panel(comps)
+        elif isinstance(result.get("peers"), list):
+            self._extract_comps_panel(result)
 
     # ── Panel extraction helpers ──────────────────────────────
 

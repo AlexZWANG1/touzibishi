@@ -7,15 +7,15 @@ import type { TimelineEvent } from "@/types/analysis";
 
 /**
  * Extract tool name hints from a thinking block text.
- * Looks for patterns like `recall_memory`, `build_dcf`, etc.
+ * Looks for patterns like `recall`, `valuation`, etc.
  */
 const KNOWN_TOOLS = [
-  "recall_memory", "recall_experiences", "memory_search",
-  "fmp_get_financials", "yf_quote", "yf_history",
-  "build_dcf", "get_comps", "save_memory", "save_experience",
-  "exa_search", "web_fetch", "extract_observation",
-  "create_hypothesis", "generate_trade_signal",
-  "query_knowledge", "search_documents",
+  "recall", "remember", "search_knowledge",
+  "financials", "macro", "quote", "history",
+  "valuation",
+  "exa_search", "web_fetch",
+  "create_hypothesis", "add_evidence_card",
+  "generate_trade_signal", "get_portfolio",
 ];
 
 function extractToolHint(thinkingText: string): string | null {

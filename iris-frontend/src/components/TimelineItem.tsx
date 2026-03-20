@@ -17,17 +17,29 @@ const phaseColorMap: Record<string, string> = {
 };
 
 const TOOL_LABELS: Record<string, string> = {
+  recall: "检索记忆",
+  search_knowledge: "检索知识库",
+  remember: "写入记忆",
+  financials: "拉取财报",
+  macro: "宏观数据",
+  quote: "获取报价",
+  history: "历史行情",
+  valuation: "统一估值",
+  get_portfolio: "查看持仓",
+  generate_trade_signal: "交易信号",
+  create_hypothesis: "形成假设",
+  add_evidence_card: "添加证据",
+  exa_search: "搜索资讯",
+  web_fetch: "抓取网页",
+
+  // Legacy tool name aliases (for replay compatibility)
   recall_memory: "回忆历史",
   fmp_get_financials: "拉取财报",
   yf_quote: "获取报价",
   yf_history: "历史行情",
   build_dcf: "构建DCF",
   get_comps: "可比分析",
-  exa_search: "搜索资讯",
-  web_fetch: "抓取网页",
   extract_observation: "提取观察",
-  create_hypothesis: "形成假设",
-  add_evidence_card: "添加证据",
   save_memory: "保存记忆",
   memory_search: "搜索记忆",
   query_knowledge: "查询知识",

@@ -118,7 +118,7 @@ class ContextAssembler:
 
         if other_subjects:
             examples = ", ".join(other_subjects[:5])
-            sections.append(f"Previously researched subjects include {examples}. Use query_knowledge if needed.")
+            sections.append(f"Previously researched subjects include {examples}. Use recall if needed.")
 
         # Unified memory: inject knowledge_items if available
         try:
@@ -180,7 +180,7 @@ class ContextAssembler:
 
         knowledge_tools = [
             t for t in getattr(self, "_knowledge_tools", [])
-            if t.name in {"extract_observation", "create_hypothesis", "add_evidence_card", "query_knowledge"}
+            if t.name in {"remember", "create_hypothesis", "add_evidence_card"}
         ]
         self.memory_flush(messages, knowledge_tools, budget)
 

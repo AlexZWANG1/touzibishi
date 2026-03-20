@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 FMP_BASE = "https://financialmodelingprep.com/stable"
 FRED_BASE = "https://api.stlouisfed.org/fred"
 
-FMP_GET_FINANCIALS_SCHEMA = make_tool_schema(
-    name="fmp_get_financials",
+FINANCIALS_SCHEMA = make_tool_schema(
+    name="financials",
     description=(
         "Get structured financial data for a public company: income statement, balance sheet, "
         "cash flow statement, or company profile. Use when you need specific financial figures "
@@ -31,8 +31,8 @@ FMP_GET_FINANCIALS_SCHEMA = make_tool_schema(
     required=["ticker", "statement_type"],
 )
 
-FRED_GET_MACRO_SCHEMA = make_tool_schema(
-    name="fred_get_macro",
+MACRO_SCHEMA = make_tool_schema(
+    name="macro",
     description=(
         "Get macroeconomic data from FRED. "
         "Series IDs: GDP, CPIAUCSL (CPI inflation), FEDFUNDS (fed funds rate), UNRATE (unemployment), DGS10 (10yr treasury)"
@@ -51,7 +51,7 @@ FRED_GET_MACRO_SCHEMA = make_tool_schema(
 )
 
 
-def fmp_get_financials(ticker: str, statement_type: str, period: str = "annual") -> ToolResult:
+def financials(ticker: str, statement_type: str, period: str = "annual") -> ToolResult:
     # Try FMP first
     result = _fmp_fetch(ticker, statement_type, period)
     if result.status == "ok":
@@ -282,7 +282,7 @@ def _yf_ratios_fallback(ticker: str) -> ToolResult | None:
         return None
 
 
-def fred_get_macro(series_id: str, limit: int = 4) -> ToolResult:
+def macro(series_id: str, limit: int = 4) -> ToolResult:
     api_key = os.getenv("FRED_API_KEY")
     if not api_key:
         return ToolResult.fail("FRED_API_KEY not set", hint="Add to .env file")
@@ -314,3 +314,16 @@ def fred_get_macro(series_id: str, limit: int = 4) -> ToolResult:
         })
     except Exception as e:
         return ToolResult.fail(f"FRED fetch failed: {str(e)}", recoverable=False)
+
+
+# Backward-compatible aliases (legacy names)
+FMP_GET_FINANCIALS_SCHEMA = FINANCIALS_SCHEMA
+FRED_GET_MACRO_SCHEMA = MACRO_SCHEMA
+
+
+def fmp_get_financials(ticker: str, statement_type: str, period: str = "annual") -> ToolResult:
+    return financials(ticker=ticker, statement_type=statement_type, period=period)
+
+
+def fred_get_macro(series_id: str, limit: int = 4) -> ToolResult:
+    return macro(series_id=series_id, limit=limit)

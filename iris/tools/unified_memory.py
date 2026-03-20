@@ -98,9 +98,9 @@ REMEMBER_SCHEMA = make_tool_schema(
 RECALL_SCHEMA = make_tool_schema(
     name="recall",
     description=(
-        "Search your memory for relevant knowledge. Returns observations, experiences, "
-        "notes, hypotheses, and documents related to your query. "
-        "Results are ranked by semantic relevance."
+        "Search your AI memory — observations, experiences, analysis notes, predictions, "
+        "and hypotheses you have previously saved. NOT for user-uploaded documents "
+        "(use search_knowledge for that)."
     ),
     properties={
         "subject": {
@@ -115,12 +115,36 @@ RECALL_SCHEMA = make_tool_schema(
             "type": "array",
             "items": {
                 "type": "string",
-                "enum": ["observation", "experience", "note", "prediction", "document", "hypothesis"],
+                "enum": ["observation", "experience", "note", "prediction", "hypothesis"],
             },
-            "description": "Filter by knowledge type. Omit to search all types.",
+            "description": "Filter by knowledge type. Omit to search all AI memory types.",
         },
     },
     required=["context"],
+)
+
+
+SEARCH_KNOWLEDGE_SCHEMA = make_tool_schema(
+    name="search_knowledge",
+    description=(
+        "Search the user-uploaded knowledge base — research reports, articles, notes, "
+        "and documents the user has added. Returns relevant passages with source citations."
+    ),
+    properties={
+        "query": {
+            "type": "string",
+            "description": "Natural language search query, e.g. 'NVDA data center revenue drivers'",
+        },
+        "top_k": {
+            "type": "integer",
+            "description": "Max results to return. Default 5.",
+        },
+        "company": {
+            "type": "string",
+            "description": "Optional: filter by company ticker",
+        },
+    },
+    required=["query"],
 )
 
 
@@ -391,7 +415,11 @@ def recall(
     subject: str = "",
     types: list = None,
 ) -> ToolResult:
-    """Search memory for relevant knowledge, grouped by type."""
+    """Search AI memory for relevant knowledge, grouped by type."""
+
+    # Default: all AI memory types (no documents)
+    ai_types = {"observation", "experience", "note", "prediction", "hypothesis"}
+    type_filter = set(types) & ai_types if types else ai_types
 
     results = {
         "observations": [],
@@ -399,10 +427,8 @@ def recall(
         "notes": [],
         "hypotheses": [],
         "predictions": [],
-        "documents": [],
     }
     seen_ids: set[str] = set()
-    type_filter = set(types) if types else None
 
     # 1. Direct query on knowledge_items by subject
     if subject:
@@ -448,15 +474,6 @@ def recall(
                 "source": "legacy", "score": hit.get("score", 0),
             })
             seen_ids.add(hit["id"])
-        elif cat == "human_knowledge" and (not type_filter or "document" in type_filter):
-            results["documents"].append({
-                "id": hit["id"], "content": hit.get("content", ""),
-                "document_id": hit.get("document_id"),
-                "document_title": hit.get("document_title"),
-                "score": hit.get("score", 0),
-            })
-            seen_ids.add(hit["id"])
-
     # 3. Query hypotheses directly if requested
     if (not type_filter or "hypothesis" in type_filter) and subject:
         try:
@@ -492,7 +509,6 @@ def recall(
         len(results["notes"]),
         len(results["hypotheses"]),
         len(results["predictions"]),
-        len(results["documents"]),
     ])
 
     instruction = (
@@ -504,6 +520,44 @@ def recall(
         **results,
         "total_results": total,
         "instruction": instruction,
+    })
+
+
+def search_knowledge(
+    retriever: EvidenceRetriever,
+    query: str,
+    top_k: int = 5,
+    company: str = None,
+) -> ToolResult:
+    """Search user-uploaded knowledge base (reports, articles, notes)."""
+    try:
+        hits = retriever.semantic_search(
+            query=query,
+            top_k=top_k,
+            source_category="human_knowledge",
+        )
+    except Exception:
+        hits = []
+
+    # Filter by company if specified
+    if company:
+        company_upper = company.upper()
+        hits = [h for h in hits if company_upper in (h.get("content", "") + h.get("document_title", "")).upper()]
+
+    results = []
+    for hit in hits:
+        results.append({
+            "id": hit.get("id", ""),
+            "content": hit.get("content", ""),
+            "document_title": hit.get("document_title", ""),
+            "document_id": hit.get("document_id", ""),
+            "score": hit.get("score", 0),
+        })
+
+    return ToolResult.ok({
+        "query": query,
+        "results": results,
+        "count": len(results),
     })
 
 
