@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { WatchlistItem } from "@/types/analysis";
 import { startAnalysis } from "@/utils/api";
 import { formatCurrency } from "@/utils/formatters";
@@ -10,6 +11,7 @@ interface WatchlistRowProps {
 }
 
 export function WatchlistRow({ item }: WatchlistRowProps) {
+  const router = useRouter();
   const [reflecting, setReflecting] = useState(false);
   const fairValid = item.fair_value != null && item.fair_value > 0 && !isNaN(item.fair_value);
   const gapPct = fairValid && item.gap != null ? item.gap * 100 : null;
@@ -22,13 +24,13 @@ export function WatchlistRow({ item }: WatchlistRowProps) {
       style={{ borderBottom: "1px solid var(--iris-border)" }}
       onClick={() => {
         if (item.latest_run_id) {
-          window.location.href = `/analysis/${item.latest_run_id}`;
+          router.push(`/analysis/${item.latest_run_id}`);
         } else {
-          window.location.href = `/analysis?query=${encodeURIComponent(item.ticker)}`;
+          router.push(`/analysis?query=${encodeURIComponent(item.ticker)}`);
         }
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--iris-surface)"; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--iris-surface)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
     >
       {/* Ticker */}
       <td className="font-mono text-[12px] font-bold py-1.5 px-2" style={{ color: "var(--iris-accent)" }}>
@@ -84,32 +86,20 @@ export function WatchlistRow({ item }: WatchlistRowProps) {
                 query: `复盘 ${item.ticker} 的最新财报表现`,
                 mode: 'learning',
               });
-              window.location.href = `/analysis/${res.analysisId}`;
+              router.push(`/analysis/${res.analysisId}`);
             } catch (err) {
               console.error('Failed to start reflection:', err);
               setReflecting(false);
             }
           }}
-          className="font-mono px-1 py-px text-[12px] border transition-colors uppercase tracking-wider"
+          className="font-mono px-1 py-px text-[12px] border transition-colors uppercase tracking-wider hover:opacity-100 hover:border-[var(--iris-accent)] disabled:opacity-40"
           style={{
             color: "var(--iris-accent)",
             borderColor: "var(--iris-border)",
             backgroundColor: "transparent",
             opacity: reflecting ? 0.4 : 0.7,
           }}
-          onMouseEnter={(e) => {
-            if (!reflecting) {
-              (e.target as HTMLElement).style.opacity = "1";
-              (e.target as HTMLElement).style.borderColor = "var(--iris-accent)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!reflecting) {
-              (e.target as HTMLElement).style.opacity = "0.7";
-              (e.target as HTMLElement).style.borderColor = "var(--iris-border)";
-            }
-          }}
-          title="验证预测"
+          title="Verify prediction / 验证预测"
           disabled={reflecting}
         >
           {reflecting ? "..." : "复盘"}

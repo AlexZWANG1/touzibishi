@@ -12,12 +12,12 @@ export function MetricCard({ metric }: MetricCardProps) {
 
   return (
     <div className="p-[6px_8px] border border-[var(--iris-border)] bg-[var(--iris-bg)]">
-      <p className="font-mono text-[9px] text-[var(--iris-text-muted)] uppercase tracking-[0.06em]">
+      <p className="font-mono text-[9px] text-[var(--iris-text-muted)] uppercase tracking-[0.06em] truncate" title={metric.label}>
         {metric.label}
       </p>
 
       <div className="mt-0.5 flex items-baseline gap-1">
-        <span className="font-mono text-[15px] font-semibold text-[var(--iris-data)]">
+        <span className="font-mono text-[15px] font-semibold text-[var(--iris-data)] truncate" title={String(metric.value)}>
           {metric.value}
         </span>
         {metric.unit && (

@@ -23,19 +23,22 @@ export default function RootLayout({
             </a>
             <a
               href="/"
-              className="text-[12px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)] transition-colors duration-150"
+              className="text-[12px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--iris-accent)] transition-colors duration-150"
+              title="Home"
             >
               首页
             </a>
             <a
               href="/knowledge"
-              className="text-[12px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)] transition-colors duration-150"
+              className="text-[12px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--iris-accent)] transition-colors duration-150"
+              title="Knowledge Base"
             >
               知识库
             </a>
             <a
               href="/memory"
-              className="text-[12px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)] transition-colors duration-150"
+              className="text-[12px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--iris-accent)] transition-colors duration-150"
+              title="Memory Management"
             >
               记忆管理
             </a>

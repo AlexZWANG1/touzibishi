@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import type { TimelineEvent } from "@/types/analysis";
 import { formatTime, formatDuration } from "@/utils/formatters";
 
@@ -47,7 +47,7 @@ const TOOL_LABELS: Record<string, string> = {
   fred_get_macro: "宏观数据",
 };
 
-export function TimelineItem({ event, isLast }: TimelineItemProps) {
+export const TimelineItem = memo(function TimelineItem({ event, isLast }: TimelineItemProps) {
   if (event.tool === "thinking") {
     return <ThinkingItem event={event} />;
   }
@@ -97,7 +97,7 @@ export function TimelineItem({ event, isLast }: TimelineItemProps) {
               width: 6,
               height: 6,
               borderRadius: "50%",
-              background: "var(--iris-bearish)",
+              background: "var(--iris-red)",
             }}
           />
         ) : isRunning ? (
@@ -172,7 +172,7 @@ export function TimelineItem({ event, isLast }: TimelineItemProps) {
           style={{
             fontSize: 11,
             color: isError
-              ? "var(--iris-bearish)"
+              ? "var(--iris-red)"
               : "var(--iris-text-secondary)",
           }}
         >
@@ -203,7 +203,7 @@ export function TimelineItem({ event, isLast }: TimelineItemProps) {
       </div>
     </div>
   );
-}
+});
 
 function ThinkingItem({ event }: { event: TimelineEvent }) {
   const [expanded, setExpanded] = useState(false);

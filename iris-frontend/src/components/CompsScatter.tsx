@@ -64,7 +64,7 @@ export function CompsScatter({ data, xLabel, yLabel }: CompsScatterProps) {
   if (data.length === 0) return null;
 
   return (
-    <div className="border border-[var(--iris-border)] overflow-hidden">
+    <div className="border border-[var(--iris-border)] overflow-hidden" role="figure" aria-label={`Valuation scatter chart: ${xLabel} vs ${yLabel}`}>
       <div className="p-[5px_8px] border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
         <span className="font-mono text-[11px] text-[var(--iris-accent)] uppercase tracking-[0.08em]">
           Valuation Scatter

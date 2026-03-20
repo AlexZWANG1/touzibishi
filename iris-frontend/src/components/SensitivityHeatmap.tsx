@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { SensitivityCell } from "@/types/analysis";
 
 interface SensitivityHeatmapProps {
@@ -79,9 +80,8 @@ export function SensitivityHeatmap({
 
         {/* Data rows */}
         {rowValues.map((row) => (
-          <>
+          <React.Fragment key={row}>
             <div
-              key={`label-${row}`}
               className="p-[3px] font-mono text-[10px] text-[var(--iris-accent)]"
               style={{ opacity: 0.7 }}
             >
@@ -108,7 +108,7 @@ export function SensitivityHeatmap({
                 </div>
               );
             })}
-          </>
+          </React.Fragment>
         ))}
       </div>
     </div>

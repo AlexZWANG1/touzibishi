@@ -63,12 +63,14 @@ export function KnowledgeUploadPanel({ uploading, onUploadNote, onUploadUrl, onU
   return (
     <div className="border border-[var(--iris-border)] bg-[var(--iris-surface)] p-[6px]">
       {/* Tab bar */}
-      <div className="mb-[4px] flex border border-[var(--iris-border)] bg-[var(--iris-bg)]">
+      <div role="tablist" className="mb-[4px] flex border border-[var(--iris-border)] bg-[var(--iris-bg)]">
         {tabs.map((t) => (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={`flex-1 px-[6px] py-[3px] font-mono text-[10px] uppercase tracking-wider transition-colors ${
+            className={`flex-1 px-[6px] py-[3px] font-mono text-[10px] uppercase tracking-wider transition-colors focus:outline-2 focus:outline-offset-[-2px] focus:outline-[var(--iris-accent)] ${
               tab === t.key
                 ? "bg-[var(--iris-accent)] text-white"
                 : "text-[var(--iris-text-muted)] hover:text-[var(--iris-text-secondary)]"
@@ -81,18 +83,22 @@ export function KnowledgeUploadPanel({ uploading, onUploadNote, onUploadUrl, onU
 
       {/* Common fields */}
       <div className="mb-[4px] flex gap-[4px]">
+        <label className="sr-only" htmlFor="upload-title">Title</label>
         <input
+          id="upload-title"
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="标题"
+          placeholder="标题 / Title"
           className="h-[28px] flex-1 border border-[var(--iris-border)] bg-[var(--iris-bg)] px-[6px] font-mono text-[11px] text-[var(--iris-text)] placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none"
         />
+        <label className="sr-only" htmlFor="upload-company">Ticker</label>
         <input
+          id="upload-company"
           type="text"
           value={company}
           onChange={(e) => setCompany(e.target.value)}
-          placeholder="股票"
+          placeholder="股票 / Ticker"
           className="h-[28px] w-[72px] border border-[var(--iris-border)] bg-[var(--iris-bg)] px-[6px] font-mono text-[11px] text-[var(--iris-text)] placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none"
         />
       </div>
@@ -120,14 +126,17 @@ export function KnowledgeUploadPanel({ uploading, onUploadNote, onUploadUrl, onU
 
       {tab === "file" && (
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => fileRef.current?.click()}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileRef.current?.click(); } }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
             const f = e.dataTransfer.files[0];
             if (f) setSelectedFile(f);
           }}
-          className="mb-[4px] flex cursor-pointer items-center justify-center border border-dashed border-[var(--iris-border)] bg-[var(--iris-bg)] py-[12px] font-mono text-[11px] text-[var(--iris-text-muted)] transition-colors hover:border-[var(--iris-accent)]"
+          className="mb-[4px] flex cursor-pointer items-center justify-center border border-dashed border-[var(--iris-border)] bg-[var(--iris-bg)] py-[12px] font-mono text-[11px] text-[var(--iris-text-muted)] transition-colors hover:border-[var(--iris-accent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--iris-accent)]"
         >
           {selectedFile ? (
             <span className="text-[var(--iris-text)]">{selectedFile.name}</span>

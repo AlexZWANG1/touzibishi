@@ -73,10 +73,13 @@ export function KnowledgeDocList({ docs, selectedId, onSelect, onDelete }: Props
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onDelete(doc.id);
+                    if (window.confirm("确认删除此文档？/ Delete this document?")) {
+                      onDelete(doc.id);
+                    }
                   }}
                   className="ml-[4px] p-[2px] text-[var(--iris-text-muted)] opacity-0 transition-all hover:text-red-400 group-hover:opacity-100"
-                  title="删除"
+                  title="Delete / 删除"
+                  aria-label="Delete document"
                 >
                   <svg
                     className="h-[10px] w-[10px]"

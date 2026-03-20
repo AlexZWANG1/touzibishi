@@ -29,6 +29,17 @@ export function MemoryFileViewer({
   onEditContentChange,
   onSave,
 }: MemoryFileViewerProps) {
+  const hasUnsavedChanges = viewMode === "edit" && editContent !== fileContent.content;
+
+  const handleModeChange = (newMode: MemoryViewMode) => {
+    if (hasUnsavedChanges && newMode !== "edit") {
+      if (!window.confirm("You have unsaved changes. Discard? / 有未保存的修改，确认放弃？")) {
+        return;
+      }
+    }
+    onViewModeChange(newMode);
+  };
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -44,7 +55,7 @@ export function MemoryFileViewer({
             {(Object.keys(modeLabels) as MemoryViewMode[]).map((mode) => (
               <button
                 key={mode}
-                onClick={() => onViewModeChange(mode)}
+                onClick={() => handleModeChange(mode)}
                 className={`px-[8px] py-[3px] font-mono text-[10px] uppercase tracking-wider transition-colors ${
                   viewMode === mode
                     ? "bg-[var(--iris-accent)] text-white"

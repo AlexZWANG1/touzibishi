@@ -33,7 +33,7 @@ export function SearchBar() {
   return (
     <form onSubmit={handleSubmit} className="relative w-full">
       <div
-        className="relative flex items-center border"
+        className="relative flex items-center border focus-within:!border-[var(--iris-accent)]"
         style={{
           height: "28px",
           backgroundColor: "transparent",
@@ -52,7 +52,7 @@ export function SearchBar() {
             backgroundColor: mode === "learning" ? "rgba(245,128,37,0.08)" : "transparent",
             color: mode === "learning" ? "var(--iris-accent)" : "var(--iris-text-muted)",
           }}
-          title={mode === "analysis" ? "切换到学习模式" : "切换到分析模式"}
+          title={mode === "analysis" ? "Switch to Learning mode / 切换到学习模式" : "Switch to Analysis mode / 切换到分析模式"}
         >
           {mode === "analysis" ? (
             <>
@@ -99,20 +99,13 @@ export function SearchBar() {
             color: "var(--iris-text)",
             caretColor: "var(--iris-accent)",
           }}
-          onFocus={(e) => {
-            const container = e.currentTarget.parentElement;
-            if (container) container.style.borderColor = mode === "learning" ? "var(--iris-accent)" : "var(--iris-accent)";
-          }}
-          onBlur={(e) => {
-            const container = e.currentTarget.parentElement;
-            if (container) container.style.borderColor = "var(--iris-border)";
-          }}
           disabled={loading}
         />
 
         <button
           type="submit"
           disabled={!query.trim() || loading}
+          aria-label={loading ? "Analyzing..." : "Start analysis"}
           className="flex-shrink-0 flex items-center justify-center font-mono text-[11px] font-bold uppercase tracking-wider disabled:cursor-not-allowed disabled:opacity-30"
           style={{
             height: "28px",

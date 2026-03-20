@@ -80,8 +80,9 @@ export default function HomePage() {
     try {
       const wl = await getWatchlist();
       setWatchlist(wl);
-    } catch {
-      // silent
+    } catch (err) {
+      console.error("Failed to refresh watchlist:", err);
+      setError("刷新失败，请重试");
     } finally {
       setWlLoading(false);
     }
@@ -243,10 +244,10 @@ export default function HomePage() {
                         className="cursor-pointer transition-colors"
                         style={{ borderBottom: "1px solid var(--iris-border)" }}
                         onClick={() => {
-                          window.location.href = `/analysis/${item.id}`;
+                          router.push(`/analysis/${item.id}`);
                         }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--iris-surface)"; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--iris-surface)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
                       >
                         <td className="font-mono text-[11px] py-0.5 px-1" style={{ color: "var(--iris-text-muted)" }}>
                           {formatDate(item.created_at)}

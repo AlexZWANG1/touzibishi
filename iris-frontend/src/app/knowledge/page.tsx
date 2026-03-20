@@ -24,7 +24,7 @@ export default function KnowledgePage() {
   return (
     <div className="flex h-[calc(100vh-3.5rem)] bg-[var(--iris-bg)]">
       {/* Sidebar */}
-      <div className="flex w-[240px] shrink-0 flex-col border-r border-[var(--iris-border)] bg-[var(--iris-surface)]">
+      <div className="flex w-[240px] shrink-0 flex-col border-r border-[var(--iris-border)] bg-[var(--iris-surface)] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--iris-border)] px-[10px] py-[6px]">
           <h2 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--iris-accent)]">
@@ -62,10 +62,7 @@ export default function KnowledgePage() {
         </div>
 
         {/* Document list */}
-        <div
-          className="overflow-y-auto p-[6px]"
-          style={{ height: "calc(100% - 49px)" }}
-        >
+        <div className="flex-1 min-h-0 overflow-y-auto p-[6px]">
           {loading && docs.length === 0 ? (
             <div className="flex items-center justify-center py-6">
               <div className="h-3 w-3 animate-spin border border-[var(--iris-accent)] border-t-transparent" />
