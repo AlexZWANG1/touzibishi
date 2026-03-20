@@ -349,12 +349,22 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
           error?: string;
         };
         set((s) => {
-          const fallbackText = ok && reply && !s.reasoningText ? reply : "";
+          // If streaming produced text, use it. Otherwise parse the reply fallback
+          // through _splitThinkingBlocks so thinking tags never leak into reasoningText.
+          let finalReasoning = s.reasoningText;
+          let finalThinking = s.thinkingText;
+          let finalRaw = s._rawTextBuffer;
+          if (!finalReasoning && ok && reply) {
+            const parsed = _splitThinkingBlocks(reply);
+            finalReasoning = parsed.reasoning;
+            finalThinking = parsed.thinking || finalThinking;
+            finalRaw = reply;
+          }
           return {
           pageState: "COMPLETE",
-          reasoningText: s.reasoningText || fallbackText,
-          // Keep _rawTextBuffer in sync so multi-turn continuation includes prior text
-          _rawTextBuffer: s._rawTextBuffer || fallbackText,
+          reasoningText: finalReasoning,
+          thinkingText: finalThinking,
+          _rawTextBuffer: finalRaw,
           timeline: [
             ...s.timeline,
             {

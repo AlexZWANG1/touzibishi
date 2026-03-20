@@ -6,9 +6,21 @@ import remarkGfm from "remark-gfm";
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 import { CalibrationSummary } from "./CalibrationSummary";
 
-/** Strip all <thinking>...</thinking> blocks from text (safety net) */
+/**
+ * Aggressively strip any <thinking> tag artifacts from text (safety net).
+ * Handles: complete blocks, unclosed blocks, partial tags, and leftover fragments.
+ */
 function stripThinking(text: string): string {
-  return text.replace(/<thinking>[\s\S]*?<\/thinking>/g, "").trim();
+  let clean = text;
+  // 1. Complete blocks: <thinking>...</thinking>
+  clean = clean.replace(/<thinking>[\s\S]*?<\/thinking>/g, "");
+  // 2. Unclosed block at end: <thinking>... (no closing tag)
+  clean = clean.replace(/<thinking>[\s\S]*$/g, "");
+  // 3. Orphaned closing tag or partial opening: inking>..., </thinking>, <thinking
+  clean = clean.replace(/^[^<]*?(?:inking|hinking|thinking)>\s*/g, "");
+  clean = clean.replace(/<\/thinking>/g, "");
+  clean = clean.replace(/<thinking\s*$/g, "");
+  return clean.trim();
 }
 
 /** Split text into alternating AI/user segments for chat-style rendering */
@@ -41,92 +53,64 @@ function splitIntoChatSegments(text: string): ChatSegment[] {
   return segments;
 }
 
-/** Collapsible thinking block with distinct visual treatment */
+/**
+ * System Trace — collapsible thinking block.
+ * Styled as dim internal reasoning, clearly distinct from conversation output.
+ * Uses CSS grid trick for smooth height animation.
+ */
 function ThinkingBlock({ text, isStreaming }: { text: string; isStreaming: boolean }) {
   const [expanded, setExpanded] = useState(false);
-  const preRef = useRef<HTMLPreElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll the thinking content during streaming
+  // Auto-expand during streaming so user sees the reasoning live
   useEffect(() => {
-    if (expanded && isStreaming && preRef.current) {
-      preRef.current.scrollTop = preRef.current.scrollHeight;
+    if (isStreaming && text) setExpanded(true);
+  }, [isStreaming, text]);
+
+  // Auto-collapse when streaming ends
+  useEffect(() => {
+    if (!isStreaming && expanded) setExpanded(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming]);
+
+  // Auto-scroll content during streaming
+  useEffect(() => {
+    if (expanded && isStreaming && contentRef.current) {
+      contentRef.current.scrollTop = contentRef.current.scrollHeight;
     }
   }, [text, expanded, isStreaming]);
 
   if (!text) return null;
 
-  const firstLine = text.split("\n")[0]?.slice(0, 80) || "";
+  const preview = text.split("\n")[0]?.slice(0, 60) || "";
 
   return (
     <div
-      style={{
-        marginBottom: 12,
-        borderRadius: 6,
-        border: "1px solid rgba(245,128,37,0.12)",
-        background: "rgba(245,128,37,0.03)",
-        overflow: "hidden",
-      }}
+      className={`iris-thinking-block ${isStreaming ? "iris-thinking-block--streaming" : ""}`}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="font-mono"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          width: "100%",
-          padding: "6px 10px",
-          border: "none",
-          background: "none",
-          cursor: "pointer",
-          fontSize: 11,
-          color: "var(--iris-accent-dim)",
-          fontWeight: 500,
-          textAlign: "left",
-        }}
+        className="iris-thinking-toggle"
       >
         <span
-          style={{
-            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform 150ms",
-            display: "inline-block",
-            fontSize: 8,
-            flexShrink: 0,
-          }}
+          className={`iris-thinking-chevron ${expanded ? "iris-thinking-chevron--open" : ""}`}
         >
           &#9654;
         </span>
-        <span style={{ opacity: 0.7 }}>
-          {expanded ? "思考过程" : firstLine || "思考过程"}
-        </span>
-        {isStreaming && (
-          <span
-            className="animate-pulse"
-            style={{ fontSize: 8, marginLeft: "auto", flexShrink: 0 }}
-          >
-            &#9679;
-          </span>
+        <span className="iris-thinking-label">TRACE</span>
+        {!expanded && (
+          <span className="iris-thinking-preview">{preview}</span>
         )}
+        {isStreaming && <span className="iris-thinking-dot" />}
       </button>
-      {expanded && (
-        <pre
-          ref={preRef}
-          className="font-mono"
-          style={{
-            padding: "4px 10px 8px",
-            margin: 0,
-            fontSize: 11,
-            lineHeight: 1.5,
-            color: "var(--iris-text-muted)",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            maxHeight: 240,
-            overflowY: "auto",
-          }}
-        >
-          {text}
-        </pre>
-      )}
+
+      <div className={`iris-thinking-body ${expanded ? "iris-thinking-body--open" : ""}`}>
+        <div>
+          <div ref={contentRef} className="iris-thinking-content">
+            {text}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
