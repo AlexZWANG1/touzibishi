@@ -128,12 +128,48 @@
       "created_at": "2026-03-20T00:03:35.121345",
       "last_validated": "2026-03-20",
       "status": "active"
+    },
+    {
+      "id": "exp_p_c5123a",
+      "zone": null,
+      "level": null,
+      "content": "For Alphabet during the AI infrastructure build cycle, DCF valuation is dominated by the choice of normalized CapEx ratio, so always model a capex normalization range rather than relying on the current-year peak spend.",
+      "companies": [
+        "GOOGL"
+      ],
+      "sector": "Internet Platforms",
+      "confidence": 0.76,
+      "evidence_count": 1,
+      "evidence": [
+        {
+          "date": "2026-03-19",
+          "metric": "DCF fair value sensitivity to capex normalization",
+          "predicted": 64.55,
+          "actual": 122.26,
+          "source": "Internal GOOGL valuation rounds using different normalized capex assumptions"
+        }
+      ],
+      "source_attribution_id": "",
+      "methodology": {
+        "what_i_did": "Compared stored Alphabet FY2025 cash flow anchors with a refreshed base-case DCF and observed fair value moved materially when normalized capex assumptions changed.",
+        "what_went_wrong": "Single-point DCF outputs can understate value during heavy investment years if current capex is treated as structural rather than cyclical or transitional.",
+        "what_to_do_next": [
+          "Run explicit bear/base/bull capex normalization scenarios for GOOGL.",
+          "Cross-check DCF outputs against peer EV/EBITDA and forward P/E to identify when FCF modeling is too conservative.",
+          "Seek segment-level cloud and AI monetization evidence before lowering long-run capex assumptions."
+        ]
+      },
+      "times_retrieved": 0,
+      "times_useful": 0,
+      "created_at": "2026-03-20T16:17:06.570177",
+      "last_validated": "2026-03-20",
+      "status": "active"
     }
   ],
   "attribution_log": [],
   "metadata": {
     "created": "2026-03-20",
-    "last_updated": "2026-03-20T00:08:27.339764",
-    "entry_count": 3
+    "last_updated": "2026-03-20T16:17:06.570339",
+    "entry_count": 4
   }
 }
