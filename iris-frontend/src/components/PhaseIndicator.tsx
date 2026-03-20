@@ -37,8 +37,8 @@ export function PhaseIndicator() {
                   className="mx-0.5"
                   style={{
                     fontSize: 11,
-                    color: "var(--iris-text-muted)",
-                    opacity: 0.6,
+                    color: "var(--iris-text-secondary)",
+                    opacity: isComplete ? 1 : 0.6,
                   }}
                 >
                   ›
@@ -53,7 +53,7 @@ export function PhaseIndicator() {
                     : isPast
                       ? "var(--iris-text-secondary)"
                       : "var(--iris-text-muted)",
-                  opacity: isActive ? 1 : isPast ? 0.7 : 0.5,
+                  opacity: isActive ? 1 : isPast ? 0.7 : isComplete ? 0.7 : 0.5,
                 }}
               >
                 {phase.label}

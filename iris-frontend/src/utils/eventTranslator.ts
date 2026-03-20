@@ -56,7 +56,6 @@ export const TOOL_TAB_MAP: Record<string, string> = {
   fred_get_macro: "data",
   build_dcf: "model",
   get_comps: "comps",
-  recall_memory: "memory",
 };
 
 export function translateToolStart(

@@ -14,6 +14,7 @@ export function StreamingTimeline() {
   }, [timeline.length]);
 
   if (timeline.length === 0) {
+    const isComplete = pageState === "COMPLETE";
     return (
       <div
         className="flex flex-1 items-center justify-center"
@@ -21,9 +22,9 @@ export function StreamingTimeline() {
       >
         <p
           className="font-mono"
-          style={{ fontSize: 10, color: "var(--iris-text-muted)" }}
+          style={{ fontSize: 12, color: "var(--iris-text-muted)" }}
         >
-          正在初始化分析...
+          {isComplete ? "无工具调用记录" : "正在初始化分析..."}
         </p>
       </div>
     );

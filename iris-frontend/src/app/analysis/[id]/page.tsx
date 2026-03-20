@@ -6,14 +6,14 @@ import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 import { useAnalysisStream } from "@/hooks/useAnalysisStream";
 import { PhaseIndicator } from "@/components/PhaseIndicator";
 import { StreamingTimeline } from "@/components/StreamingTimeline";
-import { AIReasoningArea } from "@/components/AIReasoningArea";
+import { ReportPanel } from "@/components/AIReasoningArea";
+import { MemorySummary } from "@/components/MemorySummary";
 import { SteeringInput } from "@/components/SteeringInput";
 import { PendingQuestionCard } from "@/components/PendingQuestionCard";
 import { PanelTabBar } from "@/components/PanelTabBar";
 import { DataPanel } from "@/components/DataPanel";
 import { ModelPanel } from "@/components/ModelPanel";
 import { CompsPanel } from "@/components/CompsPanel";
-import { MemoryPanel } from "@/components/MemoryPanel";
 
 export default function AnalysisPage() {
   const params = useParams();
@@ -76,12 +76,9 @@ export default function AnalysisPage() {
             )}
           </div>
 
-          {/* AI Reasoning - bottom, expandable, max 40% height */}
-          <div
-            className="shrink-0 border-t border-[var(--iris-border)]"
-            style={{ maxHeight: "40%" }}
-          >
-            <AIReasoningArea />
+          {/* Memory summary - bottom of sidebar */}
+          <div className="shrink-0 border-t border-[var(--iris-border)]" style={{ maxHeight: "120px", overflowY: "auto" }}>
+            <MemorySummary />
           </div>
         </div>
 
@@ -100,10 +97,10 @@ export default function AnalysisPage() {
               </div>
             ) : (
               <>
+                {activeTab === "report" && <ReportPanel />}
                 {activeTab === "data" && <DataPanel />}
                 {activeTab === "model" && <ModelPanel />}
                 {activeTab === "comps" && <CompsPanel />}
-                {activeTab === "memory" && <MemoryPanel />}
               </>
             )}
           </div>

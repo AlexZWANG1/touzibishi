@@ -2,7 +2,7 @@ export type PageState = "IDLE" | "RUNNING" | "WAITING" | "COMPLETE";
 
 export type Phase = "gather" | "analyze" | "evaluate" | "finalize";
 
-export type ActiveTab = "data" | "model" | "comps" | "memory";
+export type ActiveTab = "report" | "data" | "model" | "comps";
 
 export type EventColor = "green" | "blue" | "amber" | "gray" | "purple" | "gold";
 
