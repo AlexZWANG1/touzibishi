@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SearchBar, type AnalysisMode } from "@/components/SearchBar";
 import { WatchlistGrid } from "@/components/WatchlistGrid";
+import { PortfolioSummary } from "@/components/PortfolioSummary";
 import { PrismLogo } from "@/components/PrismLogo";
 import type { WatchlistItem, HistoryItem } from "@/types/analysis";
 import { getHistory, getWatchlist, startAnalysis } from "@/utils/api";
@@ -188,7 +189,7 @@ export default function HomePage() {
           <div className="prism-kicker">Prism Research Intelligence</div>
           <div className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
             <div>
-              <h1 className="max-w-[700px] font-display text-[42px] leading-[1.04] tracking-[-0.04em] text-[var(--ink)] sm:text-[54px]">
+              <h1 className="max-w-[700px] font-display text-fluid-hero leading-[1.04] tracking-[-0.04em] text-[var(--ink)]">
                 Decompose complexity.
                 <br />
                 <em className="font-normal text-[var(--ac)]">See clearly.</em>
@@ -239,8 +240,8 @@ export default function HomePage() {
           </aside>
         )}
 
-        <section className="mt-8 space-y-4 animate-fade-up [animation-delay:240ms]">
-          {CAPABILITY_MODULES.map((module) => (
+        <section className="gap-fluid-section space-y-4 animate-fade-up [animation-delay:240ms]">
+          {CAPABILITY_MODULES.map((module, idx) => (
             <article key={module.key} className="prism-card overflow-hidden">
               <div className="h-[3px]" style={{ background: module.bar }} />
               <div className="flex flex-col gap-5 p-6 lg:flex-row lg:items-center">
@@ -248,7 +249,7 @@ export default function HomePage() {
                   <div className="flex items-center gap-3">
                     <CapabilityIcon path={module.iconPath} style={module.iconStyle} />
                     <div>
-                      <h2 className="text-[16px] font-semibold text-[var(--t1)]">{module.title}</h2>
+                      <h2 className={`${idx === 0 ? "text-[18px]" : "text-[16px]"} font-semibold text-[var(--t1)]`}>{module.title}</h2>
                       <p className="mt-1 text-[13px] leading-[1.7] text-[var(--t2)]">{module.description}</p>
                     </div>
                   </div>
@@ -290,19 +291,20 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="mt-10 space-y-10">
+        <div className="gap-fluid-section space-y-10">
           {loading ? (
             <div className="rounded-lg border border-[var(--b1)] bg-[var(--bg-w)] px-5 py-4 text-[13px] text-[var(--t3)] shadow-card">
               正在加载 watchlist 和历史分析...
             </div>
           ) : (
             <>
+              <PortfolioSummary />
               <WatchlistGrid items={watchlist} loading={wlLoading} onRefresh={handleRefresh} />
 
               {history.length > 0 && (
                 <section className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <h2 className="font-display text-[28px] font-medium tracking-[-0.03em] text-[var(--ink)]">
+                    <h2 className="font-display text-fluid-h2 font-medium tracking-[-0.03em] text-[var(--ink)]">
                       Recent Analyses
                     </h2>
                     <span className="prism-mono-chip">{history.length}</span>
@@ -364,11 +366,28 @@ export default function HomePage() {
               )}
 
               {!watchlist.length && !history.length && (
-                <div className="rounded-[20px] border border-[var(--b1)] bg-[var(--bg-w)] px-6 py-8 text-center shadow-card">
-                  <p className="text-[15px] font-medium text-[var(--t1)]">还没有保存的研究结果</p>
-                  <p className="mt-2 text-[13px] leading-[1.7] text-[var(--t3)]">
-                    从上面的主输入框开始描述一个研究任务，Prism 会建立你的第一个工作区。
+                <div className="rounded-[20px] border border-dashed border-[var(--b2)] bg-[var(--bg-w)] px-8 py-12 text-center shadow-card">
+                  <div className="mx-auto mb-5 inline-flex h-14 w-14 items-center justify-center rounded-[16px] bg-[var(--ac-s)]">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="1.6">
+                      <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <p className="font-display text-[22px] font-medium text-[var(--ink)]">开始你的第一轮研究</p>
+                  <p className="mx-auto mt-3 max-w-[380px] text-[14px] leading-[1.8] text-[var(--t2)]">
+                    在搜索框中描述一个具体的投研问题 — 比如 "分析 AAPL 服务业务增长" — Prism 会自动编排数据拉取、估值建模和同业对比的完整流程。
                   </p>
+                  <div className="mt-6 flex flex-wrap justify-center gap-2">
+                    {["AAPL 财报分析", "NVDA vs AMD 估值", "META 交易策略"].map((hint) => (
+                      <button
+                        key={hint}
+                        type="button"
+                        onClick={() => setQuery(hint)}
+                        className="rounded-pill border border-[var(--b2)] bg-[var(--bg)] px-4 py-2 text-[12px] font-medium text-[var(--t2)] transition-colors hover:border-[var(--ac-m)] hover:text-[var(--ac)]"
+                      >
+                        {hint}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </>

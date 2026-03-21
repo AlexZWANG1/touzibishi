@@ -13,7 +13,7 @@ export function WatchlistGrid({ items, loading, onRefresh }: WatchlistGridProps)
   return (
     <section className="space-y-4">
       <div className="flex items-center gap-3">
-        <h2 className="font-display text-[28px] font-medium tracking-[-0.03em] text-[var(--ink)]">
+        <h2 className="font-display text-fluid-h2 font-medium tracking-[-0.03em] text-[var(--ink)]">
           Watchlist
         </h2>
         <span className="prism-mono-chip">{items.length}</span>
@@ -34,8 +34,9 @@ export function WatchlistGrid({ items, loading, onRefresh }: WatchlistGridProps)
                 {["Ticker", "Name", "Price", "Gap", "Fair Value", "建议", "操作"].map((label, index) => (
                   <th
                     key={label}
-                    className="px-5 py-3 text-left font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
-                    style={{ textAlign: index >= 2 ? "right" : "left" }}
+                    className={`px-5 py-3 font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)] ${
+                      index >= 2 ? "text-right" : "text-left"
+                    }`}
                   >
                     {label}
                   </th>
@@ -45,8 +46,11 @@ export function WatchlistGrid({ items, loading, onRefresh }: WatchlistGridProps)
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-[14px] text-[var(--t3)]">
-                    暂无追踪标的，先在首页发起一轮分析。
+                  <td colSpan={7} className="px-5 py-12 text-center">
+                    <p className="text-[14px] font-medium text-[var(--t1)]">追踪列表为空</p>
+                    <p className="mx-auto mt-2 max-w-[320px] text-[12px] leading-[1.7] text-[var(--t3)]">
+                      完成一轮深度分析后，Prism 会自动把带有估值结论的标的加入这里。你可以在此追踪价格变动和建议更新。
+                    </p>
                   </td>
                 </tr>
               ) : (

@@ -1,8 +1,9 @@
 """
-Trading Decision Skill — trade signals and paper portfolio.
+Trading Skill — trade signals and paper portfolio.
 
 Tools:
-  generate_trade_signal: Evaluate buy/hold/sell based on hypothesis + valuation
+  generate_trade_signal: AI outputs its trade recommendation
+  execute_trade:         Execute a confirmed trade (called after user approval)
   get_portfolio:         View current paper portfolio with live P&L
 """
 
@@ -33,9 +34,9 @@ def _load_portfolio() -> dict:
     return {
         "initial_capital": initial,
         "cash": initial,
-        "positions": {},        # ticker -> position dict
-        "closed_trades": [],    # list of completed round-trips
-        "trade_log": [],        # every buy/sell event
+        "positions": {},
+        "closed_trades": [],
+        "trade_log": [],
     }
 
 
@@ -50,119 +51,90 @@ def _save_portfolio(portfolio: dict):
 GENERATE_TRADE_SIGNAL_SCHEMA = make_tool_schema(
     name="generate_trade_signal",
     description=(
-        "Evaluate whether to BUY, HOLD, TRIM, or SELL a stock based on hypothesis "
-        "confidence, DCF fair value, current price, and portfolio constraints. "
-        "Returns action, target_weight, reasoning, and constraint checks."
+        "Output your trade recommendation after completing analysis. "
+        "Include direction, target price, stop loss, position size, catalysts, and reasoning. "
+        "This is a recommendation — execution happens only after user confirms in the UI."
     ),
     properties={
         "ticker": {
             "type": "string",
             "description": "Stock ticker, e.g. 'NVDA'",
         },
-        "current_price": {
+        "action": {
+            "type": "string",
+            "enum": ["BUY", "SELL", "TRIM", "HOLD", "WATCH"],
+            "description": "Trade direction",
+        },
+        "price": {
             "type": "number",
-            "description": "Current market price per share",
+            "description": "Current market price",
         },
-        "fair_value": {
+        "target_price": {
             "type": "number",
-            "description": "Fair value per share from DCF/valuation",
+            "description": "Target price based on valuation analysis",
         },
-        "hypothesis_confidence": {
-            "type": "number", "minimum": 0, "maximum": 100,
-            "description": "Current hypothesis confidence (0-100)",
+        "stop_loss": {
+            "type": "number",
+            "description": "Stop loss price — exit if breached",
         },
-        "hypothesis_id": {
+        "position_pct": {
+            "type": "number",
+            "description": "Suggested position size as % of total portfolio (e.g. 5.0 = 5%)",
+        },
+        "catalysts": {
             "type": "string",
-            "description": "Hypothesis ID for linking",
+            "description": "Key catalysts and expected timing",
         },
-        "sector": {
+        "reasoning": {
             "type": "string",
-            "description": "Company sector for concentration check",
-        },
-        "catalyst": {
-            "type": "string",
-            "description": "Next expected catalyst and approximate timing",
-        },
-        "kill_criteria_status": {
-            "type": "string", "enum": ["clear", "triggered", "at_risk"],
-            "description": "Whether any kill criteria have triggered",
+            "description": "One-paragraph reasoning for this trade",
         },
     },
-    required=[
-        "ticker", "current_price", "fair_value",
-        "hypothesis_confidence", "hypothesis_id",
-        "sector", "kill_criteria_status",
-    ],
+    required=["ticker", "action", "price", "reasoning"],
+)
+
+EXECUTE_TRADE_SCHEMA = make_tool_schema(
+    name="execute_trade",
+    description=(
+        "Execute a trade in the paper portfolio. Called after user confirms "
+        "the trade signal in the UI. Buys or sells shares and updates portfolio."
+    ),
+    properties={
+        "ticker": {
+            "type": "string",
+            "description": "Stock ticker",
+        },
+        "action": {
+            "type": "string",
+            "enum": ["BUY", "SELL"],
+            "description": "Buy or sell",
+        },
+        "shares": {
+            "type": "integer",
+            "description": "Number of shares to trade",
+        },
+        "price": {
+            "type": "number",
+            "description": "Execution price per share",
+        },
+    },
+    required=["ticker", "action", "shares", "price"],
 )
 
 GET_PORTFOLIO_SCHEMA = make_tool_schema(
     name="get_portfolio",
     description=(
         "View current paper portfolio: positions, cost basis, unrealized P&L, "
-        "cash balance, and sector weights. Call quote first to get live prices, "
+        "cash balance. Call quote first to get live prices, "
         "then pass them here for P&L calculation."
     ),
     properties={
         "live_prices": {
             "type": "object",
-            "description": "Dict of ticker -> current price, e.g. {'NVDA': 142.5, 'AAPL': 195.0}. "
-                           "Fetch via quote before calling this tool.",
+            "description": "Dict of ticker -> current price, e.g. {'NVDA': 142.5}",
         },
     },
     required=[],
-)
-
-RUN_ATTRIBUTION_SCHEMA = make_tool_schema(
-    name="run_attribution",
-    description=(
-        "Run P&L attribution on a position or closed trade. Compares original "
-        "analysis assumptions to actual outcomes. Decomposes return into alpha, "
-        "timing, and sizing components.\n\n"
-        "Call this after earnings are released or when closing a position."
-    ),
-    properties={
-        "ticker": {"type": "string"},
-        "original_assumptions": {
-            "type": "object",
-            "description": (
-                "The key assumptions from the original DCF analysis: "
-                "{'revenue_growth': 0.35, 'gross_margin': 0.745, 'opex_ratio': 0.165, ...}"
-            ),
-        },
-        "actual_results": {
-            "type": "object",
-            "description": (
-                "Actual financial results: "
-                "{'revenue_growth': 0.42, 'gross_margin': 0.765, 'opex_ratio': 0.158, ...}"
-            ),
-        },
-        "entry_price": {
-            "type": "number",
-            "description": "Price at which position was entered",
-        },
-        "current_price": {
-            "type": "number",
-            "description": "Current or exit price",
-        },
-        "benchmark_return": {
-            "type": "number",
-            "description": "Benchmark (e.g. SPY) return over same period, as decimal (0.05 = 5%)",
-        },
-        "sector_return": {
-            "type": "number",
-            "description": "Sector ETF return over same period, as decimal",
-        },
-        "hypothesis_id": {"type": "string"},
-        "position_weight": {
-            "type": "number",
-            "description": "Portfolio weight at entry (e.g. 0.03 = 3%)",
-        },
-    },
-    required=[
-        "ticker", "original_assumptions", "actual_results",
-        "entry_price", "current_price", "benchmark_return",
-        "hypothesis_id",
-    ],
 )
 
 
@@ -170,205 +142,150 @@ RUN_ATTRIBUTION_SCHEMA = make_tool_schema(
 
 def generate_trade_signal(
     ticker: str,
-    current_price: float,
-    fair_value: float,
-    hypothesis_confidence: float,
-    hypothesis_id: str,
-    sector: str,
-    kill_criteria_status: str,
-    catalyst: str = "",
+    action: str,
+    price: float,
+    reasoning: str,
+    target_price: float = 0,
+    stop_loss: float = 0,
+    position_pct: float = 0,
+    catalysts: str = "",
 ) -> ToolResult:
-    """Evaluate trade signal from hypothesis + valuation + portfolio state."""
-    cfg = get_skill_config("trading")
-    min_discount = cfg.get("min_entry_discount", 0.20)
-    min_confidence = cfg.get("min_confidence_entry", 60)
-    sell_target_pct = cfg.get("sell_target_pct", 0.90)
-    sizing_tiers = cfg.get("sizing_tiers", [])
-    constraints = cfg.get("constraints", {})
-    max_single = constraints.get("max_single_position", 0.05)
-    max_sector = constraints.get("max_sector_weight", 0.20)
-
+    """Record AI's trade recommendation. No execution — just data for the UI."""
     portfolio = _load_portfolio()
-
-    discount = (fair_value - current_price) / fair_value if fair_value > 0 else 0
     already_held = ticker.upper() in portfolio.get("positions", {})
 
-    # ── Kill criteria override ──
-    if kill_criteria_status == "triggered":
-        if already_held:
-            return ToolResult.ok({
-                "action": "SELL",
-                "ticker": ticker.upper(),
-                "target_weight": 0.0,
-                "reasoning": "Kill criteria triggered — mandatory exit regardless of price.",
-                "signal_strength": "MANDATORY",
-                "constraint_checks": ["kill_criteria_triggered"],
-            })
-        else:
-            return ToolResult.ok({
-                "action": "NO_ENTRY",
-                "ticker": ticker.upper(),
-                "target_weight": 0.0,
-                "reasoning": "Kill criteria triggered — do not enter this position.",
-                "signal_strength": "BLOCKED",
-                "constraint_checks": ["kill_criteria_triggered"],
-            })
+    # Calculate suggested shares if BUY
+    suggested_shares = 0
+    if action == "BUY" and position_pct > 0 and price > 0:
+        total_invested = sum(
+            p["shares"] * p["avg_cost"]
+            for p in portfolio.get("positions", {}).values()
+        )
+        total_value = portfolio["cash"] + total_invested
+        target_value = total_value * (position_pct / 100)
+        suggested_shares = int(target_value / price)
 
-    # ── Sell / Trim check for existing positions ──
-    if already_held:
+    # For SELL/TRIM on existing position, suggest all/half shares
+    if action in ("SELL", "TRIM") and already_held:
         pos = portfolio["positions"][ticker.upper()]
-        if current_price >= fair_value * sell_target_pct:
-            return ToolResult.ok({
-                "action": "SELL",
-                "ticker": ticker.upper(),
-                "target_weight": 0.0,
-                "reasoning": (
-                    f"Price ${current_price:.2f} has reached {sell_target_pct*100:.0f}% of "
-                    f"fair value ${fair_value:.2f}. Target achieved."
-                ),
-                "signal_strength": "STRONG",
-                "unrealized_pnl_pct": round(
-                    (current_price - pos["avg_cost"]) / pos["avg_cost"] * 100, 2
-                ),
-                "constraint_checks": [],
-            })
-        if hypothesis_confidence < min_confidence:
-            return ToolResult.ok({
-                "action": "TRIM",
-                "ticker": ticker.upper(),
-                "target_weight": 0.005,  # reduce to watch position
-                "reasoning": (
-                    f"Confidence ({hypothesis_confidence:.0f}) dropped below "
-                    f"entry threshold ({min_confidence}). Reduce to watch position."
-                ),
-                "signal_strength": "MODERATE",
-                "constraint_checks": ["confidence_below_threshold"],
-            })
-        # Hold
-        return ToolResult.ok({
-            "action": "HOLD",
-            "ticker": ticker.upper(),
-            "target_weight": pos.get("target_weight", 0),
-            "reasoning": (
-                f"Fair value ${fair_value:.2f}, current ${current_price:.2f} "
-                f"({discount*100:.1f}% discount). Confidence {hypothesis_confidence:.0f}. "
-                f"No action triggers met."
-            ),
-            "signal_strength": "NEUTRAL",
-            "constraint_checks": [],
-        })
-
-    # ── New position evaluation ──
-    constraint_checks = []
-
-    if hypothesis_confidence < min_confidence:
-        return ToolResult.ok({
-            "action": "WATCH",
-            "ticker": ticker.upper(),
-            "target_weight": 0.0,
-            "reasoning": (
-                f"Confidence ({hypothesis_confidence:.0f}) below entry threshold "
-                f"({min_confidence}). Add to watchlist, monitor for catalyst."
-            ),
-            "signal_strength": "WEAK",
-            "constraint_checks": ["confidence_below_threshold"],
-        })
-
-    if discount < min_discount:
-        return ToolResult.ok({
-            "action": "WATCH",
-            "ticker": ticker.upper(),
-            "target_weight": 0.0,
-            "reasoning": (
-                f"Discount ({discount*100:.1f}%) below minimum entry threshold "
-                f"({min_discount*100:.0f}%). Fair value ${fair_value:.2f}, "
-                f"price ${current_price:.2f}. Wait for better entry."
-            ),
-            "signal_strength": "WEAK",
-            "constraint_checks": ["insufficient_margin_of_safety"],
-        })
-
-    # Determine target weight from sizing tiers
-    target_weight = 0.01  # default watch position
-    conviction_label = "low_conviction"
-    for tier in sizing_tiers:
-        if tier["min_confidence"] <= hypothesis_confidence <= tier["max_confidence"]:
-            target_weight = tier["target_weight"]
-            conviction_label = tier["label"]
-            break
-
-    # Check portfolio constraints
-    total_invested = sum(
-        p.get("market_value", p["shares"] * p["avg_cost"])
-        for p in portfolio.get("positions", {}).values()
-    )
-    total_portfolio_value = portfolio["cash"] + total_invested
-    current_invested_pct = total_invested / total_portfolio_value if total_portfolio_value > 0 else 0
-
-    max_total = constraints.get("max_total_invested", 0.90)
-    if current_invested_pct + target_weight > max_total:
-        adjusted = max(0, max_total - current_invested_pct)
-        constraint_checks.append(
-            f"total_invested_cap: reduced from {target_weight*100:.1f}% to {adjusted*100:.1f}%"
-        )
-        target_weight = adjusted
-
-    if target_weight > max_single:
-        constraint_checks.append(
-            f"single_position_cap: reduced from {target_weight*100:.1f}% to {max_single*100:.1f}%"
-        )
-        target_weight = max_single
-
-    # Sector concentration check
-    sector_weight = sum(
-        p.get("target_weight", 0)
-        for p in portfolio.get("positions", {}).values()
-        if p.get("sector", "").lower() == sector.lower()
-    )
-    if sector_weight + target_weight > max_sector:
-        adjusted = max(0, max_sector - sector_weight)
-        constraint_checks.append(
-            f"sector_cap ({sector}): reduced from {target_weight*100:.1f}% to {adjusted*100:.1f}%"
-        )
-        target_weight = adjusted
-
-    if target_weight <= 0:
-        return ToolResult.ok({
-            "action": "WATCH",
-            "ticker": ticker.upper(),
-            "target_weight": 0.0,
-            "reasoning": "Portfolio constraints prevent new position. Add to watchlist.",
-            "signal_strength": "BLOCKED",
-            "constraint_checks": constraint_checks,
-        })
+        suggested_shares = pos["shares"] if action == "SELL" else max(1, pos["shares"] // 2)
 
     return ToolResult.ok({
-        "action": "BUY",
         "ticker": ticker.upper(),
-        "target_weight": round(target_weight, 4),
-        "conviction": conviction_label,
-        "discount_pct": round(discount * 100, 1),
-        "reasoning": (
-            f"Fair value ${fair_value:.2f} vs price ${current_price:.2f} "
-            f"({discount*100:.1f}% discount). Confidence {hypothesis_confidence:.0f} "
-            f"→ {conviction_label} ({target_weight*100:.1f}% weight). "
-            f"Catalyst: {catalyst or 'not specified'}."
-        ),
-        "signal_strength": "STRONG" if hypothesis_confidence >= 85 else "MODERATE",
-        "suggested_shares": _calc_shares(portfolio, target_weight, current_price),
-        "constraint_checks": constraint_checks,
+        "action": action,
+        "price": price,
+        "target_price": target_price,
+        "stop_loss": stop_loss,
+        "position_pct": round(position_pct, 2),
+        "catalysts": catalysts,
+        "reasoning": reasoning,
+        "suggested_shares": suggested_shares,
+        "already_held": already_held,
     })
 
 
-def _calc_shares(portfolio: dict, target_weight: float, price: float) -> int:
-    """Calculate number of shares for target weight."""
-    total_invested = sum(
-        p["shares"] * p["avg_cost"]
-        for p in portfolio.get("positions", {}).values()
-    )
-    total_value = portfolio["cash"] + total_invested
-    target_value = total_value * target_weight
-    return int(target_value / price) if price > 0 else 0
+def execute_trade(
+    ticker: str,
+    action: str,
+    shares: int,
+    price: float,
+) -> ToolResult:
+    """Execute trade in paper portfolio."""
+    ticker = ticker.upper()
+    portfolio = _load_portfolio()
+    cfg = get_skill_config("trading")
+    constraints = cfg.get("constraints", {})
+
+    if action == "BUY":
+        cost = shares * price
+        if cost > portfolio["cash"]:
+            return ToolResult.fail(
+                f"Insufficient cash: need ${cost:,.2f}, have ${portfolio['cash']:,.2f}"
+            )
+
+        # Check single position limit
+        total_value = portfolio["cash"] + sum(
+            p["shares"] * p["avg_cost"]
+            for p in portfolio.get("positions", {}).values()
+        )
+        max_single = constraints.get("max_single_position", 0.10)
+        if cost / total_value > max_single:
+            return ToolResult.fail(
+                f"Position would exceed {max_single*100:.0f}% limit"
+            )
+
+        portfolio["cash"] -= cost
+
+        if ticker in portfolio["positions"]:
+            pos = portfolio["positions"][ticker]
+            total_shares = pos["shares"] + shares
+            total_cost = pos["shares"] * pos["avg_cost"] + cost
+            pos["avg_cost"] = total_cost / total_shares
+            pos["shares"] = total_shares
+        else:
+            portfolio["positions"][ticker] = {
+                "shares": shares,
+                "avg_cost": price,
+                "entry_date": datetime.now().isoformat(),
+            }
+
+        portfolio["trade_log"].append({
+            "ticker": ticker,
+            "action": "BUY",
+            "shares": shares,
+            "price": price,
+            "timestamp": datetime.now().isoformat(),
+        })
+
+    elif action == "SELL":
+        if ticker not in portfolio["positions"]:
+            return ToolResult.fail(f"No position in {ticker}")
+
+        pos = portfolio["positions"][ticker]
+        if shares > pos["shares"]:
+            return ToolResult.fail(
+                f"Only hold {pos['shares']} shares of {ticker}"
+            )
+
+        proceeds = shares * price
+        cost_basis = shares * pos["avg_cost"]
+        pnl = proceeds - cost_basis
+        portfolio["cash"] += proceeds
+
+        if shares == pos["shares"]:
+            # Close entire position
+            portfolio["closed_trades"].append({
+                "ticker": ticker,
+                "shares": shares,
+                "entry_price": pos["avg_cost"],
+                "exit_price": price,
+                "pnl": round(pnl, 2),
+                "entry_date": pos.get("entry_date"),
+                "exit_date": datetime.now().isoformat(),
+            })
+            del portfolio["positions"][ticker]
+        else:
+            pos["shares"] -= shares
+
+        portfolio["trade_log"].append({
+            "ticker": ticker,
+            "action": "SELL",
+            "shares": shares,
+            "price": price,
+            "pnl": round(pnl, 2),
+            "timestamp": datetime.now().isoformat(),
+        })
+
+    _save_portfolio(portfolio)
+
+    return ToolResult.ok({
+        "status": "executed",
+        "ticker": ticker,
+        "action": action,
+        "shares": shares,
+        "price": price,
+        "cash_remaining": round(portfolio["cash"], 2),
+    })
 
 
 def get_portfolio(live_prices: dict = None) -> ToolResult:
@@ -400,7 +317,6 @@ def get_portfolio(live_prices: dict = None) -> ToolResult:
             "unrealized_pnl": round(unrealized_pnl, 2),
             "unrealized_pnl_pct": round(unrealized_pnl_pct, 2),
             "entry_date": pos.get("entry_date"),
-            "hypothesis_id": pos.get("hypothesis_id"),
         })
 
     total_portfolio_value = portfolio["cash"] + total_market_value
@@ -410,7 +326,6 @@ def get_portfolio(live_prices: dict = None) -> ToolResult:
         / portfolio["initial_capital"] * 100
     ) if portfolio.get("initial_capital") else 0
 
-    # Closed trade stats
     closed = portfolio.get("closed_trades", [])
     realized_pnl = sum(t.get("pnl", 0) for t in closed)
     win_count = sum(1 for t in closed if t.get("pnl", 0) > 0)
@@ -434,8 +349,8 @@ def get_portfolio(live_prices: dict = None) -> ToolResult:
 # ── Registration ─────────────────────────────────────────────
 
 def register(context: dict) -> list[Tool]:
-    """Called by skill_loader with shared dependencies."""
     return [
         Tool(generate_trade_signal, GENERATE_TRADE_SIGNAL_SCHEMA),
+        Tool(execute_trade, EXECUTE_TRADE_SCHEMA),
         Tool(get_portfolio, GET_PORTFOLIO_SCHEMA),
     ]

@@ -31,8 +31,8 @@ export function PendingQuestionCard() {
   return (
     <div
       style={{
-        border: "1px solid var(--iris-accent)",
-        background: "var(--iris-accent-glow)",
+        border: "1px solid var(--ac)",
+        background: "var(--ac-s)",
         padding: 8,
         borderRadius: 0,
       }}
@@ -42,7 +42,7 @@ export function PendingQuestionCard() {
         style={{
           fontSize: 10,
           fontWeight: 500,
-          color: "var(--iris-text)",
+          color: "var(--t1)",
           margin: 0,
         }}
       >
@@ -53,7 +53,7 @@ export function PendingQuestionCard() {
         <p
           style={{
             fontSize: 9,
-            color: "var(--iris-text-muted)",
+            color: "var(--t3)",
             margin: "2px 0 0 0",
           }}
         >
@@ -69,13 +69,13 @@ export function PendingQuestionCard() {
           <button
             key={idx}
             onClick={() => handleOptionClick(option)}
-            className="font-mono hover:border-[var(--iris-accent)] hover:text-[var(--iris-text)]"
+            className="font-mono hover:border-[var(--ac)] hover:text-[var(--t1)]"
             style={{
               fontSize: 9,
-              border: "1px solid var(--iris-border)",
+              border: "1px solid var(--b1)",
               borderRadius: 0,
               background: "transparent",
-              color: "var(--iris-text-secondary)",
+              color: "var(--t2)",
               padding: "2px 6px",
               cursor: "pointer",
             }}
@@ -94,13 +94,13 @@ export function PendingQuestionCard() {
             value={customResponse}
             onChange={(e) => setCustomResponse(e.target.value)}
             placeholder="自定义回复..."
-            className="flex-1 font-mono placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none"
+            className="flex-1 font-mono placeholder:text-[var(--t3)] focus:border-[var(--ac)] focus:outline-none"
             style={{
               fontSize: 9,
-              border: "1px solid var(--iris-border)",
+              border: "1px solid var(--b1)",
               borderRadius: 0,
               background: "transparent",
-              color: "var(--iris-text)",
+              color: "var(--t1)",
               padding: "2px 6px",
             }}
           />
@@ -113,8 +113,8 @@ export function PendingQuestionCard() {
               fontWeight: 500,
               border: "none",
               borderRadius: 0,
-              background: "var(--iris-accent)",
-              color: "var(--iris-bg)",
+              background: "var(--ac)",
+              color: "var(--bg)",
               padding: "2px 6px",
               cursor: !customResponse.trim() ? "not-allowed" : "pointer",
             }}

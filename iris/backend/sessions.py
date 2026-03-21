@@ -138,6 +138,8 @@ class AnalysisSession:
                 self._extract_quote_metrics(result)
             elif tool == "generate_trade_signal":
                 self._extract_strategy_signal(result)
+            elif tool == "execute_trade":
+                self._extract_trade_execution(result)
             elif tool == "get_portfolio":
                 self._extract_strategy_portfolio(result)
             elif tool in ("recall", "recall_memory"):
@@ -398,15 +400,22 @@ class AnalysisSession:
         strategy["signal"] = {
             "ticker": result.get("ticker", ""),
             "action": result.get("action", "WATCH"),
-            "targetWeight": result.get("target_weight", 0) or 0,
-            "conviction": result.get("conviction"),
-            "discountPct": result.get("discount_pct"),
-            "signalStrength": result.get("signal_strength", "NEUTRAL"),
+            "price": result.get("price", 0) or 0,
+            "targetPrice": result.get("target_price", 0) or 0,
+            "stopLoss": result.get("stop_loss", 0) or 0,
+            "positionPct": result.get("position_pct", 0) or 0,
+            "catalysts": result.get("catalysts", ""),
             "reasoning": result.get("reasoning", ""),
-            "constraintChecks": result.get("constraint_checks", []) or [],
-            "suggestedShares": result.get("suggested_shares"),
-            "unrealizedPnlPct": result.get("unrealized_pnl_pct"),
+            "suggestedShares": result.get("suggested_shares", 0) or 0,
+            "alreadyHeld": result.get("already_held", False),
         }
+        strategy["loading"] = False
+
+    def _extract_trade_execution(self, result: dict) -> None:
+        """Extract trade execution result — refreshes portfolio view."""
+        # After execution, the signal is consumed; clear it
+        strategy = self.accumulated_frontend_panels["strategy"]
+        strategy["signal"] = None
         strategy["loading"] = False
 
     def _extract_strategy_portfolio(self, result: dict) -> None:

@@ -25,7 +25,12 @@ export function DataPanel() {
   }
 
   if (metrics.length === 0 && financialTables.length === 0) {
-    return <div className="px-6 py-8 text-[13px] text-[var(--t3)]">等待财务数据和市场指标...</div>;
+    return (
+      <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t4)]">数据面板</div>
+        <p className="mt-2 text-[13px] text-[var(--t3)]">Prism 拉取到财务报表和市场指标后，会展示在这里。</p>
+      </div>
+    );
   }
 
   return (

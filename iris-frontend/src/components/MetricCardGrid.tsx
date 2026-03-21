@@ -10,11 +10,25 @@ interface MetricCardGridProps {
 export function MetricCardGrid({ metrics }: MetricCardGridProps) {
   if (metrics.length === 0) return null;
 
+  const primary = metrics.slice(0, 3);
+  const secondary = metrics.slice(3);
+
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {metrics.map((metric, index) => (
-        <MetricCard key={`${metric.label}-${index}`} metric={metric} />
-      ))}
+    <div className="space-y-3">
+      {primary.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-3">
+          {primary.map((m) => (
+            <MetricCard key={m.label} metric={m} />
+          ))}
+        </div>
+      )}
+      {secondary.length > 0 && (
+        <div className="prism-panel overflow-hidden">
+          {secondary.map((m) => (
+            <MetricCard key={m.label} metric={m} size="compact" />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

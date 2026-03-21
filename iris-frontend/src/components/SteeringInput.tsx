@@ -48,13 +48,13 @@ export function SteeringInput() {
         onChange={(e) => setMessage(e.target.value)}
         placeholder={placeholder}
         disabled={isDisabled}
-        className="min-w-0 flex-1 border border-[var(--iris-border)] bg-transparent font-sans text-[var(--iris-text)] placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        className="min-w-0 flex-1 border border-[var(--b1)] bg-transparent font-sans text-[var(--t1)] placeholder:text-[var(--t3)] focus:border-[var(--ac)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
         style={{
           height: 28,
           padding: "0 8px",
           fontSize: 11,
           borderRadius: 0,
-          caretColor: "var(--iris-accent)",
+          caretColor: "var(--ac)",
         }}
       />
 
@@ -68,12 +68,12 @@ export function SteeringInput() {
           borderRadius: 0,
           background:
             !message.trim() || isDisabled
-              ? "var(--iris-surface)"
-              : "var(--iris-accent)",
+              ? "var(--bg-w)"
+              : "var(--ac)",
           color:
             !message.trim() || isDisabled
-              ? "var(--iris-text-muted)"
-              : "var(--iris-bg)",
+              ? "var(--t3)"
+              : "var(--bg)",
           cursor: !message.trim() || isDisabled ? "not-allowed" : "pointer",
         }}
       >

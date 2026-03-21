@@ -717,16 +717,14 @@ function _extractPanelData(
           signal: {
             ticker: (result.ticker as string) || "",
             action: (result.action as string) || "WATCH",
-            targetWeight: typeof result.target_weight === "number" ? result.target_weight : 0,
-            conviction: (result.conviction as string) || null,
-            discountPct: typeof result.discount_pct === "number" ? result.discount_pct : null,
-            signalStrength: (result.signal_strength as string) || "NEUTRAL",
+            price: typeof result.price === "number" ? result.price : 0,
+            targetPrice: typeof result.target_price === "number" ? result.target_price : 0,
+            stopLoss: typeof result.stop_loss === "number" ? result.stop_loss : 0,
+            positionPct: typeof result.position_pct === "number" ? result.position_pct : 0,
+            catalysts: (result.catalysts as string) || "",
             reasoning: (result.reasoning as string) || "",
-            constraintChecks: Array.isArray(result.constraint_checks)
-              ? (result.constraint_checks as string[])
-              : [],
-            suggestedShares: typeof result.suggested_shares === "number" ? result.suggested_shares : null,
-            unrealizedPnlPct: typeof result.unrealized_pnl_pct === "number" ? result.unrealized_pnl_pct : null,
+            suggestedShares: typeof result.suggested_shares === "number" ? result.suggested_shares : 0,
+            alreadyHeld: !!result.already_held,
           },
           loading: false,
         },

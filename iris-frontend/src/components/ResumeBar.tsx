@@ -30,7 +30,7 @@ export function ResumeBar() {
     return (
       <div
         className="flex items-center justify-center py-1 font-mono text-[11px]"
-        style={{ color: "var(--iris-text-muted)" }}
+        style={{ color: "var(--t3)" }}
       >
         此对话无法恢复（旧数据），请发起新分析
       </div>
@@ -45,13 +45,13 @@ export function ResumeBar() {
         onChange={(e) => setMessage(e.target.value)}
         placeholder="继续对话... 比如'WACC 改成 12% 再算一遍'"
         disabled={loading}
-        className="min-w-0 flex-1 border border-[var(--iris-border)] bg-transparent font-sans text-[var(--iris-text)] placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        className="min-w-0 flex-1 border border-[var(--b1)] bg-transparent font-sans text-[var(--t1)] placeholder:text-[var(--t3)] focus:border-[var(--ac)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
         style={{
           height: 28,
           padding: "0 8px",
           fontSize: 11,
           borderRadius: 0,
-          caretColor: "var(--iris-accent)",
+          caretColor: "var(--ac)",
         }}
       />
 
@@ -65,12 +65,12 @@ export function ResumeBar() {
           borderRadius: 0,
           background:
             !message.trim() || loading
-              ? "var(--iris-surface)"
-              : "var(--iris-accent)",
+              ? "var(--bg-w)"
+              : "var(--ac)",
           color:
             !message.trim() || loading
-              ? "var(--iris-text-muted)"
-              : "var(--iris-bg)",
+              ? "var(--t3)"
+              : "var(--bg)",
           cursor: !message.trim() || loading ? "not-allowed" : "pointer",
           fontSize: 11,
           fontFamily: "var(--font-mono, monospace)",

@@ -125,14 +125,14 @@ export interface CompsPanelState {
 export interface StrategySignal {
   ticker: string;
   action: string;
-  targetWeight: number;
-  conviction?: string | null;
-  discountPct?: number | null;
-  signalStrength: string;
+  price: number;
+  targetPrice: number;
+  stopLoss: number;
+  positionPct: number;
+  catalysts: string;
   reasoning: string;
-  constraintChecks: string[];
-  suggestedShares?: number | null;
-  unrealizedPnlPct?: number | null;
+  suggestedShares: number;
+  alreadyHeld: boolean;
 }
 
 export interface StrategyPosition {

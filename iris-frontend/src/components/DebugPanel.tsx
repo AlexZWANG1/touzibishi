@@ -29,7 +29,7 @@ export function DebugPanel() {
           >
             {tab.label}
             {activeTab === tab.key && (
-              <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-[var(--iris-accent)]" />
+              <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-[var(--ac)]" />
             )}
           </button>
         ))}

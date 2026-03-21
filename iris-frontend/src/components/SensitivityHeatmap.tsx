@@ -55,7 +55,7 @@ export function SensitivityHeatmap({
 
       <div className="overflow-x-auto p-4">
         <div
-          className="grid gap-[6px]"
+          className="grid gap-[8px]"
           style={{ gridTemplateColumns: `auto repeat(${colValues.length}, minmax(72px, 1fr))` }}
         >
           <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
@@ -83,7 +83,7 @@ export function SensitivityHeatmap({
                 return (
                   <div
                     key={`${row}-${col}`}
-                    className="rounded-sm px-2 py-3 text-center font-mono text-[12px]"
+                    className="rounded-md px-3 py-3.5 text-center font-mono text-[12px]"
                     style={{
                       background: style.bg,
                       color: style.color,

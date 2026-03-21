@@ -51,7 +51,8 @@ const config: Config = {
       },
       animation: {
         "pulse-dot": "pulse-dot 2s ease-in-out infinite",
-        "fade-up": "fade-up 0.35s ease-out forwards",
+        "fade-up": "fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "dot-pulse": "dot-pulse 1.4s ease-in-out infinite",
         shimmer: "shimmer 1.6s ease-in-out infinite",
       },
       keyframes: {
@@ -60,8 +61,12 @@ const config: Config = {
           "50%": { opacity: "0.35" },
         },
         "fade-up": {
-          from: { opacity: "0", transform: "translateY(12px)" },
+          from: { opacity: "0", transform: "translateY(16px)" },
           to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "dot-pulse": {
+          "0%, 100%": { opacity: "0.25", transform: "scale(0.85)" },
+          "50%": { opacity: "1", transform: "scale(1)" },
         },
         shimmer: {
           "0%": { backgroundPosition: "-200% 0" },

@@ -51,7 +51,7 @@ export function PhaseIndicator({ compact = false }: PhaseIndicatorProps) {
         return (
           <span
             key={phase.key}
-            className="rounded-pill px-3 py-1.5 text-[11px] font-medium transition-colors"
+            className={`rounded-pill px-3 py-1.5 text-[11px] font-medium transition-colors ${active ? "animate-[phase-activate_0.25s_ease-out]" : ""}`}
             style={{
               background: active ? "var(--ac-s)" : past ? "var(--bg-2)" : "transparent",
               color: active ? "var(--ac)" : past ? "var(--t2)" : "var(--t4)",

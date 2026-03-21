@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -14,8 +13,8 @@
 
   --t1: #111111;
   --t2: #555555;
-  --t3: #888888;
-  --t4: #bbbbbb;
+  --t3: #6b6560;
+  --t4: #9a9490;
   --ink: #1d1b16;
 
   --ac: #4338ca;
@@ -28,11 +27,11 @@
   --cy-s: rgba(15, 118, 110, 0.05);
   --cy-t: #0f766e;
 
-  --green: #15803d;
+  --green: #1a7a3a;
   --green-bg: rgba(21, 128, 61, 0.06);
-  --red: #b91c1c;
+  --red: #b5231e;
   --red-bg: rgba(185, 28, 28, 0.06);
-  --amber: #a16207;
+  --amber: #9c6510;
   --amber-bg: rgba(161, 98, 7, 0.06);
 
   --sp1: #6366f1;
@@ -47,40 +46,17 @@
   --r-xl: 20px;
   --r-pill: 9999px;
 
-  --display: "Playfair Display", Georgia, serif;
-  --sans: "Sora", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --mono: "JetBrains Mono", Consolas, monospace;
+  --display: var(--font-display), Georgia, serif;
+  --sans: var(--font-sans), "PingFang SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+  --mono: var(--font-mono), Consolas, "Courier New", monospace;
 
   --sh: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 6px rgba(0, 0, 0, 0.02);
   --sh-lg: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
 
-  /* Legacy aliases so existing components can be migrated incrementally. */
-  --iris-bg: var(--bg);
-  --iris-surface: var(--bg-w);
-  --iris-surface-hover: var(--bg-hover);
-  --iris-border: var(--b1);
-  --iris-border-active: var(--b2);
-  --iris-text: var(--t1);
-  --iris-text-secondary: var(--t2);
-  --iris-text-muted: var(--t3);
-  --iris-accent: var(--ac);
-  --iris-accent-hover: var(--ac-h);
-  --iris-accent-dim: #5b56c9;
-  --iris-accent-glow: var(--ac-s);
-  --iris-data: var(--cy);
-  --iris-green: var(--green);
-  --iris-red: var(--red);
-  --iris-blue: #2563eb;
-  --iris-amber: var(--amber);
-  --iris-purple: var(--ac);
   --phase-gather: var(--sp3);
   --phase-analyze: var(--sp2);
   --phase-evaluate: var(--sp4);
   --phase-finalize: var(--ac);
-  --iris-phase-gather: var(--phase-gather);
-  --iris-phase-analyze: var(--phase-analyze);
-  --iris-phase-evaluate: var(--phase-evaluate);
-  --iris-phase-finalize: var(--phase-finalize);
   --event-search: var(--sp3);
   --event-analyze: var(--sp2);
   --event-model: var(--sp4);
@@ -109,8 +85,7 @@ body {
   color: var(--t1);
   font-family: var(--sans);
   background:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.06), transparent 28%),
-    radial-gradient(circle at top right, rgba(6, 182, 212, 0.05), transparent 24%),
+    radial-gradient(ellipse at 20% 0%, rgba(180, 160, 130, 0.06), transparent 50%),
     linear-gradient(180deg, #fcfcfb 0%, #fafaf9 35%, #f7f5f1 100%);
 }
 
@@ -126,8 +101,23 @@ button {
   cursor: pointer;
 }
 
+:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 textarea {
-  field-sizing: content;
+  resize: none;
+}
+
+@supports (field-sizing: content) {
+  textarea {
+    field-sizing: content;
+  }
 }
 
 ::selection {
@@ -177,7 +167,7 @@ textarea {
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -194,6 +184,39 @@ textarea {
   }
 }
 
+@keyframes dot-pulse {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes phase-activate {
+  from {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .font-display {
   font-family: var(--display);
 }
@@ -205,6 +228,26 @@ textarea {
 .font-data {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+}
+
+.text-fluid-hero {
+  font-size: clamp(36px, 4vw + 16px, 54px);
+}
+
+.text-fluid-h1 {
+  font-size: clamp(24px, 2vw + 12px, 36px);
+}
+
+.text-fluid-h2 {
+  font-size: clamp(20px, 1.5vw + 8px, 28px);
+}
+
+.text-fluid-body {
+  font-size: clamp(14px, 0.2vw + 13px, 16px);
+}
+
+.gap-fluid-section {
+  margin-top: clamp(32px, 4vw, 56px);
 }
 
 .prism-card {

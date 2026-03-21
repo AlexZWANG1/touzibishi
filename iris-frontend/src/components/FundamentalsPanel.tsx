@@ -12,9 +12,10 @@ export function FundamentalsPanel() {
 
   if (sections.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-[13px] text-[var(--t3)]">
-          {pageState === "RUNNING" ? "研究进行中..." : "等待研究产出..."}
+      <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t4)]">研究面板</div>
+        <p className="mt-2 text-[13px] text-[var(--t3)]">
+          {pageState === "RUNNING" ? "研究进行中，章节将逐步出现..." : "等待研究产出..."}
         </p>
       </div>
     );

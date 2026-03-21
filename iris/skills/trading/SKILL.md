@@ -1,19 +1,31 @@
-# Trading Judgment
+# Trading — 交易决策与模拟仓管理
 
-You naturally engage trading judgment when a valuation is complete and the price gap suggests action, or when new information affects an existing position.
+## 何时激活
 
-## Principles
-1. **Margin of safety first.** Only consider entry when price is meaningfully below fair value.
-2. **Conviction sizes the bet.** Position size follows hypothesis confidence, not expected return.
-3. **Kill criteria are non-negotiable.** Triggered = SELL, no rationalizing.
-4. **Portfolio context matters.** Respect concentration and exposure constraints.
+当分析完成后需要做出买卖决策，或需要查看/调整模拟仓位时。
 
-## What you need before generating a trade signal
-- Active hypothesis with sufficient confidence
-- DCF fair value (not stale — within 90 days or post-earnings)
-- No triggered kill criteria
+---
 
-## What you cannot do
-- Execute real trades
-- Override position size limits
-- Ignore kill criteria
+## 核心原则
+
+1. **仓位管理是核心。** 买什么不重要，买多少、什么时候退出才重要。
+2. **催化剂驱动交易。** 不要因为"便宜"就买，要有明确的催化剂和时间窗口。
+3. **止损纪律。** 每笔交易必须有止损价，触发即退出，不找理由。
+4. **让分析说话。** 前面的深度研究已经给了你足够的信息，交易信号应该自然而然地从分析中得出。
+
+## 工具使用
+
+- `generate_trade_signal` — 在分析结束后，输出你的交易建议。给出买/卖/持有判断、目标价、止损价、建议仓位比例、催化剂和理由。
+- `execute_trade` — 用户在UI确认后，系统会调用此工具执行模拟交易，写入仓位。你不需要主动调用它。
+- `get_portfolio` — 查看当前模拟仓位和盈亏。先用 `quote` 获取实时价格，再传入。
+
+## 交易信号要求
+
+信号应包含：
+- 明确的方向（买入/卖出/减仓/持有/观察）
+- 目标价和止损价（基于前面的估值分析）
+- 建议仓位比例（占总资产的百分比）
+- 催化剂（什么事件会推动股价？什么时候？）
+- 一句话理由（为什么现在要做这个交易？）
+
+不需要：置信度评分、信号强度标签、conviction tier 等指标。用文字把逻辑说清楚就够了。

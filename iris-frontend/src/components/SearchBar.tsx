@@ -99,6 +99,7 @@ export function SearchBar({
         <button
           type="submit"
           disabled={!value.trim() || loading}
+          aria-label="提交分析"
           className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border-0 bg-[var(--ac)] text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
         >
           {loading ? (

@@ -59,10 +59,6 @@ export function AppNav() {
             Dev
           </Link>
 
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--green)] animate-pulse-dot" />
-            <span className="font-mono text-[11px] text-[var(--t3)]">LIVE</span>
-          </div>
         </div>
       </div>
 

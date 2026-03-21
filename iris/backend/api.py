@@ -698,6 +698,38 @@ async def resume_analysis(run_id: str, req: SteerRequest):
     }
 
 
+# ── Trade execution endpoint ─────────────────────────────────
+
+class ExecuteTradeRequest(BaseModel):
+    ticker: str
+    action: str  # "BUY" or "SELL"
+    shares: int
+    price: float
+
+
+@app.post("/api/trade/execute")
+async def execute_trade(req: ExecuteTradeRequest):
+    """Execute a paper trade (user-confirmed from UI)."""
+    from skills.trading.tools import execute_trade as _exec_trade
+    result = _exec_trade(
+        ticker=req.ticker,
+        action=req.action,
+        shares=req.shares,
+        price=req.price,
+    )
+    if result.status != "ok":
+        raise HTTPException(status_code=400, detail=result.error or "Trade failed")
+    return result.data
+
+
+@app.get("/api/portfolio")
+async def get_portfolio_api():
+    """Get current paper portfolio state."""
+    from skills.trading.tools import get_portfolio as _get_portfolio
+    result = _get_portfolio()
+    return result.data
+
+
 # ── Memory endpoints ─────────────────────────────────────────
 
 @app.get("/api/memory")

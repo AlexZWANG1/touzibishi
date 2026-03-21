@@ -21,7 +21,7 @@ export function MemorySummary() {
         style={{
           fontSize: 11,
           fontWeight: 600,
-          color: "var(--iris-text-muted)",
+          color: "var(--t3)",
           letterSpacing: "0.08em",
           textTransform: "uppercase" as const,
           marginBottom: 4,
@@ -32,9 +32,9 @@ export function MemorySummary() {
 
       {hasCalibration && (
         <div className="flex items-center gap-3 font-mono" style={{ fontSize: 11 }}>
-          <span style={{ color: "var(--iris-green)" }}>{calibrationHits} 命中</span>
-          <span style={{ color: "var(--iris-red)" }}>{calibrationMisses} 偏差</span>
-          <span style={{ color: "var(--iris-text-secondary)" }}>{accuracy}% 准确</span>
+          <span style={{ color: "var(--green)" }}>{calibrationHits} 命中</span>
+          <span style={{ color: "var(--red)" }}>{calibrationMisses} 偏差</span>
+          <span style={{ color: "var(--t2)" }}>{accuracy}% 准确</span>
         </div>
       )}
 
@@ -46,7 +46,7 @@ export function MemorySummary() {
               className="truncate font-mono"
               style={{
                 fontSize: 11,
-                color: "var(--iris-text-secondary)",
+                color: "var(--t2)",
                 lineHeight: 1.6,
               }}
             >

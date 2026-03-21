@@ -1,38 +1,11 @@
-# ── Entry / Exit thresholds ──
-min_entry_discount: 0.20        # price must be ≥20% below fair value
-min_confidence_entry: 60        # hypothesis confidence floor for any position
-sell_target_pct: 0.90           # sell when price reaches 90% of fair value
-max_holding_months: 18          # force review if held longer
-
-# ── Position sizing tiers ──
-# Maps hypothesis confidence ranges to max portfolio weight
-sizing_tiers:
-  - min_confidence: 85
-    max_confidence: 100
-    label: "high_conviction"
-    target_weight: 0.045        # 4.5%
-  - min_confidence: 70
-    max_confidence: 84
-    label: "medium_conviction"
-    target_weight: 0.025        # 2.5%
-  - min_confidence: 60
-    max_confidence: 69
-    label: "low_conviction"
-    target_weight: 0.010        # 1.0% watch position
+name: trading
+version: "0.2"
 
 # ── Portfolio constraints (hard limits) ──
 constraints:
-  max_single_position: 0.05     # 5% max per name
-  max_sector_weight: 0.20       # 20% max per sector
-  min_cash_reserve: 0.10        # always keep ≥10% cash
+  max_single_position: 0.10     # 10% max per name
   max_total_invested: 0.90      # ≤90% deployed
-  max_positions: 20             # diversification floor
-
-# ── Attribution settings ──
-attribution:
-  benchmark_ticker: "SPY"       # default benchmark for alpha calc
-  stale_analysis_days: 90       # flag if analysis older than this
-  min_holding_days_for_attribution: 30  # don't attribute noise
+  min_cash_reserve: 0.10        # always keep ≥10% cash
 
 # ── Paper trading ──
 paper_trading:

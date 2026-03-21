@@ -128,7 +128,7 @@ export default function KnowledgePage() {
                   </span>
                 </div>
 
-                <h1 className="mt-5 font-display text-[36px] font-medium leading-[1.08] tracking-[-0.03em] text-[var(--ink)]">
+                <h1 className="mt-5 font-display text-fluid-h1 font-medium leading-[1.08] tracking-[-0.03em] text-[var(--ink)]">
                   {cleanDisplayTitle(selectedDoc.title)}
                 </h1>
 

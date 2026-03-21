@@ -66,7 +66,7 @@ export const TimelineItem = memo(function TimelineItem({ event, isLast }: Timeli
   const toolLabel = TOOL_LABELS[event.tool] || event.tool;
 
   return (
-    <div className="relative flex gap-3 px-4 py-3">
+    <div className="relative flex gap-3 px-4 py-3 animate-[slide-in-left_0.3s_cubic-bezier(0.16,1,0.3,1)]">
       <div className="relative z-10 mt-1.5 shrink-0">
         <span
           className="inline-block h-2.5 w-2.5 rounded-full"

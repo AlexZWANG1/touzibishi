@@ -168,21 +168,21 @@ export default function DevPage() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* ── Header ── */}
-      <div className="shrink-0 flex items-center justify-between px-4 h-10 border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
+      <div className="shrink-0 flex items-center justify-between px-4 h-10 border-b border-[var(--b1)] bg-[var(--bg-w)]">
         <div className="flex items-center gap-3">
-          <span className="font-mono text-[11px] font-bold tracking-[0.15em] text-[var(--iris-accent)]">
+          <span className="font-mono text-[11px] font-bold tracking-[0.15em] text-[var(--ac)]">
             DEV PANEL
           </span>
-          <span className="text-[10px] text-[var(--iris-text-muted)] font-mono">
+          <span className="text-[10px] text-[var(--t3)] font-mono">
             IRIS System Inspector
           </span>
         </div>
         {stats && (
-          <div className="flex items-center gap-4 text-[10px] font-mono text-[var(--iris-text-muted)]">
+          <div className="flex items-center gap-4 text-[10px] font-mono text-[var(--t3)]">
             <span>DB {stats.db_size_mb}MB</span>
             <span>{stats.knowledge_docs} docs</span>
             <span>{stats.analysis_runs} runs</span>
-            <span className={stats.active_sessions > 0 ? "text-[var(--iris-green)]" : ""}>
+            <span className={stats.active_sessions > 0 ? "text-[var(--green)]" : ""}>
               {stats.active_sessions} live
             </span>
           </div>
@@ -190,15 +190,15 @@ export default function DevPage() {
       </div>
 
       {/* ── Tab Bar ── */}
-      <div className="shrink-0 flex items-center gap-0 px-2 h-8 border-b border-[var(--iris-border)] bg-[var(--iris-bg)]">
+      <div className="shrink-0 flex items-center gap-0 px-2 h-8 border-b border-[var(--b1)] bg-[var(--bg)]">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-mono tracking-wide transition-colors border-b-2 ${
               tab === t.key
-                ? "border-[var(--iris-accent)] text-[var(--iris-accent)]"
-                : "border-transparent text-[var(--iris-text-muted)] hover:text-[var(--iris-text-secondary)]"
+                ? "border-[var(--ac)] text-[var(--ac)]"
+                : "border-transparent text-[var(--t3)] hover:text-[var(--t2)]"
             }`}
           >
             <span className="text-[9px] font-bold opacity-60">{t.icon}</span>
@@ -211,7 +211,7 @@ export default function DevPage() {
       <div className="flex-1 overflow-y-auto p-4">
         {/* Toast */}
         {toast && (
-          <div className="fixed top-12 right-4 z-50 bg-[var(--iris-surface)] border border-[var(--iris-accent)] text-[var(--iris-accent)] text-xs font-mono px-3 py-1.5 fade-in">
+          <div className="fixed top-12 right-4 z-50 bg-[var(--bg-w)] border border-[var(--ac)] text-[var(--ac)] text-xs font-mono px-3 py-1.5 fade-in">
             {toast}
           </div>
         )}
@@ -253,7 +253,7 @@ function OverviewTab({
   sessions: SessionInfo[];
   onRefresh: () => void;
 }) {
-  if (!stats) return <div className="text-xs text-[var(--iris-text-muted)] font-mono">Loading...</div>;
+  if (!stats) return <div className="text-xs text-[var(--t3)] font-mono">Loading...</div>;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -261,22 +261,22 @@ function OverviewTab({
       <div className="grid grid-cols-5 gap-3">
         {[
           { label: "DB Size", value: `${stats.db_size_mb} MB`, color: "" },
-          { label: "Knowledge Docs", value: String(stats.knowledge_docs), color: "text-[var(--iris-data)]" },
-          { label: "Memory Files", value: String(stats.memory_files), color: "text-[var(--iris-blue)]" },
-          { label: "Analysis Runs", value: String(stats.analysis_runs), color: "text-[var(--iris-amber)]" },
-          { label: "Active Sessions", value: String(stats.active_sessions), color: stats.active_sessions > 0 ? "text-[var(--iris-green)]" : "" },
+          { label: "Knowledge Docs", value: String(stats.knowledge_docs), color: "text-[var(--cy)]" },
+          { label: "Memory Files", value: String(stats.memory_files), color: "text-[#2563eb]" },
+          { label: "Analysis Runs", value: String(stats.analysis_runs), color: "text-[var(--amber)]" },
+          { label: "Active Sessions", value: String(stats.active_sessions), color: stats.active_sessions > 0 ? "text-[var(--green)]" : "" },
         ].map((s) => (
-          <div key={s.label} className="border border-[var(--iris-border)] bg-[var(--iris-surface)] p-3">
-            <div className="text-[10px] font-mono text-[var(--iris-text-muted)] uppercase tracking-wider mb-1">{s.label}</div>
-            <div className={`text-lg font-mono font-bold ${s.color || "text-[var(--iris-text)]"}`}>{s.value}</div>
+          <div key={s.label} className="border border-[var(--b1)] bg-[var(--bg-w)] p-3">
+            <div className="text-[10px] font-mono text-[var(--t3)] uppercase tracking-wider mb-1">{s.label}</div>
+            <div className={`text-lg font-mono font-bold ${s.color || "text-[var(--t1)]"}`}>{s.value}</div>
           </div>
         ))}
       </div>
 
       {/* Architecture Diagram */}
-      <div className="border border-[var(--iris-border)] bg-[var(--iris-surface)] p-4">
-        <div className="text-[10px] font-mono text-[var(--iris-accent)] uppercase tracking-wider mb-3">System Architecture</div>
-        <div className="font-mono text-[11px] text-[var(--iris-text-secondary)] leading-relaxed whitespace-pre">{`
+      <div className="border border-[var(--b1)] bg-[var(--bg-w)] p-4">
+        <div className="text-[10px] font-mono text-[var(--ac)] uppercase tracking-wider mb-3">System Architecture</div>
+        <div className="font-mono text-[11px] text-[var(--t2)] leading-relaxed whitespace-pre">{`
 ┌─────────────────────────────────────────────────────────┐
 │  Frontend (Next.js)                                     │
 │  ┌──────┐ ┌──────────┐ ┌────────┐ ┌──────┐ ┌────────┐  │
@@ -314,39 +314,39 @@ function OverviewTab({
 
       {/* Active Sessions */}
       {sessions.length > 0 && (
-        <div className="border border-[var(--iris-border)] bg-[var(--iris-surface)] p-4">
+        <div className="border border-[var(--b1)] bg-[var(--bg-w)] p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-mono text-[var(--iris-accent)] uppercase tracking-wider">
+            <span className="text-[10px] font-mono text-[var(--ac)] uppercase tracking-wider">
               Active Sessions ({sessions.length})
             </span>
-            <button onClick={onRefresh} className="text-[10px] font-mono text-[var(--iris-text-muted)] hover:text-[var(--iris-accent)]">
+            <button onClick={onRefresh} className="text-[10px] font-mono text-[var(--t3)] hover:text-[var(--ac)]">
               refresh
             </button>
           </div>
           <table className="w-full text-[11px] font-mono">
             <thead>
               <tr>
-                <th className="text-left p-1 text-[var(--iris-accent)]">ID</th>
-                <th className="text-left p-1 text-[var(--iris-accent)]">Query</th>
-                <th className="text-left p-1 text-[var(--iris-accent)]">Status</th>
-                <th className="text-right p-1 text-[var(--iris-accent)]">Turns</th>
-                <th className="text-right p-1 text-[var(--iris-accent)]">Events</th>
+                <th className="text-left p-1 text-[var(--ac)]">ID</th>
+                <th className="text-left p-1 text-[var(--ac)]">Query</th>
+                <th className="text-left p-1 text-[var(--ac)]">Status</th>
+                <th className="text-right p-1 text-[var(--ac)]">Turns</th>
+                <th className="text-right p-1 text-[var(--ac)]">Events</th>
               </tr>
             </thead>
             <tbody>
               {sessions.map((s) => (
-                <tr key={s.id} className="border-t border-[var(--iris-border)]">
-                  <td className="p-1 text-[var(--iris-data)]">{s.id.slice(0, 8)}</td>
-                  <td className="p-1 text-[var(--iris-text-secondary)] truncate max-w-[300px]">{s.query}</td>
+                <tr key={s.id} className="border-t border-[var(--b1)]">
+                  <td className="p-1 text-[var(--cy)]">{s.id.slice(0, 8)}</td>
+                  <td className="p-1 text-[var(--t2)] truncate max-w-[300px]">{s.query}</td>
                   <td className="p-1">
                     <span className={`px-1.5 py-0.5 text-[10px] ${
-                      s.status === "running" ? "text-[var(--iris-green)]" :
-                      s.status === "error" ? "text-[var(--iris-red)]" :
-                      "text-[var(--iris-text-muted)]"
+                      s.status === "running" ? "text-[var(--green)]" :
+                      s.status === "error" ? "text-[var(--red)]" :
+                      "text-[var(--t3)]"
                     }`}>{s.status}</span>
                   </td>
-                  <td className="p-1 text-right text-[var(--iris-text-secondary)]">{s.turn_count}</td>
-                  <td className="p-1 text-right text-[var(--iris-text-secondary)]">{s.timeline_count}</td>
+                  <td className="p-1 text-right text-[var(--t2)]">{s.turn_count}</td>
+                  <td className="p-1 text-right text-[var(--t2)]">{s.timeline_count}</td>
                 </tr>
               ))}
             </tbody>
@@ -367,7 +367,7 @@ function ToolsTab({
   expanded: string | null;
   onToggle: (name: string | null) => void;
 }) {
-  if (!tools.length) return <div className="text-xs text-[var(--iris-text-muted)] font-mono">Loading tools...</div>;
+  if (!tools.length) return <div className="text-xs text-[var(--t3)] font-mono">Loading tools...</div>;
 
   // Group tools by category
   const categories: Record<string, ToolInfo[]> = {};
@@ -399,59 +399,59 @@ function ToolsTab({
 
   return (
     <div className="space-y-4 max-w-4xl">
-      <div className="text-[10px] font-mono text-[var(--iris-text-muted)]">
+      <div className="text-[10px] font-mono text-[var(--t3)]">
         {tools.length} tools registered
       </div>
       {catOrder.filter((c) => categories[c]?.length).map((cat) => (
         <div key={cat}>
-          <div className="text-[10px] font-mono text-[var(--iris-accent)] uppercase tracking-wider mb-2">
+          <div className="text-[10px] font-mono text-[var(--ac)] uppercase tracking-wider mb-2">
             {catLabels[cat] || cat}
           </div>
           <div className="space-y-1">
             {categories[cat].map((t) => (
-              <div key={t.name} className="border border-[var(--iris-border)] bg-[var(--iris-surface)]">
+              <div key={t.name} className="border border-[var(--b1)] bg-[var(--bg-w)]">
                 <button
                   onClick={() => onToggle(expanded === t.name ? null : t.name)}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--iris-surface-hover)] transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
                 >
-                  <span className="text-[9px] font-mono text-[var(--iris-accent)] opacity-60">
+                  <span className="text-[9px] font-mono text-[var(--ac)] opacity-60">
                     {expanded === t.name ? "▼" : "▶"}
                   </span>
-                  <span className="text-[12px] font-mono font-semibold text-[var(--iris-data)]">{t.name}</span>
-                  <span className="text-[11px] text-[var(--iris-text-muted)] flex-1 truncate">{t.description?.slice(0, 80)}</span>
-                  <span className="text-[10px] font-mono text-[var(--iris-text-muted)]">
+                  <span className="text-[12px] font-mono font-semibold text-[var(--cy)]">{t.name}</span>
+                  <span className="text-[11px] text-[var(--t3)] flex-1 truncate">{t.description?.slice(0, 80)}</span>
+                  <span className="text-[10px] font-mono text-[var(--t3)]">
                     {Object.keys(t.parameters).length} params
                   </span>
                 </button>
                 {expanded === t.name && (
-                  <div className="px-4 pb-3 border-t border-[var(--iris-border)]">
-                    <div className="text-[11px] text-[var(--iris-text-secondary)] mt-2 mb-3">{t.description}</div>
+                  <div className="px-4 pb-3 border-t border-[var(--b1)]">
+                    <div className="text-[11px] text-[var(--t2)] mt-2 mb-3">{t.description}</div>
                     {Object.keys(t.parameters).length > 0 && (
                       <table className="w-full text-[11px] font-mono">
                         <thead>
                           <tr>
-                            <th className="text-left p-1 text-[var(--iris-accent)] text-[10px]">Param</th>
-                            <th className="text-left p-1 text-[var(--iris-accent)] text-[10px]">Type</th>
-                            <th className="text-left p-1 text-[var(--iris-accent)] text-[10px]">Required</th>
-                            <th className="text-left p-1 text-[var(--iris-accent)] text-[10px]">Description</th>
+                            <th className="text-left p-1 text-[var(--ac)] text-[10px]">Param</th>
+                            <th className="text-left p-1 text-[var(--ac)] text-[10px]">Type</th>
+                            <th className="text-left p-1 text-[var(--ac)] text-[10px]">Required</th>
+                            <th className="text-left p-1 text-[var(--ac)] text-[10px]">Description</th>
                           </tr>
                         </thead>
                         <tbody>
                           {Object.entries(t.parameters).map(([pname, pinfo]) => (
-                            <tr key={pname} className="border-t border-[var(--iris-border)]">
-                              <td className="p-1 text-[var(--iris-data)]">{pname}</td>
-                              <td className="p-1 text-[var(--iris-text-muted)]">
+                            <tr key={pname} className="border-t border-[var(--b1)]">
+                              <td className="p-1 text-[var(--cy)]">{pname}</td>
+                              <td className="p-1 text-[var(--t3)]">
                                 {pinfo.type || "any"}
-                                {pinfo.enum && <span className="text-[var(--iris-amber)]"> [{pinfo.enum.join("|")}]</span>}
+                                {pinfo.enum && <span className="text-[var(--amber)]"> [{pinfo.enum.join("|")}]</span>}
                               </td>
                               <td className="p-1">
                                 {t.required.includes(pname) ? (
-                                  <span className="text-[var(--iris-accent)]">yes</span>
+                                  <span className="text-[var(--ac)]">yes</span>
                                 ) : (
-                                  <span className="text-[var(--iris-text-muted)]">no</span>
+                                  <span className="text-[var(--t3)]">no</span>
                                 )}
                               </td>
-                              <td className="p-1 text-[var(--iris-text-secondary)]">{pinfo.description || "-"}</td>
+                              <td className="p-1 text-[var(--t2)]">{pinfo.description || "-"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -478,43 +478,43 @@ function SkillsTab({
   expanded: string | null;
   onToggle: (name: string | null) => void;
 }) {
-  if (!skills.length) return <div className="text-xs text-[var(--iris-text-muted)] font-mono">Loading skills...</div>;
+  if (!skills.length) return <div className="text-xs text-[var(--t3)] font-mono">Loading skills...</div>;
 
   return (
     <div className="space-y-3 max-w-4xl">
-      <div className="text-[10px] font-mono text-[var(--iris-text-muted)]">
+      <div className="text-[10px] font-mono text-[var(--t3)]">
         {skills.length} skills loaded
       </div>
       {skills.map((s) => (
-        <div key={s.name} className="border border-[var(--iris-border)] bg-[var(--iris-surface)]">
+        <div key={s.name} className="border border-[var(--b1)] bg-[var(--bg-w)]">
           <button
             onClick={() => onToggle(expanded === s.name ? null : s.name)}
-            className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--iris-surface-hover)] transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
           >
-            <span className="text-[9px] font-mono text-[var(--iris-accent)] opacity-60">
+            <span className="text-[9px] font-mono text-[var(--ac)] opacity-60">
               {expanded === s.name ? "▼" : "▶"}
             </span>
-            <span className="text-[13px] font-mono font-semibold text-[var(--iris-data)]">{s.name}</span>
+            <span className="text-[13px] font-mono font-semibold text-[var(--cy)]">{s.name}</span>
             <div className="flex items-center gap-2 ml-auto">
               {s.has_tools && (
-                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[var(--iris-accent-glow)] text-[var(--iris-accent)] border border-[var(--iris-accent-dim)]">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[var(--ac-s)] text-[var(--ac)] border border-[#5b56c9]">
                   {s.tool_functions?.length || 0} tools
                 </span>
               )}
-              <span className="text-[10px] font-mono text-[var(--iris-text-muted)]">
+              <span className="text-[10px] font-mono text-[var(--t3)]">
                 SKILL.md {s.prompt ? `(${s.prompt.length} chars)` : "(empty)"}
               </span>
             </div>
           </button>
           {expanded === s.name && (
-            <div className="px-4 pb-3 border-t border-[var(--iris-border)] space-y-3">
+            <div className="px-4 pb-3 border-t border-[var(--b1)] space-y-3">
               {/* Tool functions */}
               {s.tool_functions && s.tool_functions.length > 0 && (
                 <div className="mt-2">
-                  <div className="text-[10px] font-mono text-[var(--iris-accent)] uppercase tracking-wider mb-1">Tool Functions</div>
+                  <div className="text-[10px] font-mono text-[var(--ac)] uppercase tracking-wider mb-1">Tool Functions</div>
                   <div className="flex flex-wrap gap-1.5">
                     {s.tool_functions.map((fn) => (
-                      <span key={fn} className="text-[11px] font-mono px-2 py-0.5 bg-[var(--iris-surface-hover)] text-[var(--iris-data)] border border-[var(--iris-border)]">
+                      <span key={fn} className="text-[11px] font-mono px-2 py-0.5 bg-[var(--bg-hover)] text-[var(--cy)] border border-[var(--b1)]">
                         {fn}()
                       </span>
                     ))}
@@ -524,8 +524,8 @@ function SkillsTab({
               {/* SKILL.md content */}
               {s.prompt && (
                 <div className="mt-2">
-                  <div className="text-[10px] font-mono text-[var(--iris-accent)] uppercase tracking-wider mb-1">SKILL.md</div>
-                  <pre className="text-[11px] font-mono text-[var(--iris-text-secondary)] bg-[var(--iris-bg)] border border-[var(--iris-border)] p-3 overflow-x-auto whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                  <div className="text-[10px] font-mono text-[var(--ac)] uppercase tracking-wider mb-1">SKILL.md</div>
+                  <pre className="text-[11px] font-mono text-[var(--t2)] bg-[var(--bg)] border border-[var(--b1)] p-3 overflow-x-auto whitespace-pre-wrap max-h-[300px] overflow-y-auto">
                     {s.prompt}
                   </pre>
                 </div>
@@ -558,32 +558,32 @@ function PromptsTab({
   onDraftChange: (v: string) => void;
   onSave: (name: string, content: string) => void;
 }) {
-  if (!files.length) return <div className="text-xs text-[var(--iris-text-muted)] font-mono">Loading prompts...</div>;
+  if (!files.length) return <div className="text-xs text-[var(--t3)] font-mono">Loading prompts...</div>;
 
   return (
     <div className="space-y-3 max-w-4xl">
-      <div className="text-[10px] font-mono text-[var(--iris-text-muted)]">
+      <div className="text-[10px] font-mono text-[var(--t3)]">
         {files.length} soul files in soul/ directory
       </div>
       {files.map((f) => (
-        <div key={f.name} className="border border-[var(--iris-border)] bg-[var(--iris-surface)]">
+        <div key={f.name} className="border border-[var(--b1)] bg-[var(--bg-w)]">
           <div className="flex items-center justify-between px-3 py-2">
             <div className="flex items-center gap-2">
-              <span className="text-[13px] font-mono font-semibold text-[var(--iris-data)]">{f.name}</span>
-              <span className="text-[10px] font-mono text-[var(--iris-text-muted)]">{f.size}B</span>
+              <span className="text-[13px] font-mono font-semibold text-[var(--cy)]">{f.name}</span>
+              <span className="text-[10px] font-mono text-[var(--t3)]">{f.size}B</span>
             </div>
             {editingFile === f.name ? (
               <div className="flex items-center gap-2">
                 <button
                   onClick={onCancel}
-                  className="text-[10px] font-mono px-2 py-0.5 text-[var(--iris-text-muted)] hover:text-[var(--iris-text)] border border-[var(--iris-border)]"
+                  className="text-[10px] font-mono px-2 py-0.5 text-[var(--t3)] hover:text-[var(--t1)] border border-[var(--b1)]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => onSave(f.name, draft)}
                   disabled={saving}
-                  className="text-[10px] font-mono px-2 py-0.5 text-[var(--iris-accent)] hover:bg-[var(--iris-accent-glow)] border border-[var(--iris-accent-dim)] disabled:opacity-50"
+                  className="text-[10px] font-mono px-2 py-0.5 text-[var(--ac)] hover:bg-[var(--ac-s)] border border-[#5b56c9] disabled:opacity-50"
                 >
                   {saving ? "Saving..." : "Save"}
                 </button>
@@ -591,7 +591,7 @@ function PromptsTab({
             ) : (
               <button
                 onClick={() => onEdit(f.name, f.content)}
-                className="text-[10px] font-mono px-2 py-0.5 text-[var(--iris-text-muted)] hover:text-[var(--iris-accent)] border border-[var(--iris-border)]"
+                className="text-[10px] font-mono px-2 py-0.5 text-[var(--t3)] hover:text-[var(--ac)] border border-[var(--b1)]"
               >
                 Edit
               </button>
@@ -602,11 +602,11 @@ function PromptsTab({
               <textarea
                 value={draft}
                 onChange={(e) => onDraftChange(e.target.value)}
-                className="w-full h-[300px] bg-[var(--iris-bg)] border border-[var(--iris-accent-dim)] text-[var(--iris-text-secondary)] font-mono text-[11px] p-3 resize-y focus:outline-none focus:border-[var(--iris-accent)]"
+                className="w-full h-[300px] bg-[var(--bg)] border border-[#5b56c9] text-[var(--t2)] font-mono text-[11px] p-3 resize-y focus:outline-none focus:border-[var(--ac)]"
                 spellCheck={false}
               />
             ) : (
-              <pre className="text-[11px] font-mono text-[var(--iris-text-secondary)] bg-[var(--iris-bg)] border border-[var(--iris-border)] p-3 overflow-x-auto whitespace-pre-wrap max-h-[200px] overflow-y-auto">
+              <pre className="text-[11px] font-mono text-[var(--t2)] bg-[var(--bg)] border border-[var(--b1)] p-3 overflow-x-auto whitespace-pre-wrap max-h-[200px] overflow-y-auto">
                 {f.content}
               </pre>
             )}
@@ -627,7 +627,7 @@ function ConfigTab({
   dirty: boolean;
   onChange: (v: string) => void;
 }) {
-  if (!config) return <div className="text-xs text-[var(--iris-text-muted)] font-mono">Loading config...</div>;
+  if (!config) return <div className="text-xs text-[var(--t3)] font-mono">Loading config...</div>;
 
   // Parse to show structured view
   let parsed: Record<string, unknown> = {};
@@ -638,17 +638,17 @@ function ConfigTab({
   return (
     <div className="space-y-3 max-w-4xl">
       <div className="flex items-center justify-between">
-        <div className="text-[10px] font-mono text-[var(--iris-text-muted)]">
+        <div className="text-[10px] font-mono text-[var(--t3)]">
           iris_config.yaml — {sections.length} sections
-          {dirty && <span className="text-[var(--iris-amber)] ml-2">(modified)</span>}
+          {dirty && <span className="text-[var(--amber)] ml-2">(modified)</span>}
         </div>
       </div>
 
       {/* Structured view */}
       {sections.map((section) => (
-        <div key={section} className="border border-[var(--iris-border)] bg-[var(--iris-surface)]">
-          <div className="px-3 py-2 text-[11px] font-mono font-semibold text-[var(--iris-accent)]">{section}</div>
-          <pre className="px-3 pb-3 text-[11px] font-mono text-[var(--iris-text-secondary)] whitespace-pre-wrap overflow-x-auto max-h-[250px] overflow-y-auto">
+        <div key={section} className="border border-[var(--b1)] bg-[var(--bg-w)]">
+          <div className="px-3 py-2 text-[11px] font-mono font-semibold text-[var(--ac)]">{section}</div>
+          <pre className="px-3 pb-3 text-[11px] font-mono text-[var(--t2)] whitespace-pre-wrap overflow-x-auto max-h-[250px] overflow-y-auto">
             {JSON.stringify(parsed[section], null, 2)}
           </pre>
         </div>

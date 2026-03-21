@@ -40,11 +40,11 @@ function splitIntoChatSegments(text: string): ChatSegment[] {
 
 function StreamingDots() {
   return (
-    <span className="ml-2 inline-flex items-center gap-[4px] align-middle">
-      {[0, 120, 240].map((delay) => (
+    <span className="ml-2 inline-flex items-center gap-[5px] align-middle">
+      {[0, 200, 400].map((delay) => (
         <span
           key={delay}
-          className="inline-block h-[6px] w-[6px] animate-bounce rounded-full bg-[var(--ac)]"
+          className="inline-block h-[5px] w-[5px] animate-dot-pulse rounded-full bg-[var(--ac)]"
           style={{ animationDelay: `${delay}ms` }}
         />
       ))}
@@ -162,10 +162,13 @@ export function ChatPanel() {
           )}
 
           {segments.length === 0 && !isStreaming && pageState === "IDLE" && (
-            <div className="rounded-[20px] border border-dashed border-[var(--b2)] bg-[var(--bg-w)] px-6 py-10 text-center shadow-card">
-              <p className="font-display text-[28px] text-[var(--ink)]">Conversation</p>
-              <p className="mt-3 text-[14px] leading-[1.8] text-[var(--t3)]">
-                分析开始后，Prism 会把中间推理、关键数据和你的追问整理在这里。
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+              <div className="mb-4 text-[var(--ac)]">
+                <PrismLogo size={28} showWordmark={false} />
+              </div>
+              <p className="font-display text-[24px] font-medium text-[var(--ink)]">对话区</p>
+              <p className="mx-auto mt-3 max-w-[400px] text-[13px] leading-[1.8] text-[var(--t3)]">
+                分析启动后，Prism 会把推理过程、关键结论和你的追问整理在这里。你可以随时引导分析方向。
               </p>
             </div>
           )}

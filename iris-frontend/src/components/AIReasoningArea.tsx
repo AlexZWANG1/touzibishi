@@ -138,7 +138,7 @@ export function ReportPanel() {
   if (!cleanText && !thinkingText) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="font-mono text-[12px] text-[var(--iris-text-muted)]">
+        <p className="font-mono text-[12px] text-[var(--t3)]">
           {isStreaming ? "思考中..." : "等待回复..."}
         </p>
       </div>
@@ -172,7 +172,7 @@ export function ReportPanel() {
                     borderRadius: "8px 8px 2px 8px",
                     background: "rgba(245,128,37,0.12)",
                     border: "1px solid rgba(245,128,37,0.25)",
-                    color: "var(--iris-accent)",
+                    color: "var(--ac)",
                     fontSize: 13,
                     fontWeight: 500,
                     lineHeight: 1.5,
@@ -203,7 +203,7 @@ export function ReportPanel() {
         style={{
           marginTop: 24,
           paddingTop: 12,
-          borderTop: "1px solid var(--iris-border)",
+          borderTop: "1px solid var(--b1)",
         }}
       >
         <h3
@@ -211,7 +211,7 @@ export function ReportPanel() {
           style={{
             fontSize: 12,
             fontWeight: 600,
-            color: "var(--iris-accent)",
+            color: "var(--ac)",
             letterSpacing: "0.08em",
             textTransform: "uppercase" as const,
             marginBottom: 8,
@@ -226,7 +226,7 @@ export function ReportPanel() {
             recentRecalls={memoryPanel.recentRecalls}
           />
         ) : (
-          <p className="font-mono text-[12px] text-[var(--iris-text-muted)]">
+          <p className="font-mono text-[12px] text-[var(--t3)]">
             暂无校准记录 — 分析更多公司后将积累预测准确度数据
           </p>
         )}

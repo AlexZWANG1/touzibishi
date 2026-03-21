@@ -1,14 +1,13 @@
 """
-SEC Filing tool — wraps edgartools for 10-K/10-Q text sections and financial data.
+SEC Filing tool — edgartools (10-K sections, XBRL metrics) + SEC official API (time series).
 
-Provides structured access to:
-- Filing text sections (Business, Risk Factors, MD&A, Financial Statements, etc.)
-- Key financial metrics from XBRL (revenue, operating income, etc.)
-- Filing metadata and search
+Layer 1: SEC official data.sec.gov API — companyconcept for metric time series, no library needed.
+Layer 2: edgartools — 10-K/10-Q text sections (MD&A, Risk Factors), filing-level XBRL metrics.
 """
 
 import logging
 import os
+import httpx
 from .base import ToolResult, make_tool_schema
 
 logger = logging.getLogger(__name__)
@@ -30,10 +29,12 @@ SEC_FILING_SCHEMA = make_tool_schema(
         },
         "action": {
             "type": "string",
-            "enum": ["section", "metrics", "filing_list"],
+            "enum": ["section", "metrics", "xbrl_timeseries", "filing_list"],
             "description": (
                 "'section' — extract a text section from the latest filing (see section_name). "
-                "'metrics' — key XBRL financial metrics (revenue, operating income, etc.). "
+                "'metrics' — key XBRL financial metrics from latest filing. "
+                "'xbrl_timeseries' — multi-year time series of a specific metric from SEC official API "
+                "(use concept param, e.g. 'Revenue', 'OperatingIncomeLoss'). Fast, no edgartools needed. "
                 "'filing_list' — list recent filings for this company."
             ),
         },
@@ -52,6 +53,17 @@ SEC_FILING_SCHEMA = make_tool_schema(
                 "For action='section': which section to extract. "
                 "'MD&A' is best for segment revenue/income discussion. "
                 "'Financial Statements' for notes including segment tables."
+            ),
+        },
+        "concept": {
+            "type": "string",
+            "description": (
+                "For action='xbrl_timeseries': US-GAAP concept name. Common ones: "
+                "'RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', "
+                "'OperatingIncomeLoss', 'NetIncomeLoss', 'EarningsPerShareDiluted', "
+                "'CashAndCashEquivalentsAtCarryingValue', 'StockholdersEquity', "
+                "'ResearchAndDevelopmentExpense', 'CostOfRevenue'. "
+                "Use the exact US-GAAP tag name."
             ),
         },
         "max_chars": {
@@ -77,21 +89,26 @@ def sec_filing(
     action: str,
     filing_type: str = "10-K",
     section_name: str = None,
+    concept: str = None,
     max_chars: int = 8000,
 ) -> ToolResult:
     """Main entry point for SEC filing tool."""
+    ticker_upper = ticker.upper()
+
+    # xbrl_timeseries uses SEC official API directly — no edgartools needed
+    if action == "xbrl_timeseries":
+        return _sec_xbrl_timeseries(ticker_upper, concept)
+
+    # All other actions need edgartools
     edgar, err = _ensure_edgar()
     if err:
         return ToolResult.fail(err, hint="pip install edgartools", recoverable=False)
 
-    # Set identity for SEC EDGAR (required)
     identity = os.getenv("SEC_EDGAR_IDENTITY", "IRIS ResearchBot admin@iris-research.local")
     try:
         edgar.set_identity(identity)
     except Exception:
         pass
-
-    ticker_upper = ticker.upper()
 
     try:
         if action == "filing_list":
@@ -106,6 +123,121 @@ def sec_filing(
         logger.exception("sec_filing error for %s/%s", ticker, action)
         return ToolResult.fail(f"SEC filing error: {str(e)}", recoverable=True)
 
+
+# ── SEC Official API (Layer 1) ────────────────────────────────
+
+# CIK lookup cache (ticker → zero-padded CIK)
+_CIK_CACHE: dict[str, str] = {}
+
+SEC_HEADERS = {"User-Agent": "IRIS ResearchBot admin@iris-research.local"}
+
+
+def _ticker_to_cik(ticker: str) -> str | None:
+    """Resolve ticker to zero-padded CIK via SEC submissions API."""
+    if ticker in _CIK_CACHE:
+        return _CIK_CACHE[ticker]
+    try:
+        # SEC provides a ticker→CIK mapping file
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get("https://www.sec.gov/files/company_tickers.json", headers=SEC_HEADERS)
+            r.raise_for_status()
+            data = r.json()
+            for entry in data.values():
+                t = entry.get("ticker", "").upper()
+                cik = str(entry.get("cik_str", "")).zfill(10)
+                _CIK_CACHE[t] = cik
+        return _CIK_CACHE.get(ticker)
+    except Exception as e:
+        logger.warning("CIK lookup failed: %s", e)
+        return None
+
+
+def _sec_xbrl_timeseries(ticker: str, concept: str) -> ToolResult:
+    """Fetch multi-year time series from SEC official companyconcept API.
+
+    No library needed — direct REST call to data.sec.gov.
+    Returns annual + quarterly values for a single US-GAAP concept.
+    """
+    if not concept:
+        return ToolResult.fail(
+            "concept is required for action='xbrl_timeseries'",
+            hint="Use e.g. concept='RevenueFromContractWithCustomerExcludingAssessedTax' or 'OperatingIncomeLoss'",
+        )
+
+    cik = _ticker_to_cik(ticker)
+    if not cik:
+        return ToolResult.fail(f"Could not resolve CIK for {ticker}")
+
+    url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/{concept}.json"
+
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.get(url, headers=SEC_HEADERS)
+            resp.raise_for_status()
+            data = resp.json()
+
+        entries = data.get("units", {}).get("USD", [])
+        if not entries:
+            # Try shares unit
+            entries = data.get("units", {}).get("shares", [])
+        if not entries:
+            # Try pure unit
+            entries = data.get("units", {}).get("pure", [])
+        if not entries:
+            return ToolResult.fail(
+                f"No data for {ticker}/{concept}",
+                hint="Check the concept name. Use sec_filing action='metrics' to see available metrics.",
+            )
+
+        # Separate annual and quarterly, take most recent
+        annual = [e for e in entries if e.get("fp") == "FY"]
+        quarterly = [e for e in entries if e.get("fp") in ("Q1", "Q2", "Q3", "Q4")]
+
+        # Dedupe by (fy, fp) — keep latest filed
+        def _dedupe(items):
+            seen = {}
+            for e in items:
+                key = (e.get("fy"), e.get("fp"))
+                if key not in seen or e.get("filed", "") > seen[key].get("filed", ""):
+                    seen[key] = e
+            return sorted(seen.values(), key=lambda x: (x.get("fy", 0), x.get("fp", "")))
+
+        annual = _dedupe(annual)[-10:]  # last 10 years
+        quarterly = _dedupe(quarterly)[-8:]  # last 8 quarters
+
+        def _fmt(items):
+            return [
+                {
+                    "fy": e.get("fy"),
+                    "fp": e.get("fp"),
+                    "value": e.get("val"),
+                    "filed": e.get("filed"),
+                    "end": e.get("end"),
+                }
+                for e in items
+            ]
+
+        return ToolResult.ok({
+            "ticker": ticker,
+            "concept": concept,
+            "label": data.get("label", concept),
+            "description": data.get("description", ""),
+            "annual": _fmt(annual),
+            "quarterly": _fmt(quarterly),
+        })
+
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            return ToolResult.fail(
+                f"Concept '{concept}' not found for {ticker}",
+                hint="Check spelling. Common: Revenues, OperatingIncomeLoss, NetIncomeLoss, EarningsPerShareDiluted",
+            )
+        return ToolResult.fail(f"SEC API error: {e.response.status_code}", recoverable=True)
+    except Exception as e:
+        return ToolResult.fail(f"SEC API failed: {e}", recoverable=True)
+
+
+# ── edgartools (Layer 2) ─────────────────────────────────────
 
 def _filing_list(edgar, ticker: str, filing_type: str) -> ToolResult:
     """List recent filings for a company."""
