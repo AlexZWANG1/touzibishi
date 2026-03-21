@@ -1,19 +1,19 @@
 "use client";
 
-import { useState, memo } from "react";
+import { memo, useState } from "react";
 import type { TimelineEvent } from "@/types/analysis";
-import { formatTime, formatDuration } from "@/utils/formatters";
+import { formatDuration, formatTime } from "@/utils/formatters";
 
 interface TimelineItemProps {
   event: TimelineEvent;
   isLast: boolean;
 }
 
-const phaseColorMap: Record<string, string> = {
-  gather: "var(--iris-phase-gather)",
-  analyze: "var(--iris-phase-analyze)",
-  evaluate: "var(--iris-phase-evaluate)",
-  finalize: "var(--iris-phase-finalize)",
+const PHASE_COLOR_MAP: Record<string, string> = {
+  gather: "var(--phase-gather)",
+  analyze: "var(--phase-analyze)",
+  evaluate: "var(--phase-evaluate)",
+  finalize: "var(--phase-finalize)",
 };
 
 const TOOL_LABELS: Record<string, string> = {
@@ -25,19 +25,17 @@ const TOOL_LABELS: Record<string, string> = {
   quote: "获取报价",
   history: "历史行情",
   valuation: "统一估值",
-  get_portfolio: "查看持仓",
+  get_portfolio: "查看组合",
   generate_trade_signal: "交易信号",
-  create_hypothesis: "形成假设",
+  create_hypothesis: "形成假说",
   add_evidence_card: "添加证据",
   exa_search: "搜索资讯",
   web_fetch: "抓取网页",
-
-  // Legacy tool name aliases (for replay compatibility)
   recall_memory: "回忆历史",
   fmp_get_financials: "拉取财报",
   yf_quote: "获取报价",
   yf_history: "历史行情",
-  build_dcf: "构建DCF",
+  build_dcf: "构建 DCF",
   get_comps: "可比分析",
   extract_observation: "提取观察",
   save_memory: "保存记忆",
@@ -52,154 +50,63 @@ export const TimelineItem = memo(function TimelineItem({ event, isLast }: Timeli
     return <ThinkingItem event={event} />;
   }
 
-  // User continuation message — render as a turn separator
   if (event.tool === "user_continue" || event.tool === "user_steering") {
     return (
-      <div
-        style={{
-          padding: "6px 0",
-          marginTop: 4,
-          marginBottom: 4,
-          borderTop: event.tool === "user_continue" ? "1px solid var(--iris-border)" : "none",
-        }}
-      >
-        <span
-          className="font-mono"
-          style={{ fontSize: 12, color: "var(--iris-accent)", fontWeight: 500 }}
-        >
-          &gt; {event.message}
-        </span>
+      <div className="rounded-lg bg-[var(--ac-s)] px-3 py-2 text-[12px] text-[var(--ac)]">
+        <span className="mr-2 font-mono">&gt;</span>
+        {event.message}
       </div>
     );
   }
 
-  const dotColor = phaseColorMap[event.phase] || "var(--iris-text-muted)";
-  const isRunning = event.status === "running";
-  const isError = event.status === "error";
-
-  const toolLabel =
-    event.tool && event.tool !== "system" && event.tool !== "analysis_complete"
-      ? TOOL_LABELS[event.tool] || event.tool
-      : null;
-  const showRawName =
-    toolLabel && TOOL_LABELS[event.tool!] ? event.tool : null;
+  const dotColor =
+    event.status === "error"
+      ? "var(--red)"
+      : PHASE_COLOR_MAP[event.phase] || "var(--t3)";
+  const toolLabel = TOOL_LABELS[event.tool] || event.tool;
 
   return (
-    <div
-      className="relative flex items-start"
-      style={{ gap: 7, paddingTop: 2.5, paddingBottom: 2.5 }}
-    >
-      {/* Dot */}
-      <div className="relative z-10 flex-shrink-0" style={{ marginTop: 4 }}>
-        {isError ? (
-          <div
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "var(--iris-red)",
-            }}
-          />
-        ) : isRunning ? (
-          <div
-            className="animate-pulse"
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: dotColor,
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: dotColor,
-            }}
-          />
-        )}
+    <div className="relative flex gap-3 px-4 py-3">
+      <div className="relative z-10 mt-1.5 shrink-0">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full"
+          style={{
+            background: dotColor,
+            opacity: event.status === "running" ? 0.8 : 1,
+          }}
+        />
       </div>
 
-      {/* Connector line */}
       {!isLast && (
         <div
-          className="absolute"
-          style={{
-            left: 2,
-            top: 9,
-            bottom: -2.5,
-            width: 1,
-            background: "var(--iris-border)",
-          }}
+          className="absolute left-[20px] top-[28px] bottom-0 w-px"
+          style={{ background: "var(--b1)" }}
         />
       )}
 
-      {/* Content */}
-      <div className="flex min-w-0 flex-1 items-center gap-1">
-        {/* Tool label in teal + raw name as secondary */}
-        {toolLabel && (
-          <span className="flex flex-shrink-0 items-center gap-1">
-            <span
-              className="font-mono"
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-medium text-[var(--cy-t)]">{toolLabel}</span>
+              <span className="font-mono text-[10px] text-[var(--t4)]">{formatTime(event.timestamp)}</span>
+            </div>
+            <div
+              className="mt-1 text-[12px] leading-[1.6]"
               style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: "var(--iris-data)",
+                color: event.status === "error" ? "var(--red)" : "var(--t3)",
               }}
             >
-              {toolLabel}
+              {event.message}
+            </div>
+          </div>
+
+          {event.duration != null && (
+            <span className="shrink-0 rounded-pill bg-[var(--bg-2)] px-2 py-1 font-mono text-[10px] text-[var(--t3)]">
+              {formatDuration(event.duration)}
             </span>
-            {showRawName && (
-              <span
-                className="font-mono"
-                style={{
-                  fontSize: 10,
-                  color: "var(--iris-text-muted)",
-                  opacity: 0.7,
-                }}
-              >
-                {showRawName}
-              </span>
-            )}
-          </span>
-        )}
-
-        {/* Message text */}
-        <span
-          className="min-w-0 flex-1 truncate"
-          style={{
-            fontSize: 11,
-            color: isError
-              ? "var(--iris-red)"
-              : "var(--iris-text-secondary)",
-          }}
-        >
-          {event.message}
-        </span>
-
-        {/* Duration badge */}
-        {event.duration != null && (
-          <span
-            className="flex-shrink-0 font-mono"
-            style={{
-              fontSize: 10,
-              color: "var(--iris-text-muted)",
-              opacity: 0.7,
-            }}
-          >
-            {formatDuration(event.duration)}
-          </span>
-        )}
-
-        {/* Timestamp */}
-        <span
-          className="ml-auto flex-shrink-0 font-mono"
-          style={{ fontSize: 10, color: "var(--iris-text-muted)", opacity: 0.7 }}
-        >
-          {formatTime(event.timestamp)}
-        </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -210,54 +117,24 @@ function ThinkingItem({ event }: { event: TimelineEvent }) {
   const fullText = event.fullText || event.message;
 
   return (
-    <div
-      className="cursor-pointer flex items-start"
-      style={{
-        paddingTop: 1,
-        paddingBottom: 1,
-        borderLeft: "2px solid var(--iris-accent-dim)",
-        paddingLeft: 6,
-        marginLeft: 2,
-        background: expanded ? "var(--iris-accent-glow)" : "transparent",
-      }}
-      onClick={() => setExpanded(!expanded)}
-    >
-      <span
-        className="flex-shrink-0"
-        style={{
-          fontSize: 10,
-          color: "var(--iris-accent-dim)",
-          transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
-          transition: "transform 150ms",
-          display: "inline-block",
-          marginTop: 1,
-          marginRight: 4,
-        }}
-      >
-        ▶
-      </span>
-      <div className="min-w-0 flex-1">
-        {!expanded ? (
+    <div className="px-4 py-2">
+      <div className="overflow-hidden rounded-lg border border-[var(--ac-m)] bg-[var(--ac-s)]">
+        <button
+          type="button"
+          onClick={() => setExpanded((open) => !open)}
+          className="flex w-full items-center gap-3 px-3 py-2 text-left"
+        >
           <span
-            className="truncate block font-mono"
-            style={{
-              fontSize: 11,
-              color: "var(--iris-text-muted)",
-              lineHeight: 1.4,
-            }}
+            className="inline-block text-[9px] text-[var(--ac)] transition-transform"
+            style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}
           >
-            {event.message}
+            ▶
           </span>
-        ) : (
-          <pre
-            className="whitespace-pre-wrap font-mono"
-            style={{
-              fontSize: 12,
-              lineHeight: 1.5,
-              color: "var(--iris-text-secondary)",
-              margin: 0,
-            }}
-          >
+          <span className="text-[12px] font-medium text-[var(--ac)]">Trace</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--t3)]">{event.message}</span>
+        </button>
+        {expanded && (
+          <pre className="overflow-x-auto border-t border-[var(--ac-m)] px-3 py-3 font-mono text-[11px] leading-[1.65] text-[var(--t2)]">
             {fullText}
           </pre>
         )}

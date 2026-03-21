@@ -1,127 +1,114 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { startAnalysis } from "@/utils/api";
+import { useEffect, useRef } from "react";
 
-type AnalysisMode = "analysis" | "learning";
+export type AnalysisMode = "analysis" | "learning";
 
-export function SearchBar() {
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<AnalysisMode>("analysis");
-  const router = useRouter();
+interface SearchBarProps {
+  value: string;
+  mode: AnalysisMode;
+  loading?: boolean;
+  onChange: (value: string) => void;
+  onModeChange: (mode: AnalysisMode) => void;
+  onSubmit: () => void | Promise<void>;
+}
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      const trimmed = query.trim();
-      if (!trimmed || loading) return;
+const PLACEHOLDER = `描述你的研究任务...
 
-      setLoading(true);
-      try {
-        const res = await startAnalysis({ query: trimmed, mode });
-        router.push(`/analysis/${res.analysisId}`);
-      } catch (err) {
-        console.error("Failed to start:", err);
-        setLoading(false);
-      }
-    },
-    [query, loading, router, mode]
-  );
+例如：深度分析 AAPL 最新财报，重点关注服务业务增长趋势对估值的影响，对比 MSFT 和 GOOGL 的云业务，给出 DCF 模型和交易建议。`;
+
+export function SearchBar({
+  value,
+  mode,
+  loading = false,
+  onChange,
+  onModeChange,
+  onSubmit,
+}: SearchBarProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [value]);
 
   return (
-    <form onSubmit={handleSubmit} className="relative w-full">
-      <div
-        className="relative flex items-center border focus-within:!border-[var(--iris-accent)]"
-        style={{
-          height: "28px",
-          backgroundColor: "transparent",
-          borderColor: "var(--iris-border)",
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!value.trim() || loading) return;
+        void onSubmit();
+      }}
+      className="prism-input-shell p-4 sm:p-5"
+    >
+      <textarea
+        ref={textareaRef}
+        rows={3}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            if (!value.trim() || loading) return;
+            void onSubmit();
+          }
         }}
-      >
-        {/* Mode toggle */}
-        <button
-          type="button"
-          onClick={() => setMode(mode === "analysis" ? "learning" : "analysis")}
-          className="ml-px flex-shrink-0 flex items-center gap-1 px-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider transition-colors"
-          style={{
-            height: "26px",
-            border: "none",
-            borderRight: "1px solid var(--iris-border)",
-            backgroundColor: mode === "learning" ? "rgba(245,128,37,0.08)" : "transparent",
-            color: mode === "learning" ? "var(--iris-accent)" : "var(--iris-text-muted)",
-          }}
-          title={mode === "analysis" ? "Switch to Learning mode / 切换到学习模式" : "Switch to Analysis mode / 切换到分析模式"}
-        >
-          {mode === "analysis" ? (
-            <>
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              ANL
-            </>
-          ) : (
-            <>
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              LRN
-            </>
-          )}
-        </button>
+        placeholder={PLACEHOLDER}
+        className="min-h-[72px] max-h-[200px] text-[15px] leading-[1.65] placeholder:text-[var(--t4)]"
+        disabled={loading}
+      />
 
-        {/* Search icon */}
-        <svg
-          className="ml-1.5 h-3 w-3 flex-shrink-0"
-          style={{ color: "var(--iris-text-muted)" }}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-          />
-        </svg>
+      <div className="mt-3 flex flex-col gap-3 border-t border-[var(--b1)] pt-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onModeChange("analysis")}
+            className="inline-flex items-center gap-2 rounded-pill border px-3 py-2 text-[12px] font-semibold transition-colors"
+            style={{
+              borderColor: mode === "analysis" ? "var(--ac)" : "var(--b2)",
+              background: mode === "analysis" ? "var(--ac-s)" : "var(--bg)",
+              color: mode === "analysis" ? "var(--ac)" : "var(--t2)",
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            深度分析
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange("learning")}
+            className="inline-flex items-center gap-2 rounded-pill border px-3 py-2 text-[12px] font-semibold transition-colors"
+            style={{
+              borderColor: mode === "learning" ? "var(--ac)" : "var(--b2)",
+              background: mode === "learning" ? "var(--ac-s)" : "var(--bg)",
+              color: mode === "learning" ? "var(--ac)" : "var(--t2)",
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            学习模式
+          </button>
+        </div>
 
-        <input
-          id="analysis-query"
-          name="analysis_query"
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={mode === "analysis" ? "TICKER / COMPANY NAME..." : "复盘目标，如「复盘 NVDA」..."}
-          className="h-full flex-1 bg-transparent px-1.5 font-mono text-[12px] outline-none placeholder:text-[var(--iris-text-muted)]"
-          style={{
-            color: "var(--iris-text)",
-            caretColor: "var(--iris-accent)",
-          }}
-          disabled={loading}
-        />
+        <div className="text-[12px] text-[var(--t4)] sm:ml-auto">Shift+Enter 换行 · Enter 发送</div>
 
         <button
           type="submit"
-          disabled={!query.trim() || loading}
-          aria-label={loading ? "Analyzing..." : "Start analysis"}
-          className="flex-shrink-0 flex items-center justify-center font-mono text-[11px] font-bold uppercase tracking-wider disabled:cursor-not-allowed disabled:opacity-30"
-          style={{
-            height: "28px",
-            width: "28px",
-            backgroundColor: "var(--iris-accent)",
-            color: "#07080C",
-          }}
+          disabled={!value.trim() || loading}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border-0 bg-[var(--ac)] text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
         >
           {loading ? (
-            <div
-              className="h-2.5 w-2.5 animate-spin border border-t-transparent"
-              style={{ borderColor: "#07080C", borderTopColor: "transparent" }}
+            <span
+              className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+              aria-hidden="true"
             />
           ) : (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="square" strokeLinejoin="miter" d="M5 12h14M12 5l7 7-7 7" />
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           )}
         </button>

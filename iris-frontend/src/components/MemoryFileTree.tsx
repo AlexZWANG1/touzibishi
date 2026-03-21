@@ -17,14 +17,9 @@ const TYPE_LABELS: Record<MemoryType, string> = {
   calibration: "CALIBRATION",
 };
 
-export function MemoryFileTree({
-  tree,
-  selectedType,
-  selectedFilename,
-  onSelect,
-}: MemoryFileTreeProps) {
+export function MemoryFileTree({ tree, selectedType, selectedFilename, onSelect }: MemoryFileTreeProps) {
   return (
-    <div className="space-y-[2px]">
+    <div className="space-y-2">
       {(Object.keys(TYPE_LABELS) as MemoryType[]).map((type) => (
         <FolderNode
           key={type}
@@ -40,15 +35,6 @@ export function MemoryFileTree({
   );
 }
 
-interface FolderNodeProps {
-  type: MemoryType;
-  label: string;
-  files: string[];
-  selectedType: MemoryType | null;
-  selectedFilename: string | null;
-  onSelect: (memoryType: MemoryType, filename: string) => void;
-}
-
 function FolderNode({
   type,
   label,
@@ -56,52 +42,50 @@ function FolderNode({
   selectedType,
   selectedFilename,
   onSelect,
-}: FolderNodeProps) {
+}: {
+  type: MemoryType;
+  label: string;
+  files: string[];
+  selectedType: MemoryType | null;
+  selectedFilename: string | null;
+  onSelect: (memoryType: MemoryType, filename: string) => void;
+}) {
   const [expanded, setExpanded] = useState(files.length > 0);
 
   return (
-    <div>
+    <div className="rounded-lg border border-transparent bg-[rgba(255,255,255,0.35)]">
       <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-[4px] px-[6px] py-[5px] text-left transition-colors hover:bg-[var(--iris-surface-hover)]"
+        type="button"
+        onClick={() => setExpanded((open) => !open)}
+        className="flex w-full items-center gap-3 px-3 py-3 text-left"
       >
-        <svg
-          className={`h-[8px] w-[8px] shrink-0 text-[var(--iris-text-muted)] transition-transform ${
-            expanded ? "rotate-90" : ""
-          }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+        <span
+          className="inline-block text-[10px] text-[var(--t4)] transition-transform"
+          style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
-        <span className="font-mono text-[12px] font-semibold uppercase tracking-wider text-[var(--iris-accent)]">
-          {label}
+          ▶
         </span>
-        <span className="font-mono text-[11px] text-[var(--iris-text-muted)]">
-          ({files.length})
-        </span>
+        <span className="font-mono text-[12px] font-semibold text-[var(--ac)]">{label}</span>
+        <span className="font-mono text-[11px] text-[var(--t4)]">{files.length}</span>
       </button>
+
       {expanded && files.length > 0 && (
-        <div className="ml-[12px]">
+        <div className="space-y-1 px-2 pb-2">
           {files.map((filename) => {
-            const isSelected = selectedType === type && selectedFilename === filename;
+            const active = selectedType === type && selectedFilename === filename;
             return (
               <button
                 key={filename}
+                type="button"
                 onClick={() => onSelect(type, filename)}
-                className={`flex w-full items-center gap-[4px] px-[6px] py-[4px] text-left font-mono text-[12px] transition-colors ${
-                  isSelected
-                    ? "bg-[var(--iris-surface-hover)] text-[var(--iris-accent)] border-l-2 border-l-[var(--iris-accent)]"
-                    : "text-[var(--iris-text-secondary)] hover:bg-[var(--iris-surface-hover)] hover:text-[var(--iris-text)]"
-                }`}
+                className="flex w-full items-center rounded-md px-3 py-2 text-left transition-colors"
+                style={{
+                  background: active ? "var(--bg-w)" : "transparent",
+                  color: active ? "var(--ac)" : "var(--t2)",
+                  boxShadow: active ? "var(--sh)" : "none",
+                }}
               >
-                <span className="truncate">{filename}</span>
+                <span className="truncate font-mono text-[12px]">{filename}</span>
               </button>
             );
           })}

@@ -2,7 +2,7 @@ export type PageState = "IDLE" | "RUNNING" | "WAITING" | "COMPLETE";
 
 export type Phase = "gather" | "analyze" | "evaluate" | "finalize";
 
-export type ActiveTab = "report" | "data" | "model" | "comps";
+export type ActiveTab = "report" | "fundamentals" | "data" | "model" | "comps" | "strategy";
 
 export type EventColor = "green" | "blue" | "amber" | "gray" | "purple" | "gold";
 
@@ -103,7 +103,8 @@ export interface PeerCompany {
   evEbitda: number;
   revenueGrowth: number;
   margin: number;
-  [key: string]: string | number;
+  isTarget?: boolean;
+  [key: string]: string | number | boolean | undefined;
 }
 
 export interface ScatterPoint {
@@ -121,6 +122,60 @@ export interface CompsPanelState {
   loading: boolean;
 }
 
+export interface StrategySignal {
+  ticker: string;
+  action: string;
+  targetWeight: number;
+  conviction?: string | null;
+  discountPct?: number | null;
+  signalStrength: string;
+  reasoning: string;
+  constraintChecks: string[];
+  suggestedShares?: number | null;
+  unrealizedPnlPct?: number | null;
+}
+
+export interface StrategyPosition {
+  ticker: string;
+  shares: number;
+  avgCost: number;
+  livePrice?: number | null;
+  marketValue: number;
+  unrealizedPnl: number;
+  unrealizedPnlPct: number;
+  entryDate?: string | null;
+}
+
+export interface StrategyPortfolio {
+  cash: number;
+  totalMarketValue: number;
+  totalPortfolioValue: number;
+  totalUnrealizedPnl: number;
+  totalRealizedPnl: number;
+  totalReturnPct: number;
+  positionCount: number;
+  winLoss: string;
+  investedPct: number;
+  positions: StrategyPosition[];
+}
+
+export interface StrategyPanelState {
+  signal: StrategySignal | null;
+  portfolio: StrategyPortfolio | null;
+  loading: boolean;
+}
+
+export interface ResearchSection {
+  title: string;
+  content: string;
+  timestamp: number;
+}
+
+export interface FundamentalsPanelState {
+  sections: ResearchSection[];
+  loading: boolean;
+}
+
 export interface MemoryPanelState {
   calibrationHits: number;
   calibrationMisses: number;
@@ -128,9 +183,6 @@ export interface MemoryPanelState {
   loading: boolean;
 }
 
-/**
- * Matches backend GET /api/watchlist response shape.
- */
 export interface WatchlistAlert {
   type: string;
   message: string;
@@ -161,7 +213,9 @@ export interface AnalysisSnapshot {
     data: DataPanelState;
     model: ModelPanelState;
     comps: CompsPanelState;
+    strategy?: StrategyPanelState;
     memory: MemoryPanelState;
+    fundamentals?: FundamentalsPanelState;
   };
   tokens_in: number;
   tokens_out: number;

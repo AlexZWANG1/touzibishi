@@ -11,76 +11,40 @@ export function YearByYearTable({ data }: YearByYearTableProps) {
   if (data.length === 0) return null;
 
   return (
-    <div className="overflow-hidden border border-[var(--iris-border)]">
-      <div className="p-[5px_8px] border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
-        <h3 className="font-mono text-[11px] text-[var(--iris-accent)] uppercase tracking-[0.08em]">
-          Year-by-Year Projections
-        </h3>
+    <div className="prism-panel overflow-hidden">
+      <div className="border-b border-[var(--b1)] px-5 py-4">
+        <h3 className="text-[15px] font-semibold text-[var(--t1)]">Year-by-Year Projections</h3>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-[11px] border-collapse">
+        <table className="min-w-full border-collapse">
           <thead>
-            <tr className="border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
-              <th className="sticky left-0 bg-[var(--iris-surface)] p-[3px_8px] text-left font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--iris-accent)]">
-                Year
-              </th>
-              <th className="p-[3px_8px] text-right font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--iris-accent)]">
-                Revenue
-              </th>
-              <th className="p-[3px_8px] text-right font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--iris-accent)]">
-                Growth
-              </th>
-              <th className="p-[3px_8px] text-right font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--iris-accent)]">
-                EBITDA
-              </th>
-              <th className="p-[3px_8px] text-right font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--iris-accent)]">
-                Margin
-              </th>
-              <th className="p-[3px_8px] text-right font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--iris-accent)]">
-                FCF
-              </th>
+            <tr className="border-b border-[var(--b1)] bg-[var(--bg-2)]">
+              {["Year", "Revenue", "Growth", "EBITDA", "Margin", "FCF"].map((label) => (
+                <th
+                  key={label}
+                  className="px-5 py-3 text-left font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
+                >
+                  {label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {data.map((row, idx) => {
-              const isLast = idx === data.length - 1;
-              return (
-                <tr
-                  key={row.year}
-                  style={{
-                    borderBottom: isLast ? "none" : "1px solid rgba(30,32,48,0.3)",
-                  }}
+            {data.map((row) => (
+              <tr key={row.year} className="border-b border-[var(--b1)] last:border-b-0">
+                <td className="px-5 py-3 text-[14px] font-medium text-[var(--t1)]">{row.year}</td>
+                <td className="px-5 py-3 font-mono text-[13px] text-[var(--t2)]">{formatNumber(row.revenue)}</td>
+                <td
+                  className="px-5 py-3 font-mono text-[13px] font-semibold"
+                  style={{ color: row.growth >= 0 ? "var(--green)" : "var(--red)" }}
                 >
-                  <td
-                    className={`sticky left-0 p-[3px_8px] font-mono font-medium text-[var(--iris-text)] ${isLast ? "font-semibold" : ""}`}
-                    style={{ background: "var(--iris-bg)" }}
-                  >
-                    {row.year}
-                  </td>
-                  <td className="p-[3px_8px] text-right font-mono text-[var(--iris-text-secondary)]">
-                    {formatNumber(row.revenue)}
-                  </td>
-                  <td
-                    className={`p-[3px_8px] text-right font-mono ${
-                      row.growth >= 0
-                        ? "text-[#22C55E]"
-                        : "text-[#EF4444]"
-                    }`}
-                  >
-                    {formatPercent(row.growth)}
-                  </td>
-                  <td className="p-[3px_8px] text-right font-mono text-[var(--iris-text-secondary)]">
-                    {formatNumber(row.ebitda)}
-                  </td>
-                  <td className="p-[3px_8px] text-right font-mono text-[var(--iris-text-secondary)]">
-                    {row.margin.toFixed(1)}%
-                  </td>
-                  <td className="p-[3px_8px] text-right font-mono text-[var(--iris-text-secondary)]">
-                    {formatNumber(row.fcf)}
-                  </td>
-                </tr>
-              );
-            })}
+                  {formatPercent(row.growth)}
+                </td>
+                <td className="px-5 py-3 font-mono text-[13px] text-[var(--t2)]">{formatNumber(row.ebitda)}</td>
+                <td className="px-5 py-3 font-mono text-[13px] text-[var(--t2)]">{row.margin.toFixed(1)}%</td>
+                <td className="px-5 py-3 font-mono text-[13px] text-[var(--t2)]">{formatNumber(row.fcf)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

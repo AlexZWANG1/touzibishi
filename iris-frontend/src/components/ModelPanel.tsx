@@ -8,11 +8,11 @@ import { YearByYearTable } from "./YearByYearTable";
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-[6px] p-[6px]">
-      <div className="h-20 bg-[var(--iris-surface)]" />
-      <div className="h-6 w-2/3 bg-[var(--iris-surface)]" />
-      <div className="h-36 bg-[var(--iris-surface)]" />
-      <div className="h-48 bg-[var(--iris-surface)]" />
+    <div className="space-y-4 p-5 sm:p-6">
+      <div className="prism-panel prism-shimmer h-[180px]" />
+      <div className="prism-panel prism-shimmer h-[56px]" />
+      <div className="prism-panel prism-shimmer h-[240px]" />
+      <div className="prism-panel prism-shimmer h-[280px]" />
     </div>
   );
 }
@@ -25,36 +25,14 @@ export function ModelPanel() {
   }
 
   if (!panel.fairValue && panel.yearByYear.length === 0 && panel.impliedMultiples.length === 0) {
-    return (
-      <div className="px-[8px] py-[10px]">
-        <p className="font-mono text-[11px] text-[var(--iris-text-muted)]">
-          等待 DCF 模型构建...
-        </p>
-      </div>
-    );
+    return <div className="px-6 py-8 text-[13px] text-[var(--t3)]">等待 DCF 与敏感性分析结果...</div>;
   }
 
   return (
-    <div className="flex flex-col gap-[10px] p-[6px]">
-      {/* Fair Value Card */}
+    <div className="space-y-5 p-5 sm:p-6">
       {panel.fairValue && <FairValueCard data={panel.fairValue} />}
-
-      {/* Implied Multiples row */}
-      {panel.impliedMultiples.length > 0 && (
-        <div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-[var(--iris-text-muted)] mb-[2px]">
-            Implied Multiples
-          </p>
-          <ImpliedMultiples multiples={panel.impliedMultiples} />
-        </div>
-      )}
-
-      {/* Year-by-Year Projections */}
-      {panel.yearByYear.length > 0 && (
-        <YearByYearTable data={panel.yearByYear} />
-      )}
-
-      {/* Sensitivity Heatmap */}
+      {panel.impliedMultiples.length > 0 && <ImpliedMultiples multiples={panel.impliedMultiples} />}
+      {panel.yearByYear.length > 0 && <YearByYearTable data={panel.yearByYear} />}
       {panel.sensitivityData.length > 0 && (
         <SensitivityHeatmap
           data={panel.sensitivityData}

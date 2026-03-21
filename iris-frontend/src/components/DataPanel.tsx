@@ -6,42 +6,33 @@ import { FinancialTable } from "./FinancialTable";
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-[3px] p-[6px]">
-      <div className="grid grid-cols-3 gap-[3px]">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-12 bg-[var(--iris-surface)]" />
+    <div className="space-y-4 p-5 sm:p-6">
+      <div className="grid gap-3 md:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="prism-panel prism-shimmer h-[110px]" />
         ))}
       </div>
-      <div className="h-48 bg-[var(--iris-surface)]" />
-      <div className="h-36 bg-[var(--iris-surface)]" />
+      <div className="prism-panel prism-shimmer h-[260px]" />
     </div>
   );
 }
 
 export function DataPanel() {
-  const { metrics, financialTables, loading } = useAnalysisStore(
-    (s) => s.dataPanel
-  );
+  const { metrics, financialTables, loading } = useAnalysisStore((s) => s.dataPanel);
 
   if (loading) {
     return <LoadingSkeleton />;
   }
 
   if (metrics.length === 0 && financialTables.length === 0) {
-    return (
-      <div className="px-[8px] py-[10px]">
-        <p className="font-mono text-[11px] text-[var(--iris-text-muted)]">
-          等待数据...
-        </p>
-      </div>
-    );
+    return <div className="px-6 py-8 text-[13px] text-[var(--t3)]">等待财务数据和市场指标...</div>;
   }
 
   return (
-    <div className="p-[6px] space-y-[6px]">
+    <div className="space-y-5 p-5 sm:p-6">
       {metrics.length > 0 && <MetricCardGrid metrics={metrics} />}
-      {financialTables.map((table, idx) => (
-        <FinancialTable key={idx} table={table} />
+      {financialTables.map((table, index) => (
+        <FinancialTable key={`${table.title}-${index}`} table={table} />
       ))}
     </div>
   );

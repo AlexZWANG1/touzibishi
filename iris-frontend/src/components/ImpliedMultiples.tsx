@@ -8,18 +8,20 @@ export function ImpliedMultiples({ multiples }: ImpliedMultiplesProps) {
   if (multiples.length === 0) return null;
 
   return (
-    <div className="flex gap-[6px] mt-2 flex-wrap">
-      {multiples.map((item, idx) => (
-        <span
-          key={idx}
-          className="bg-[rgba(45,212,191,0.1)] text-[var(--iris-data)] px-[6px] py-[2px] font-mono text-[10px] font-semibold"
-        >
-          {item.label}:{" "}
-          {typeof item.value === "number"
-            ? item.value.toFixed(1) + "x"
-            : item.value}
-        </span>
-      ))}
+    <div className="prism-panel p-5">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
+        Implied Multiples
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {multiples.map((item, index) => (
+          <span
+            key={`${item.label}-${index}`}
+            className="rounded-pill border border-[rgba(15,118,110,0.08)] bg-[var(--cy-s)] px-3 py-2 font-mono text-[11px] font-medium text-[var(--cy-t)]"
+          >
+            {item.label}: {typeof item.value === "number" ? `${item.value.toFixed(1)}x` : item.value}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

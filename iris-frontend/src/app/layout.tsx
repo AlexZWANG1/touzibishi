@@ -1,57 +1,21 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppNav } from "@/components/AppNav";
 
 export const metadata: Metadata = {
-  title: "IRIS - Investment Research Intelligence System",
-  description: "AI-powered investment research automation platform",
+  title: "Prism — Investment Research Intelligence",
+  description: "Prism decomposes market complexity into clear research, valuation, and strategy workflows.",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="zh-CN" className="dark">
-      <body className="h-screen overflow-hidden bg-[var(--iris-bg)] text-[var(--iris-text)] antialiased flex flex-col">
-        {/* ─── Top Navigation ─── */}
-        <nav className="flex items-center justify-between px-3 h-8 shrink-0 border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
-          {/* Left: Logo + Links */}
-          <div className="flex items-center gap-4">
-            <a href="/" className="font-mono text-xs font-semibold tracking-[0.12em] text-[var(--iris-accent)]">
-              IRIS
-            </a>
-            <a
-              href="/"
-              className="text-[12px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--iris-accent)] transition-colors duration-150"
-              title="Home"
-            >
-              首页
-            </a>
-            <a
-              href="/knowledge"
-              className="text-[12px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--iris-accent)] transition-colors duration-150"
-              title="Knowledge Base"
-            >
-              知识库
-            </a>
-            <a
-              href="/memory"
-              className="text-[12px] text-[var(--iris-text-secondary)] hover:text-[var(--iris-text)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--iris-accent)] transition-colors duration-150"
-              title="Memory Management"
-            >
-              记忆管理
-            </a>
-          </div>
-
-          {/* Right: Live indicator */}
-          <div className="flex items-center gap-[5px] font-mono text-[11px] tracking-[0.1em] text-[var(--iris-text-muted)]">
-            LIVE
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--iris-accent)] animate-pulse-dot" />
-          </div>
-        </nav>
-
-        {/* ─── Main Content ─── */}
+    <html lang="zh-CN">
+      <body className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--t1)] antialiased">
+        <AppNav />
         <main className="flex-1 overflow-hidden">{children}</main>
       </body>
     </html>

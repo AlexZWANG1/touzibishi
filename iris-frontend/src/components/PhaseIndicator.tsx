@@ -3,100 +3,75 @@
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 import type { Phase, PageState } from "@/types/analysis";
 
-const phases: { key: Phase; label: string }[] = [
+const PHASES: { key: Phase; label: string }[] = [
   { key: "gather", label: "收集" },
   { key: "analyze", label: "分析" },
   { key: "evaluate", label: "评估" },
   { key: "finalize", label: "总结" },
 ];
 
-export function PhaseIndicator() {
+interface PhaseIndicatorProps {
+  compact?: boolean;
+}
+
+export function PhaseIndicator({ compact = false }: PhaseIndicatorProps) {
   const currentPhase = useAnalysisStore((s) => s.currentPhase);
   const pageState: PageState = useAnalysisStore((s) => s.pageState);
-  const currentIdx = phases.findIndex((p) => p.key === currentPhase);
+  const currentIdx = PHASES.findIndex((phase) => phase.key === currentPhase);
   const isComplete = pageState === "COMPLETE";
 
-  return (
-    <div
-      className="flex items-center font-mono"
-      style={{
-        height: 28,
-        padding: "4px 10px",
-      }}
-    >
-      <div className="flex items-center gap-0">
-        {phases.map((phase, idx) => {
-          const isActive = phase.key === currentPhase && !isComplete;
-          const isPast = idx < currentIdx || isComplete;
-
+  if (compact) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {PHASES.map((phase, index) => {
+          const active = phase.key === currentPhase && !isComplete;
+          const past = isComplete || index < currentIdx;
           return (
-            <div key={phase.key} className="flex items-center">
-              {idx > 0 && (
-                <span
-                  className="mx-0.5"
-                  style={{
-                    fontSize: 11,
-                    color: "var(--iris-text-secondary)",
-                    opacity: isComplete ? 1 : 0.6,
-                  }}
-                >
-                  ›
-                </span>
-              )}
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: isActive
-                    ? "var(--iris-accent)"
-                    : isPast
-                      ? "var(--iris-text-secondary)"
-                      : "var(--iris-text-muted)",
-                  opacity: isActive ? 1 : isPast ? 0.7 : isComplete ? 0.7 : 0.5,
-                }}
-              >
-                {phase.label}
-              </span>
-            </div>
+            <span
+              key={phase.key}
+              title={phase.label}
+              className="inline-flex h-3 w-3 rounded-full"
+              style={{
+                background: active ? "var(--ac)" : past ? "var(--bg-3)" : "transparent",
+                border: active ? "none" : "1px solid var(--b2)",
+              }}
+            />
           );
         })}
       </div>
+    );
+  }
 
-      {/* Status on the right */}
-      <div className="ml-auto flex items-center">
-        {isComplete && (
-          <>
-            <span
-              className="mx-0.5"
-              style={{ fontSize: 11, color: "var(--iris-text-secondary)" }}
-            >
-              ›
-            </span>
-            <span
-              className="font-mono"
-              style={{ fontSize: 12, color: "var(--iris-data)", fontWeight: 500 }}
-            >
-              完成
-            </span>
-          </>
-        )}
-        {pageState === "RUNNING" && (
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {PHASES.map((phase, index) => {
+        const active = phase.key === currentPhase && !isComplete;
+        const past = isComplete || index < currentIdx;
+
+        return (
           <span
-            className="font-mono"
-            style={{ fontSize: 12, color: "var(--iris-accent)", fontWeight: 500 }}
+            key={phase.key}
+            className="rounded-pill px-3 py-1.5 text-[11px] font-medium transition-colors"
+            style={{
+              background: active ? "var(--ac-s)" : past ? "var(--bg-2)" : "transparent",
+              color: active ? "var(--ac)" : past ? "var(--t2)" : "var(--t4)",
+              border: active ? "1px solid var(--ac-m)" : "1px solid transparent",
+            }}
           >
-            运行中
+            {phase.label}
           </span>
-        )}
-        {pageState === "WAITING" && (
-          <span
-            className="font-mono"
-            style={{ fontSize: 12, color: "var(--iris-accent)", fontWeight: 500 }}
-          >
-            等待输入
-          </span>
-        )}
-      </div>
+        );
+      })}
+
+      <span className="ml-auto rounded-pill bg-[var(--bg-2)] px-3 py-1.5 font-mono text-[10px] text-[var(--t3)]">
+        {isComplete
+          ? "COMPLETE"
+          : pageState === "WAITING"
+            ? "WAITING"
+            : pageState === "RUNNING"
+              ? "RUNNING"
+              : "IDLE"}
+      </span>
     </div>
   );
 }

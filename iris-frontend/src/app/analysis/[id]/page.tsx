@@ -1,27 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 import { useAnalysisStream } from "@/hooks/useAnalysisStream";
-import { useShallow } from "zustand/react/shallow";
 import { PhaseIndicator } from "@/components/PhaseIndicator";
 import { DebugPanel } from "@/components/DebugPanel";
 import { ChatPanel } from "@/components/ChatPanel";
 import { DataPanel } from "@/components/DataPanel";
 import { ModelPanel } from "@/components/ModelPanel";
 import { CompsPanel } from "@/components/CompsPanel";
-import type { ActiveTab } from "@/types/analysis";
-
-/**
- * Skill tabs — only shown when they have data.
- * These appear as small pills above the chat when relevant.
- */
-const SKILL_TABS: { key: ActiveTab; label: string }[] = [
-  { key: "data", label: "数据" },
-  { key: "model", label: "模型" },
-  { key: "comps", label: "可比" },
-];
+import { StrategyPanel } from "@/components/StrategyPanel";
+import { FundamentalsPanel } from "@/components/FundamentalsPanel";
+import { PanelTabBar } from "@/components/PanelTabBar";
 
 export default function AnalysisPage() {
   const params = useParams();
@@ -32,21 +24,27 @@ export default function AnalysisPage() {
   const analysisQuery = useAnalysisStore((s) => s.analysisQuery);
   const activeTab = useAnalysisStore((s) => s.activeTab);
   const setActiveTab = useAnalysisStore((s) => s.setActiveTab);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Check which skill tabs have data
   const tabsWithData = useAnalysisStore(
     useShallow((s) => ({
-      data:
-        s.dataPanel.metrics.length > 0 ||
-        s.dataPanel.financialTables.length > 0,
+      fundamentals: s.fundamentalsPanel.sections.length > 0,
+      data: s.dataPanel.metrics.length > 0 || s.dataPanel.financialTables.length > 0,
       model:
-        s.modelPanel.fairValue !== null || s.modelPanel.yearByYear.length > 0,
-      comps: s.compsPanel.peers.length > 0,
-    }))
+        s.modelPanel.fairValue !== null ||
+        s.modelPanel.yearByYear.length > 0 ||
+        s.modelPanel.impliedMultiples.length > 0,
+      comps: s.compsPanel.peers.length > 0 || s.compsPanel.scatterData.length > 0,
+      strategy:
+        s.strategyPanel.signal !== null ||
+        s.strategyPanel.portfolio !== null ||
+        s.memoryPanel.calibrationHits > 0 ||
+        s.memoryPanel.calibrationMisses > 0,
+    })),
   );
 
-  const visibleSkillTabs = SKILL_TABS.filter((t) => tabsWithData[t.key as keyof typeof tabsWithData]);
-  const hasActiveSkillTab = activeTab !== "report" && visibleSkillTabs.some((t) => t.key === activeTab);
+  const hasActiveSkillTab =
+    activeTab !== "report" && tabsWithData[activeTab as keyof typeof tabsWithData];
 
   useEffect(() => {
     const { reset } = useAnalysisStore.getState();
@@ -55,121 +53,90 @@ export default function AnalysisPage() {
   }, [id]);
 
   useEffect(() => {
-    if (activeTab !== "report" && !visibleSkillTabs.some((tab) => tab.key === activeTab)) {
+    if (activeTab !== "report" && !tabsWithData[activeTab as keyof typeof tabsWithData]) {
       setActiveTab("report");
     }
-  }, [activeTab, setActiveTab, visibleSkillTabs]);
+  }, [activeTab, setActiveTab, tabsWithData]);
 
   useAnalysisStream(id);
 
   return (
-    <div className="relative flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden bg-[var(--iris-bg)]">
-      {/* Replay banner */}
+    <div className="h-[calc(100vh-56px)] bg-[var(--bg)]">
       {isReplay && (
-        <div
-          className="shrink-0 px-[10px] py-[3px] font-mono text-[11px] uppercase tracking-wider border-b border-[var(--iris-accent)]"
-          style={{
-            color: "var(--iris-accent)",
-            background: "rgba(245,128,37,0.05)",
-          }}
-        >
-          REPLAY // 历史回看
+        <div className="border-b border-[var(--ac-m)] bg-[var(--ac-s)] px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--ac)]">
+          Replay · 历史回看
         </div>
       )}
 
-      {/* Main content area */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Left Panel — Debug: logs / thinking / memory */}
-        <div className="flex w-[300px] shrink-0 flex-col border-r border-[var(--iris-border)] bg-[var(--iris-surface)]">
-          {/* Query + Phase header */}
-          {analysisQuery && (
-            <div className="shrink-0 border-b border-[var(--iris-border)] px-[10px] py-[6px]">
-              <p className="font-mono text-[12px] text-[var(--iris-text)] truncate">
-                <span className="text-[var(--iris-accent)] mr-1.5">&gt;</span>
-                {analysisQuery}
-              </p>
-            </div>
-          )}
-          <div className="shrink-0 border-b border-[var(--iris-border)] px-[8px] py-[4px]">
-            <PhaseIndicator />
-          </div>
-
-          {/* Debug tabs content */}
-          <div className="flex-1 min-h-0">
-            <DebugPanel />
-          </div>
-        </div>
-
-        {/* Right Panel — Chat + conditional skill panels */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* Skill tab pills — only shown when skills produce data */}
-          {visibleSkillTabs.length > 0 && (
-            <div
-              className="flex-shrink-0 flex items-center gap-1 border-b border-[var(--iris-border)]"
-              style={{ padding: "6px 24px" }}
-            >
-              {/* Chat tab (always first, default) */}
-              <button
-                onClick={() => setActiveTab("report")}
-                className="relative font-mono transition-colors cursor-pointer"
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  padding: "6px 14px",
-                  border: "none",
-                  background: "transparent",
-                  color:
-                    activeTab === "report"
-                      ? "var(--iris-accent)"
-                      : "var(--iris-text-secondary)",
-                }}
-              >
-                对话
-                {activeTab === "report" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-[var(--iris-accent)]" />
+      <div className="flex h-full min-h-0">
+        <aside
+          className="shrink-0 border-r border-[var(--b2)] bg-[var(--bg-2)] transition-[width] duration-200"
+          style={{ width: sidebarCollapsed ? 84 : 280 }}
+        >
+          <div className="flex h-full flex-col">
+            <div className="border-b border-[var(--b1)] px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                {!sidebarCollapsed ? (
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
+                      Research Query
+                    </div>
+                    <p className="mt-2 text-[13px] leading-[1.7] text-[var(--t1)]">
+                      {analysisQuery || (pageState === "IDLE" ? "正在载入分析上下文..." : "等待查询文本")}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
+                    Debug
+                  </div>
                 )}
-              </button>
 
-              {/* Skill tabs */}
-              {visibleSkillTabs.map((tab) => (
                 <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className="relative font-mono transition-colors cursor-pointer"
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 500,
-                    padding: "6px 14px",
-                    border: "none",
-                    background: "transparent",
-                    color:
-                      activeTab === tab.key
-                        ? "var(--iris-accent)"
-                        : "var(--iris-text-secondary)",
-                  }}
+                  type="button"
+                  onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                  className="rounded-md p-2 text-[var(--t3)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--t1)]"
+                  aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
                 >
-                  {tab.label}
-                  {activeTab === tab.key && (
-                    <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-[var(--iris-accent)]" />
-                  )}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d={sidebarCollapsed ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
+                  </svg>
                 </button>
-              ))}
-            </div>
-          )}
+              </div>
 
-          {/* Panel content */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+              <div className="mt-4">
+                <PhaseIndicator compact={sidebarCollapsed} />
+              </div>
+            </div>
+
+            {!sidebarCollapsed ? (
+              <div className="min-h-0 flex-1">
+                <DebugPanel />
+              </div>
+            ) : (
+              <div className="flex flex-1 items-center justify-center px-2 text-center text-[11px] text-[var(--t4)]">
+                Logs
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <section className="flex min-w-0 flex-1 flex-col bg-[rgba(255,255,255,0.55)]">
+          <PanelTabBar />
+
+          <div className="min-h-0 flex-1 overflow-hidden">
             {hasActiveSkillTab ? (
               <div className="h-full overflow-y-auto">
+                {activeTab === "fundamentals" && <FundamentalsPanel />}
                 {activeTab === "data" && <DataPanel />}
                 {activeTab === "model" && <ModelPanel />}
                 {activeTab === "comps" && <CompsPanel />}
+                {activeTab === "strategy" && <StrategyPanel />}
               </div>
             ) : (
               <ChatPanel />
             )}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

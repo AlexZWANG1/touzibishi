@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 import { StreamingTimeline } from "./StreamingTimeline";
 import { CalibrationSummary } from "./CalibrationSummary";
@@ -18,17 +18,14 @@ export function DebugPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Tab bar */}
-      <div className="flex flex-shrink-0 border-b border-[var(--iris-border)]">
+      <div className="flex shrink-0 gap-2 border-b border-[var(--b1)] px-4 py-3">
         {TABS.map((tab) => (
           <button
             key={tab.key}
+            type="button"
+            data-active={activeTab === tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`relative px-3 py-[6px] font-mono text-[11px] font-medium transition-colors cursor-pointer bg-transparent border-none ${
-              activeTab === tab.key
-                ? "text-[var(--iris-accent)]"
-                : "text-[var(--iris-text-muted)] hover:text-[var(--iris-text-secondary)]"
-            }`}
+            className="prism-pill-tab"
           >
             {tab.label}
             {activeTab === tab.key && (
@@ -38,142 +35,109 @@ export function DebugPanel() {
         ))}
       </div>
 
-      {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
         {pageState === "IDLE" ? (
-          <div className="flex h-full items-center justify-center">
-            <p className="font-mono text-[11px] text-[var(--iris-text-muted)]">
-              WAITING...
-            </p>
+          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-[var(--b2)] bg-[var(--bg)] p-4 text-center text-[13px] text-[var(--t3)]">
+            等待分析启动，Prism 会在这里回放工具调用和记忆命中。
           </div>
+        ) : activeTab === "logs" ? (
+          <LogsTab />
         ) : (
-          <>
-            {activeTab === "logs" && <LogsTab />}
-            {activeTab === "memory" && <MemoryTab />}
-          </>
+          <MemoryTab />
         )}
       </div>
     </div>
   );
 }
 
-/** Logs tab — tool call timeline */
 function LogsTab() {
   return (
-    <div className="px-[6px] py-[4px]">
+    <div className="prism-panel h-full min-h-[240px] overflow-hidden">
       <StreamingTimeline />
     </div>
   );
 }
 
-/** Memory tab — recall history and calibration */
 function MemoryTab() {
   const memoryPanel = useAnalysisStore((s) => s.memoryPanel);
+  const timeline = useAnalysisStore((s) => s.timeline);
 
-  const hasMemory =
+  const memoryEvents = useMemo(
+    () =>
+      timeline.filter((event) =>
+        [
+          "recall",
+          "recall_memory",
+          "remember",
+          "save_memory",
+          "search_knowledge",
+          "memory_search",
+          "check_calibration",
+        ].includes(event.tool),
+      ),
+    [timeline],
+  );
+
+  const hasCalibration =
     memoryPanel.calibrationHits > 0 ||
     memoryPanel.calibrationMisses > 0 ||
     memoryPanel.recentRecalls.length > 0;
 
-  // Also show memory-related tool calls from timeline
-  const timeline = useAnalysisStore((s) => s.timeline);
-  const memoryEvents = useMemo(
-    () =>
-      timeline.filter(
-        (ev) =>
-          ev.tool === "recall" ||
-          ev.tool === "recall_memory" ||
-          ev.tool === "remember" ||
-          ev.tool === "save_memory" ||
-          ev.tool === "search_knowledge" ||
-          ev.tool === "memory_search" ||
-          ev.tool === "check_calibration"
-      ),
-    [timeline]
-  );
-
-  if (!hasMemory && memoryEvents.length === 0) {
+  if (!hasCalibration && memoryEvents.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <p className="font-mono text-[11px] text-[var(--iris-text-muted)]">
-          暂无记忆活动
-        </p>
+      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-[var(--b2)] bg-[var(--bg)] p-4 text-center text-[13px] text-[var(--t3)]">
+        当前分析还没有命中记忆或校准记录。
       </div>
     );
   }
 
   return (
-    <div className="p-3 space-y-4">
-      {/* Memory events */}
+    <div className="space-y-4">
       {memoryEvents.length > 0 && (
-        <div>
-          <h4
-            className="font-mono uppercase mb-2"
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              color: "var(--iris-accent)",
-              letterSpacing: "0.06em",
-            }}
-          >
-            记忆操作
-          </h4>
-          <div className="space-y-1">
-            {memoryEvents.map((ev) => (
+        <section className="prism-panel p-4">
+          <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
+            Memory Events
+          </h3>
+          <div className="mt-3 space-y-2">
+            {memoryEvents.map((event) => (
               <div
-                key={ev.id}
-                className="flex items-center gap-2 font-mono"
-                style={{ fontSize: 11 }}
+                key={event.id}
+                className="flex items-start gap-3 rounded-md bg-[var(--bg)] px-3 py-2"
               >
                 <span
-                  className="flex-shrink-0 inline-block w-1.5 h-1.5 rounded-full"
+                  className="mt-1 inline-block h-2 w-2 rounded-full"
                   style={{
                     background:
-                      ev.status === "error"
-                        ? "#EF4444"
-                        : ev.status === "running"
-                          ? "var(--iris-accent)"
-                          : "var(--iris-data)",
+                      event.status === "error"
+                        ? "var(--red)"
+                        : event.status === "running"
+                          ? "var(--ac)"
+                          : "var(--cy)",
                   }}
                 />
-                <span style={{ color: "var(--iris-data)" }}>
-                  {ev.tool === "recall" || ev.tool === "recall_memory"
-                    ? "检索"
-                    : ev.tool === "remember" || ev.tool === "save_memory"
-                      ? "写入"
-                      : ev.tool === "check_calibration"
-                        ? "校准"
-                        : "搜索"}
-                </span>
-                <span className="truncate text-[var(--iris-text-secondary)]">
-                  {ev.message}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] font-medium text-[var(--t1)]">{event.tool}</div>
+                  <div className="mt-1 text-[12px] leading-[1.6] text-[var(--t3)]">{event.message}</div>
+                </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Calibration */}
-      {hasMemory && (
-        <div>
-          <h4
-            className="font-mono uppercase mb-2"
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              color: "var(--iris-accent)",
-              letterSpacing: "0.06em",
-            }}
-          >
-            校准数据
-          </h4>
-          <CalibrationSummary
-            hits={memoryPanel.calibrationHits}
-            misses={memoryPanel.calibrationMisses}
-            recentRecalls={memoryPanel.recentRecalls}
-          />
-        </div>
+      {hasCalibration && (
+        <section className="prism-panel p-4">
+          <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
+            Calibration
+          </h3>
+          <div className="mt-3">
+            <CalibrationSummary
+              hits={memoryPanel.calibrationHits}
+              misses={memoryPanel.calibrationMisses}
+              recentRecalls={memoryPanel.recentRecalls}
+            />
+          </div>
+        </section>
       )}
     </div>
   );

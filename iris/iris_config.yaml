@@ -36,6 +36,8 @@ harness:
     - search_knowledge
     - generate_trade_signal
     - get_portfolio
+    - sec_filing
+    - transcript
   tool_triggers:
     exa_search: ["搜索", "查找", "search", "find", "新闻", "news"]
     web_fetch: ["网页", "网页内容", "链接", "url", "fetch", "抓取"]
@@ -51,6 +53,8 @@ harness:
     search_knowledge: ["知识库", "文档", "研报", "笔记", "knowledge", "报告", "上传"]
     generate_trade_signal: ["交易信号", "建仓", "减仓", "买入", "卖出", "trade signal"]
     get_portfolio: ["持仓", "组合", "portfolio", "仓位"]
+    sec_filing: ["10-K", "10-Q", "SEC", "filing", "年报", "季报", "segment", "分部", "业务分部", "XBRL"]
+    transcript: ["earnings call", "电话会", "管理层", "transcript", "纪要", "业绩会", "guidance", "指引"]
 
 budget:
   include_flush_in_tool_rounds: true
@@ -105,7 +109,7 @@ skills:
 modes:
   analysis:
     soul_files: [role.md, v0.1.md, self_check.md, steering.md]
-    skills: [hypothesis, valuation, trading]
+    skills: [fundamentals, valuation, trading]
     tool_injection_mode: "all"
     always_exposed_tools:
       - exa_search
@@ -122,6 +126,9 @@ modes:
       - search_knowledge
       - generate_trade_signal
       - get_portfolio
+      - sec_filing
+      - transcript
+      - emit_research_section
     max_tool_rounds: 25
     max_total_tool_calls: 60
     max_wall_time_seconds: 480
@@ -145,6 +152,8 @@ modes:
       - search_knowledge
       - generate_trade_signal
       - get_portfolio
+      - sec_filing
+      - transcript
     max_tool_rounds: 40
     max_total_tool_calls: 120
     max_wall_time_seconds: 600

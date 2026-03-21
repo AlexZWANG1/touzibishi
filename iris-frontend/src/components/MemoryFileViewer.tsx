@@ -14,10 +14,10 @@ interface MemoryFileViewerProps {
   onSave: () => void;
 }
 
-const modeLabels: Record<MemoryViewMode, string> = {
-  render: "RENDER",
-  raw: "RAW",
-  edit: "EDIT",
+const MODE_LABELS: Record<MemoryViewMode, string> = {
+  render: "渲染",
+  raw: "源码",
+  edit: "编辑",
 };
 
 export function MemoryFileViewer({
@@ -31,75 +31,71 @@ export function MemoryFileViewer({
 }: MemoryFileViewerProps) {
   const hasUnsavedChanges = viewMode === "edit" && editContent !== fileContent.content;
 
-  const handleModeChange = (newMode: MemoryViewMode) => {
-    if (hasUnsavedChanges && newMode !== "edit") {
-      if (!window.confirm("You have unsaved changes. Discard? / 有未保存的修改，确认放弃？")) {
-        return;
-      }
+  function handleModeChange(mode: MemoryViewMode) {
+    if (hasUnsavedChanges && mode !== "edit") {
+      const confirmed = window.confirm("You have unsaved changes. Discard? / 有未保存的修改，确认放弃？");
+      if (!confirmed) return;
     }
-    onViewModeChange(newMode);
-  };
+    onViewModeChange(mode);
+  }
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-[var(--iris-border)] px-[10px] py-[5px]">
-        <div>
-          <h2 className="font-mono text-[11px] text-[var(--iris-text)]">
-            {fileContent.path}
-          </h2>
-        </div>
-        <div className="flex items-center gap-[4px]">
-          {/* Mode switcher */}
-          <div className="flex border border-[var(--iris-border)]">
-            {(Object.keys(modeLabels) as MemoryViewMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => handleModeChange(mode)}
-                className={`px-[8px] py-[3px] font-mono text-[10px] uppercase tracking-wider transition-colors ${
-                  viewMode === mode
-                    ? "bg-[var(--iris-accent)] text-white"
-                    : "text-[var(--iris-text-muted)] hover:text-[var(--iris-text-secondary)]"
-                }`}
-              >
-                {modeLabels[mode]}
-              </button>
-            ))}
+      <div className="border-b border-[var(--b1)] px-6 py-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
+              Memory File
+            </div>
+            <div className="mt-2 truncate font-mono text-[13px] text-[var(--t1)]">{fileContent.path}</div>
           </div>
 
-          {viewMode === "edit" && (
-            <button
-              onClick={onSave}
-              disabled={saving}
-              className="bg-[var(--iris-accent)] px-[10px] py-[3px] font-mono text-[10px] uppercase tracking-wider text-white transition-colors disabled:opacity-50"
-            >
-              {saving ? "SAVING..." : "SAVE"}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {(Object.keys(MODE_LABELS) as MemoryViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => handleModeChange(mode)}
+                className="rounded-pill px-3 py-1.5 text-[12px] font-medium transition-colors"
+                style={{
+                  background: viewMode === mode ? "var(--ac)" : "var(--bg-2)",
+                  color: viewMode === mode ? "#ffffff" : "var(--t2)",
+                }}
+              >
+                {MODE_LABELS[mode]}
+              </button>
+            ))}
+
+            {viewMode === "edit" && (
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={saving}
+                className="rounded-[14px] bg-[var(--ac)] px-4 py-2 text-[12px] font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-[rgba(255,255,255,0.65)]">
         {viewMode === "render" && (
-          <div className="prose-iris p-[12px]">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {fileContent.content}
-            </ReactMarkdown>
+          <div className="prose-reader px-6 py-8">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{fileContent.content}</ReactMarkdown>
           </div>
         )}
 
         {viewMode === "raw" && (
-          <pre className="p-[12px] font-mono text-[11px] leading-relaxed text-[var(--iris-text-secondary)]">
-            {fileContent.content}
-          </pre>
+          <pre className="px-6 py-8 font-mono text-[12px] leading-[1.8] text-[var(--t2)]">{fileContent.content}</pre>
         )}
 
         {viewMode === "edit" && (
           <textarea
             value={editContent}
-            onChange={(e) => onEditContentChange(e.target.value)}
-            className="h-full w-full resize-none border-0 bg-transparent p-[12px] font-mono text-[11px] leading-relaxed text-[var(--iris-text)] outline-none"
+            onChange={(event) => onEditContentChange(event.target.value)}
+            className="h-full min-h-full w-full resize-none border-0 bg-transparent px-6 py-8 font-mono text-[12px] leading-[1.8] text-[var(--t1)] outline-none"
             spellCheck={false}
           />
         )}

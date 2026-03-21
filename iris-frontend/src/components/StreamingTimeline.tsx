@@ -1,25 +1,28 @@
 "use client";
 
-import { useRef, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 import { TimelineItem } from "./TimelineItem";
 import type { TimelineEvent } from "@/types/analysis";
 
-/**
- * Extract tool name hints from a thinking block text.
- * Looks for patterns like `recall`, `valuation`, etc.
- */
 const KNOWN_TOOLS = [
-  "recall", "remember", "search_knowledge",
-  "financials", "macro", "quote", "history",
+  "recall",
+  "remember",
+  "search_knowledge",
+  "financials",
+  "macro",
+  "quote",
+  "history",
   "valuation",
-  "exa_search", "web_fetch",
-  "create_hypothesis", "add_evidence_card",
-  "generate_trade_signal", "get_portfolio",
+  "exa_search",
+  "web_fetch",
+  "create_hypothesis",
+  "add_evidence_card",
+  "generate_trade_signal",
+  "get_portfolio",
 ];
 
 function extractToolHint(thinkingText: string): string | null {
-  // Look for tool mentions — the LAST tool mentioned is usually the one about to be called
   let lastTool: string | null = null;
   for (const tool of KNOWN_TOOLS) {
     if (thinkingText.includes(tool)) {
@@ -29,95 +32,72 @@ function extractToolHint(thinkingText: string): string | null {
   return lastTool;
 }
 
-/**
- * Interleave thinking blocks with tool call events.
- * Each thinking block is placed before the first tool call it mentions.
- */
-function interleaveThinking(
-  toolEvents: TimelineEvent[],
-  rawTextBuffer: string
-): TimelineEvent[] {
+function interleaveThinking(toolEvents: TimelineEvent[], rawTextBuffer: string): TimelineEvent[] {
   if (!rawTextBuffer) return toolEvents;
-  // Replay snapshots already include parsed thinking entries from backend.
-  // Only synthesize client-side thinking entries for live runs.
-  if (toolEvents.some((ev) => ev.tool === "thinking")) return toolEvents;
+  if (toolEvents.some((event) => event.tool === "thinking")) return toolEvents;
 
-  // Extract all thinking blocks
   const thinkingBlocks: { text: string; toolHint: string | null }[] = [];
-  const re = /<thinking>([\s\S]*?)<\/thinking>/g;
-  let match;
-  while ((match = re.exec(rawTextBuffer)) !== null) {
+  const matcher = /<thinking>([\s\S]*?)<\/thinking>/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = matcher.exec(rawTextBuffer)) !== null) {
     const text = match[1].trim();
     thinkingBlocks.push({ text, toolHint: extractToolHint(text) });
   }
 
   if (thinkingBlocks.length === 0) return toolEvents;
 
-  const result: TimelineEvent[] = [];
-  let thinkIdx = 0;
+  const merged: TimelineEvent[] = [];
+  const used = new Set<number>();
+  let thinkingIndex = 0;
 
-  // Track which tool events we've seen to match thinking blocks
-  // Strategy: for each tool event, check if the next unplaced thinking block
-  // mentions this tool (or a related tool). If so, insert it before.
-  const usedThinking = new Set<number>();
+  for (let index = 0; index < toolEvents.length; index += 1) {
+    const event = toolEvents[index];
+    const block = thinkingBlocks[thinkingIndex];
 
-  for (let i = 0; i < toolEvents.length; i++) {
-    const ev = toolEvents[i];
-
-    // Try to place the next unplaced thinking block before this tool
-    if (thinkIdx < thinkingBlocks.length && !usedThinking.has(thinkIdx)) {
-      const tb = thinkingBlocks[thinkIdx];
-      const toolName = ev.tool;
-
-      // Place thinking if: it hints at this tool, OR it's the first tool and first thinking
+    if (block && !used.has(thinkingIndex)) {
       const shouldPlace =
-        (tb.toolHint && toolName.includes(tb.toolHint.split("_")[0])) ||
-        (tb.toolHint === toolName) ||
-        (i === 0 && thinkIdx === 0) ||
-        // If the previous tool was different from current, this might be a new "group"
-        (i > 0 && toolEvents[i - 1].tool !== toolName && !usedThinking.has(thinkIdx));
+        (block.toolHint && event.tool.includes(block.toolHint.split("_")[0])) ||
+        block.toolHint === event.tool ||
+        (index === 0 && thinkingIndex === 0) ||
+        (index > 0 && toolEvents[index - 1].tool !== event.tool);
 
       if (shouldPlace) {
-        const block = tb.text;
-        const firstLine = block.split("\n")[0]?.slice(0, 80) || "";
-        result.push({
-          id: `thinking-${thinkIdx}`,
-          timestamp: ev.timestamp - 0.001,
+        merged.push({
+          id: `thinking-${thinkingIndex}`,
+          timestamp: event.timestamp - 0.001,
           tool: "thinking",
-          message: firstLine,
-          phase: ev.phase,
+          message: block.text.split("\n")[0]?.slice(0, 90) || "",
+          phase: event.phase,
           color: "gold",
           status: "complete",
-          fullText: block,
+          fullText: block.text,
         });
-        usedThinking.add(thinkIdx);
-        thinkIdx++;
+        used.add(thinkingIndex);
+        thinkingIndex += 1;
       }
     }
-    result.push(ev);
+
+    merged.push(event);
   }
 
-  // Any remaining thinking blocks go at the end
-  for (let t = 0; t < thinkingBlocks.length; t++) {
-    if (usedThinking.has(t)) continue;
-    const block = thinkingBlocks[t].text;
-    const firstLine = block.split("\n")[0]?.slice(0, 80) || "";
-    const lastTs = toolEvents.length > 0
-      ? toolEvents[toolEvents.length - 1].timestamp
-      : Date.now();
-    result.push({
-      id: `thinking-${t}`,
-      timestamp: lastTs + 0.001 * t,
+  for (let index = 0; index < thinkingBlocks.length; index += 1) {
+    if (used.has(index)) continue;
+    const block = thinkingBlocks[index];
+    const lastTimestamp = toolEvents.length > 0 ? toolEvents[toolEvents.length - 1].timestamp : Date.now();
+    merged.push({
+      id: `thinking-${index}`,
+      timestamp: lastTimestamp + 0.001 * index,
       tool: "thinking",
-      message: firstLine,
+      message: block.text.split("\n")[0]?.slice(0, 90) || "",
       phase: "finalize",
       color: "gold",
       status: "complete",
-      fullText: block,
+      fullText: block.text,
     });
   }
 
-  return result;
+  return merged;
 }
 
 export function StreamingTimeline() {
@@ -128,43 +108,26 @@ export function StreamingTimeline() {
 
   const enrichedTimeline = useMemo(
     () => interleaveThinking(timeline, rawTextBuffer),
-    [timeline, rawTextBuffer]
+    [rawTextBuffer, timeline],
   );
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [enrichedTimeline.length]);
 
   if (enrichedTimeline.length === 0) {
-    const isComplete = pageState === "COMPLETE";
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
-        style={{ padding: "6px 8px" }}
-      >
-        <p
-          className="font-mono"
-          style={{ fontSize: 12, color: "var(--iris-text-muted)" }}
-        >
-          {isComplete ? "无工具调用记录" : "正在初始化分析..."}
-        </p>
+      <div className="flex h-full items-center justify-center px-6 py-10 text-center text-[13px] text-[var(--t3)]">
+        {pageState === "COMPLETE" ? "本轮分析没有记录工具调用。" : "Prism 正在准备工具链路..."}
       </div>
     );
   }
 
   return (
-    <div
-      className="flex-1 overflow-y-auto"
-      style={{ padding: "6px 8px" }}
-    >
-      {enrichedTimeline.map((event, idx) => (
-        <TimelineItem
-          key={event.id}
-          event={event}
-          isLast={idx === enrichedTimeline.length - 1}
-        />
+    <div className="h-full overflow-y-auto py-2">
+      {enrichedTimeline.map((event, index) => (
+        <TimelineItem key={event.id} event={event} isLast={index === enrichedTimeline.length - 1} />
       ))}
-
       <div ref={bottomRef} />
     </div>
   );

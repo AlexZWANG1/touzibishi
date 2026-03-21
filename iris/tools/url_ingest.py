@@ -127,19 +127,67 @@ def _extract_title_from_html(html: str) -> str | None:
     return None
 
 
+def _strip_jina_metadata(raw_content: str) -> tuple[str, str | None, str | None]:
+    """Strip Jina Reader metadata header, return (content, title, published_at)."""
+    if not raw_content:
+        return ("", None, None)
+
+    lines = raw_content.split("\n")
+    title = None
+    published_at = None
+    content_start = 0
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("Title:"):
+            title = stripped[6:].strip()
+            content_start = i + 1
+        elif stripped.startswith("URL Source:"):
+            content_start = i + 1
+        elif stripped.startswith("Published Time:"):
+            published_at = stripped[15:].strip()
+            content_start = i + 1
+        elif stripped.startswith("Markdown Content:"):
+            content_start = i + 1
+            break
+        elif stripped and not stripped.startswith(("Title:", "URL Source:", "Published Time:", "Markdown Content:")):
+            break
+
+    body = "\n".join(lines[content_start:]).strip()
+    return (body or raw_content, title or None, published_at or None)
+
+
+def _clean_emoji_images(markdown: str) -> str:
+    """Replace tiny emoji SVG image references with their alt-text emoji."""
+    if not markdown:
+        return ""
+    return re.sub(
+        r"!\[(?:Image\s*\d+:\s*)?([^\]]*?)\]\(https?://s\.w\.org/images/core/emoji/[^)]+\)",
+        r"\1",
+        markdown,
+    )
+
+
 def _extract_title_from_markdown(markdown: str) -> str | None:
     if not markdown:
         return None
 
     lines = [ln.strip() for ln in markdown.splitlines()[:60]]
     for line in lines:
+        if re.match(r"^!\[.*\]\(.*\)$", line):
+            continue
         if line.startswith("#"):
             title = _clean_text(line.lstrip("#"))
+            title = re.sub(r"!\[.*?\]\([^)]*\)", "", title).strip()
             if title:
                 return title
     for line in lines:
+        if re.match(r"^!\[.*\]\(.*\)$", line):
+            continue
         if line:
-            return _clean_text(line[:200])
+            cleaned = re.sub(r"!\[.*?\]\([^)]*\)", "", line).strip()
+            if cleaned:
+                return _clean_text(cleaned[:200])
     return None
 
 
@@ -406,13 +454,16 @@ def _fetch_content_from_url(url: str, max_chars: int = 20000) -> dict[str, Any]:
     fetch_result = web_fetch(url=url, max_chars=max_chars)
     if fetch_result.status == "ok":
         payload = fetch_result.data or {}
-        content = _clean_text(payload.get("content") or "")
+        raw_content = payload.get("content") or ""
+        body, jina_title, jina_published = _strip_jina_metadata(raw_content)
+        body = _clean_emoji_images(body)
+        content = _clean_text(body)
         if content:
             return {
                 "ok": True,
                 "content": content,
-                "title": _extract_title_from_markdown(payload.get("content") or ""),
-                "published_at": None,
+                "title": jina_title or _extract_title_from_markdown(body),
+                "published_at": jina_published,
                 "method": "jina_reader",
                 "meta": {
                     "char_count": payload.get("char_count"),

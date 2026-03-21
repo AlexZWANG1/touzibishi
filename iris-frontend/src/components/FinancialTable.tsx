@@ -2,69 +2,32 @@
 
 import type { FinancialTableData } from "@/types/analysis";
 
-const METRIC_LABELS: Record<string, string> = {
-  // Cash Flow
-  operatingCashFlow: "Operating Cash Flow",
-  capitalExpenditure: "Capital Expenditure",
-  freeCashFlow: "Free Cash Flow",
-  dividendsPaid: "Dividends Paid",
-  // Income Statement
-  revenue: "Revenue",
-  grossProfit: "Gross Profit",
-  operatingIncome: "Operating Income",
-  netIncome: "Net Income",
-  eps: "EPS",
-  epsdiluted: "EPS (Diluted)",
-  // Balance Sheet
-  totalAssets: "Total Assets",
-  totalLiabilities: "Total Liabilities",
-  totalEquity: "Total Equity",
-  cashAndShortTermInvestments: "Cash & Short-Term Inv.",
-  totalDebt: "Total Debt",
-  // Ratios
-  grossProfitMargin: "Gross Margin",
-  operatingProfitMargin: "Operating Margin",
-  netProfitMargin: "Net Margin",
-  returnOnEquity: "Return on Equity",
-  debtEquityRatio: "Debt / Equity",
-};
-
 interface FinancialTableProps {
   table: FinancialTableData;
 }
 
-function isNegativeValue(val: string | number): boolean {
-  if (typeof val === "number") return val < 0;
-  if (typeof val === "string") {
-    const cleaned = val.replace(/[,$%\s]/g, "");
-    if (cleaned.startsWith("(") && cleaned.endsWith(")")) return true;
-    return parseFloat(cleaned) < 0;
-  }
-  return false;
+function isNegativeValue(value: string | number): boolean {
+  if (typeof value === "number") return value < 0;
+  const cleaned = value.replace(/[,$%\s]/g, "");
+  if (cleaned.startsWith("(") && cleaned.endsWith(")")) return true;
+  return Number.parseFloat(cleaned) < 0;
 }
 
 export function FinancialTable({ table }: FinancialTableProps) {
   return (
-    <div className="overflow-hidden border border-[var(--iris-border)]">
-      {/* Title bar */}
-      <div className="p-[5px_8px] border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
-        <h3 className="font-mono text-[11px] text-[var(--iris-accent)] uppercase tracking-[0.08em]">
-          {table.title}
-        </h3>
+    <div className="prism-panel overflow-hidden">
+      <div className="border-b border-[var(--b1)] px-5 py-4">
+        <h3 className="text-[15px] font-semibold text-[var(--t1)]">{table.title}</h3>
       </div>
-
-      {/* Scrollable table area */}
       <div className="overflow-x-auto">
-        <table className="w-full text-[12px] border-collapse">
+        <table className="min-w-full border-collapse">
           <thead>
-            <tr className="border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
-              <th className="sticky left-0 bg-[var(--iris-surface)] p-[3px_8px] text-left font-mono text-[12px] uppercase tracking-[0.08em] text-[var(--iris-accent)]">
-                {table.headers[0] || ""}
-              </th>
-              {table.headers.slice(1).map((header) => (
+            <tr className="border-b border-[var(--b1)] bg-[var(--bg-2)]">
+              {table.headers.map((header, index) => (
                 <th
-                  key={header}
-                  className="p-[3px_8px] text-right font-mono text-[12px] uppercase tracking-[0.08em] text-[var(--iris-accent)]"
+                  key={`${header}-${index}`}
+                  className="px-5 py-3 text-left font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
+                  style={{ textAlign: index === 0 ? "left" : "right" }}
                 >
                   {header}
                 </th>
@@ -72,57 +35,23 @@ export function FinancialTable({ table }: FinancialTableProps) {
             </tr>
           </thead>
           <tbody>
-            {table.rows.map((row, idx) => {
-              const isLast = idx === table.rows.length - 1;
-
-              return (
-                <tr
-                  key={idx}
-                  style={{
-                    borderBottom: isLast ? "none" : "1px solid rgba(30,32,48,0.3)",
-                  }}
-                >
+            {table.rows.map((row, rowIndex) => (
+              <tr key={`${row.label}-${rowIndex}`} className="border-b border-[var(--b1)] last:border-b-0">
+                <td className="px-5 py-3 text-[14px] font-medium text-[var(--t1)]">{row.label}</td>
+                {row.values.map((value, valueIndex) => (
                   <td
-                    className={`sticky left-0 p-[3px_8px] font-mono ${
-                      row.isHeader
-                        ? "text-[10px] uppercase tracking-[0.06em] text-[var(--iris-text-muted)] bg-[var(--iris-surface)]"
-                        : row.isBold
-                          ? "font-semibold text-[var(--iris-text)]"
-                          : "text-[var(--iris-text-secondary)]"
-                    }`}
+                    key={`${row.label}-${valueIndex}`}
+                    className="px-5 py-3 text-right font-mono text-[13px]"
                     style={{
-                      paddingLeft: row.indent
-                        ? `${8 + row.indent * 12}px`
-                        : undefined,
-                      background: row.isHeader
-                        ? undefined
-                        : "var(--iris-bg)",
+                      color: isNegativeValue(value) ? "var(--red)" : "var(--t2)",
+                      fontWeight: row.isBold ? 600 : 500,
                     }}
                   >
-                    {METRIC_LABELS[row.label] || row.label}
+                    {value}
                   </td>
-                  {row.values.map((val, vIdx) => {
-                    const negative = isNegativeValue(val);
-                    return (
-                      <td
-                        key={vIdx}
-                        className={`p-[3px_8px] text-right font-mono ${
-                          row.isHeader
-                            ? "text-[10px] text-[var(--iris-text-muted)]"
-                            : negative
-                              ? "text-[#EF4444]"
-                              : row.isBold
-                                ? "font-semibold text-[var(--iris-text)]"
-                                : "text-[var(--iris-text-secondary)]"
-                        }`}
-                      >
-                        {val}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
+                ))}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

@@ -55,6 +55,8 @@ export const TOOL_TAB_MAP: Record<string, string> = {
   quote: "data",
   history: "data",
   valuation: "model",
+  generate_trade_signal: "strategy",
+  get_portfolio: "strategy",
 };
 
 export function translateToolStart(

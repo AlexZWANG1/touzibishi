@@ -27,6 +27,8 @@ from tools.unified_memory import (
     recall, RECALL_SCHEMA,
     search_knowledge, SEARCH_KNOWLEDGE_SCHEMA,
 )
+from tools.sec_filing import sec_filing, SEC_FILING_SCHEMA
+from tools.transcripts import transcript, TRANSCRIPT_SCHEMA
 
 
 def _cli_event_handler(event: HarnessEvent):
@@ -104,6 +106,8 @@ def build_harness(
         Tool(macro, MACRO_SCHEMA),
         Tool(quote, QUOTE_SCHEMA),
         Tool(history, HISTORY_SCHEMA),
+        Tool(sec_filing, SEC_FILING_SCHEMA),
+        Tool(transcript, TRANSCRIPT_SCHEMA),
     ]
 
     # Memory tools

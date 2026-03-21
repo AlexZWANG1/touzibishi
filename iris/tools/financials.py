@@ -13,14 +13,16 @@ FINANCIALS_SCHEMA = make_tool_schema(
     name="financials",
     description=(
         "Get structured financial data for a public company: income statement, balance sheet, "
-        "cash flow statement, or company profile. Use when you need specific financial figures "
-        "like revenue, EBITDA, EPS, P/E ratio, debt levels."
+        "cash flow statement, company profile, or **segment breakdowns** (revenue by product line "
+        "and by geography). Use 'segments' to get business-unit / product-line / geographic revenue "
+        "splits — essential for segment-level valuation (e.g. Microsoft Intelligent Cloud, Google Cloud)."
     ),
     properties={
         "ticker": {"type": "string", "description": "Stock ticker, e.g. 'NVDA', 'AAPL'"},
         "statement_type": {
             "type": "string",
-            "enum": ["income-statement", "balance-sheet-statement", "cash-flow-statement", "profile", "ratios"],
+            "enum": ["income-statement", "balance-sheet-statement", "cash-flow-statement", "profile", "ratios", "segments"],
+            "description": "Use 'segments' for revenue breakdown by product line AND by geography.",
         },
         "period": {
             "type": "string",
@@ -52,6 +54,10 @@ MACRO_SCHEMA = make_tool_schema(
 
 
 def financials(ticker: str, statement_type: str, period: str = "annual") -> ToolResult:
+    # Segment data — dedicated FMP endpoints
+    if statement_type == "segments":
+        return _fmp_segments(ticker, period)
+
     # Try FMP first
     result = _fmp_fetch(ticker, statement_type, period)
     if result.status == "ok":
@@ -92,6 +98,71 @@ def _fmp_fetch(ticker: str, statement_type: str, period: str) -> ToolResult:
         return ToolResult.fail(f"FMP API error: {e.response.status_code}", recoverable=True)
     except Exception as e:
         return ToolResult.fail(f"FMP fetch failed: {str(e)}", recoverable=True)
+
+
+# ── FMP segment endpoints ─────────────────────────────────────
+
+def _fmp_segments(ticker: str, period: str) -> ToolResult:
+    """Fetch revenue segmentation (product + geographic) from FMP."""
+    api_key = os.getenv("FMP_API_KEY")
+    if not api_key:
+        return ToolResult.fail("FMP_API_KEY not set")
+
+    ticker_upper = ticker.upper()
+    structure = "quarterly" if period == "quarter" else "annual"
+    product_url = f"{FMP_BASE}/revenue-product-segmentation?symbol={ticker_upper}&period={period}&structure=flat&apikey={api_key}"
+    geo_url = f"{FMP_BASE}/revenue-geographic-segmentation?symbol={ticker_upper}&period={period}&structure=flat&apikey={api_key}"
+
+    product_data = []
+    geo_data = []
+
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            # Product / business-line segmentation
+            try:
+                resp = client.get(product_url)
+                resp.raise_for_status()
+                raw = resp.json()
+                # FMP returns list of {date_key: {segment: value}} dicts
+                if raw and isinstance(raw, list):
+                    for entry in raw[:4]:
+                        if isinstance(entry, dict):
+                            for date_key, segments in entry.items():
+                                if isinstance(segments, dict):
+                                    product_data.append({"date": date_key, "segments": segments})
+            except Exception as e:
+                logger.warning("FMP product segmentation failed for %s: %s", ticker, e)
+
+            # Geographic segmentation
+            try:
+                resp = client.get(geo_url)
+                resp.raise_for_status()
+                raw = resp.json()
+                if raw and isinstance(raw, list):
+                    for entry in raw[:4]:
+                        if isinstance(entry, dict):
+                            for date_key, segments in entry.items():
+                                if isinstance(segments, dict):
+                                    geo_data.append({"date": date_key, "segments": segments})
+            except Exception as e:
+                logger.warning("FMP geographic segmentation failed for %s: %s", ticker, e)
+
+    except Exception as e:
+        return ToolResult.fail(f"FMP segments fetch failed: {e}", recoverable=True)
+
+    if not product_data and not geo_data:
+        return ToolResult.fail(
+            f"No segment data available for {ticker_upper}",
+            hint="Try using 'income-statement' for consolidated financials, or use sec_filing tool for 10-K segment details.",
+        )
+
+    return ToolResult.ok({
+        "ticker": ticker_upper,
+        "statement_type": "segments",
+        "period": period,
+        "product_segments": product_data,
+        "geographic_segments": geo_data,
+    })
 
 
 # ── yfinance field mapping ────────────────────────────────────

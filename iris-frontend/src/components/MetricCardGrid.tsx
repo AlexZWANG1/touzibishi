@@ -11,9 +11,9 @@ export function MetricCardGrid({ metrics }: MetricCardGridProps) {
   if (metrics.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-3 gap-[3px] mb-[10px]">
-      {metrics.map((metric, idx) => (
-        <MetricCard key={idx} metric={metric} />
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {metrics.map((metric, index) => (
+        <MetricCard key={`${metric.label}-${index}`} metric={metric} />
       ))}
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 
 type UploadTab = "file" | "url" | "note";
 
@@ -10,6 +10,12 @@ interface Props {
   onUploadUrl: (url: string, title?: string, company?: string, tags?: string[]) => Promise<void>;
   onUploadFile: (file: File, title?: string, company?: string, tags?: string[]) => Promise<void>;
 }
+
+const TAB_LABELS: Record<UploadTab, string> = {
+  note: "Note",
+  url: "URL",
+  file: "File",
+};
 
 export function KnowledgeUploadPanel({ uploading, onUploadNote, onUploadUrl, onUploadFile }: Props) {
   const [tab, setTab] = useState<UploadTab>("note");
@@ -29,30 +35,25 @@ export function KnowledgeUploadPanel({ uploading, onUploadNote, onUploadUrl, onU
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const handleSubmit = async () => {
-    const comp = company.trim() || undefined;
+  async function handleSubmit() {
+    const companyValue = company.trim() || undefined;
     try {
       if (tab === "note") {
         if (!title.trim() || !content.trim()) return;
-        await onUploadNote(title.trim(), content.trim(), comp);
+        await onUploadNote(title.trim(), content.trim(), companyValue);
       } else if (tab === "url") {
         if (!url.trim()) return;
-        await onUploadUrl(url.trim(), title.trim() || undefined, comp);
-      } else if (tab === "file") {
-        if (!selectedFile) return;
-        await onUploadFile(selectedFile, title.trim() || undefined, comp);
+        await onUploadUrl(url.trim(), title.trim() || undefined, companyValue);
+      } else if (selectedFile) {
+        await onUploadFile(selectedFile, title.trim() || undefined, companyValue);
+      } else {
+        return;
       }
       reset();
     } catch {
-      // Error handled by parent hook
+      // handled by parent
     }
-  };
-
-  const tabs: { key: UploadTab; label: string }[] = [
-    { key: "note", label: "NOTE" },
-    { key: "url", label: "URL" },
-    { key: "file", label: "FILE" },
-  ];
+  }
 
   const canSubmit =
     !uploading &&
@@ -61,108 +62,105 @@ export function KnowledgeUploadPanel({ uploading, onUploadNote, onUploadUrl, onU
       (tab === "file" && selectedFile));
 
   return (
-    <div className="border border-[var(--iris-border)] bg-[var(--iris-surface)] p-[6px]">
-      {/* Tab bar */}
-      <div role="tablist" className="mb-[4px] flex border border-[var(--iris-border)] bg-[var(--iris-bg)]">
-        {tabs.map((t) => (
+    <div className="space-y-4 rounded-[18px] border border-[var(--b1)] bg-[var(--bg-w)] p-4 shadow-card">
+      <div className="flex gap-2">
+        {(Object.keys(TAB_LABELS) as UploadTab[]).map((key) => (
           <button
-            key={t.key}
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex-1 px-[6px] py-[3px] font-mono text-[10px] uppercase tracking-wider transition-colors focus:outline-2 focus:outline-offset-[-2px] focus:outline-[var(--iris-accent)] ${
-              tab === t.key
-                ? "bg-[var(--iris-accent)] text-white"
-                : "text-[var(--iris-text-muted)] hover:text-[var(--iris-text-secondary)]"
-            }`}
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className="rounded-pill px-3 py-1.5 text-[12px] font-medium transition-colors"
+            style={{
+              background: tab === key ? "var(--ac)" : "var(--bg-2)",
+              color: tab === key ? "#ffffff" : "var(--t2)",
+            }}
           >
-            {t.label}
+            {TAB_LABELS[key]}
           </button>
         ))}
       </div>
 
-      {/* Common fields */}
-      <div className="mb-[4px] flex gap-[4px]">
-        <label className="sr-only" htmlFor="upload-title">Title</label>
+      <div className="grid gap-3">
         <input
-          id="upload-title"
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(event) => setTitle(event.target.value)}
           placeholder="标题 / Title"
-          className="h-[28px] flex-1 border border-[var(--iris-border)] bg-[var(--iris-bg)] px-[6px] font-mono text-[11px] text-[var(--iris-text)] placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none"
+          className="h-11 rounded-md border border-[var(--b1)] bg-[var(--bg)] px-4 text-[13px] text-[var(--t1)] outline-none transition-colors placeholder:text-[var(--t4)] focus:border-[var(--ac)]"
         />
-        <label className="sr-only" htmlFor="upload-company">Ticker</label>
+
         <input
-          id="upload-company"
           type="text"
           value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          placeholder="股票 / Ticker"
-          className="h-[28px] w-[72px] border border-[var(--iris-border)] bg-[var(--iris-bg)] px-[6px] font-mono text-[11px] text-[var(--iris-text)] placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none"
+          onChange={(event) => setCompany(event.target.value)}
+          placeholder="公司 / Ticker"
+          className="h-11 rounded-md border border-[var(--b1)] bg-[var(--bg)] px-4 font-mono text-[13px] text-[var(--t1)] outline-none transition-colors placeholder:text-[var(--t4)] focus:border-[var(--ac)]"
         />
+
+        {tab === "note" && (
+          <textarea
+            rows={6}
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder="输入笔记内容..."
+            className="min-h-[140px] rounded-md border border-[var(--b1)] bg-[var(--bg)] px-4 py-3 text-[13px] leading-[1.7] text-[var(--t1)] outline-none transition-colors placeholder:text-[var(--t4)] focus:border-[var(--ac)]"
+          />
+        )}
+
+        {tab === "url" && (
+          <input
+            type="text"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="https://..."
+            className="h-11 rounded-md border border-[var(--b1)] bg-[var(--bg)] px-4 font-mono text-[13px] text-[var(--t1)] outline-none transition-colors placeholder:text-[var(--t4)] focus:border-[var(--ac)]"
+          />
+        )}
+
+        {tab === "file" && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => fileRef.current?.click()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                fileRef.current?.click();
+              }
+            }}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              const file = event.dataTransfer.files[0];
+              if (file) setSelectedFile(file);
+            }}
+            className="rounded-lg border border-dashed border-[var(--b2)] bg-[var(--bg)] px-4 py-8 text-center transition-colors hover:border-[var(--ac)]"
+          >
+            <div className="text-[13px] font-medium text-[var(--t1)]">
+              {selectedFile ? selectedFile.name : "拖拽文件到这里，或点击选择"}
+            </div>
+            <div className="mt-2 text-[12px] text-[var(--t3)]">支持 PDF、TXT、MD、CSV、JSON</div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.txt,.md,.csv,.json"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) setSelectedFile(file);
+              }}
+              className="hidden"
+            />
+          </div>
+        )}
       </div>
 
-      {/* Tab-specific content */}
-      {tab === "note" && (
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="输入笔记内容..."
-          rows={4}
-          className="mb-[4px] w-full border border-[var(--iris-border)] bg-[var(--iris-bg)] px-[6px] py-[4px] font-mono text-[11px] text-[var(--iris-text)] placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none"
-        />
-      )}
-
-      {tab === "url" && (
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://..."
-          className="mb-[4px] h-[28px] w-full border border-[var(--iris-border)] bg-[var(--iris-bg)] px-[6px] font-mono text-[11px] text-[var(--iris-text)] placeholder:text-[var(--iris-text-muted)] focus:border-[var(--iris-accent)] focus:outline-none"
-        />
-      )}
-
-      {tab === "file" && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => fileRef.current?.click()}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileRef.current?.click(); } }}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            const f = e.dataTransfer.files[0];
-            if (f) setSelectedFile(f);
-          }}
-          className="mb-[4px] flex cursor-pointer items-center justify-center border border-dashed border-[var(--iris-border)] bg-[var(--iris-bg)] py-[12px] font-mono text-[11px] text-[var(--iris-text-muted)] transition-colors hover:border-[var(--iris-accent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--iris-accent)]"
-        >
-          {selectedFile ? (
-            <span className="text-[var(--iris-text)]">{selectedFile.name}</span>
-          ) : (
-            <span>DROP FILE // PDF, TXT, MD</span>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".pdf,.txt,.md,.csv,.json"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setSelectedFile(f);
-            }}
-            className="hidden"
-          />
-        </div>
-      )}
-
-      {/* Submit */}
       <button
-        onClick={handleSubmit}
+        type="button"
+        onClick={() => void handleSubmit()}
         disabled={!canSubmit}
-        className="w-full bg-[var(--iris-accent)] px-[8px] py-[4px] font-mono text-[11px] font-medium uppercase tracking-wider text-white transition-opacity disabled:opacity-30"
+        className="w-full rounded-[14px] bg-[var(--ac)] px-4 py-3 text-[13px] font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {uploading ? "UPLOADING..." : "SAVE"}
+        {uploading ? "Uploading..." : "Save to Knowledge"}
       </button>
     </div>
   );

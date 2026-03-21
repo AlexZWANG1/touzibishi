@@ -44,10 +44,19 @@ def _default_frontend_panels() -> dict:
             "scatterYLabel": "Revenue Growth",
             "loading": False,
         },
+        "strategy": {
+            "signal": None,
+            "portfolio": None,
+            "loading": False,
+        },
         "memory": {
             "calibrationHits": 0,
             "calibrationMisses": 0,
             "recentRecalls": [],
+            "loading": False,
+        },
+        "fundamentals": {
+            "sections": [],
             "loading": False,
         },
     }
@@ -127,6 +136,14 @@ class AnalysisSession:
                 self._extract_data_panel(result)
             elif tool == "quote":
                 self._extract_quote_metrics(result)
+            elif tool == "generate_trade_signal":
+                self._extract_strategy_signal(result)
+            elif tool == "get_portfolio":
+                self._extract_strategy_portfolio(result)
+            elif tool in ("recall", "recall_memory"):
+                self._extract_memory_recall(result)
+            elif tool == "check_calibration":
+                self._extract_memory_calibration(result)
             # Backward compatibility for old tool names
             elif tool == "build_dcf":
                 self.pending_valuation = result
@@ -137,6 +154,8 @@ class AnalysisSession:
                 self._extract_data_panel(result)
             elif tool == "yf_quote":
                 self._extract_quote_metrics(result)
+            elif tool == "emit_research_section":
+                self._extract_research_section(result)
 
     def _handle_text_delta(self, event: HarnessEvent) -> None:
         content = event.data.get("content", "")
@@ -256,6 +275,7 @@ class AnalysisSession:
                 "evEbitda": p.get("ev_ebitda", 0) or 0,
                 "revenueGrowth": p.get("revenue_growth", 0) or 0,
                 "margin": p.get("gross_margin", 0) or 0,
+                "isTarget": p.get("is_target", False),
             })
             if p.get("ev_ebitda") is not None and p.get("revenue_growth") is not None:
                 scatter.append({
@@ -371,6 +391,87 @@ class AnalysisSession:
         if metrics:
             data_panel["metrics"].extend(metrics)
         data_panel["loading"] = False
+
+    def _extract_strategy_signal(self, result: dict) -> None:
+        """Extract trading signal data for the strategy panel."""
+        strategy = self.accumulated_frontend_panels["strategy"]
+        strategy["signal"] = {
+            "ticker": result.get("ticker", ""),
+            "action": result.get("action", "WATCH"),
+            "targetWeight": result.get("target_weight", 0) or 0,
+            "conviction": result.get("conviction"),
+            "discountPct": result.get("discount_pct"),
+            "signalStrength": result.get("signal_strength", "NEUTRAL"),
+            "reasoning": result.get("reasoning", ""),
+            "constraintChecks": result.get("constraint_checks", []) or [],
+            "suggestedShares": result.get("suggested_shares"),
+            "unrealizedPnlPct": result.get("unrealized_pnl_pct"),
+        }
+        strategy["loading"] = False
+
+    def _extract_strategy_portfolio(self, result: dict) -> None:
+        """Extract paper portfolio summary for the strategy panel."""
+        strategy = self.accumulated_frontend_panels["strategy"]
+        raw_positions = result.get("positions", []) or []
+        positions = []
+        for pos in raw_positions:
+            positions.append({
+                "ticker": pos.get("ticker", ""),
+                "shares": pos.get("shares", 0) or 0,
+                "avgCost": pos.get("avg_cost", 0) or 0,
+                "livePrice": pos.get("live_price"),
+                "marketValue": pos.get("market_value", 0) or 0,
+                "unrealizedPnl": pos.get("unrealized_pnl", 0) or 0,
+                "unrealizedPnlPct": pos.get("unrealized_pnl_pct", 0) or 0,
+                "entryDate": pos.get("entry_date"),
+            })
+
+        strategy["portfolio"] = {
+            "cash": result.get("cash", 0) or 0,
+            "totalMarketValue": result.get("total_market_value", 0) or 0,
+            "totalPortfolioValue": result.get("total_portfolio_value", 0) or 0,
+            "totalUnrealizedPnl": result.get("total_unrealized_pnl", 0) or 0,
+            "totalRealizedPnl": result.get("total_realized_pnl", 0) or 0,
+            "totalReturnPct": result.get("total_return_pct", 0) or 0,
+            "positionCount": result.get("position_count", len(positions)) or len(positions),
+            "winLoss": result.get("win_loss", "—") or "—",
+            "investedPct": result.get("invested_pct", 0) or 0,
+            "positions": positions,
+        }
+        strategy["loading"] = False
+
+    def _extract_memory_recall(self, result: dict) -> None:
+        """Extract recall events so memory data survives into replay snapshots."""
+        memory = self.accumulated_frontend_panels["memory"]
+        if result.get("total_results") or result.get("content"):
+            memory["recentRecalls"].append({
+                "company": result.get("subject") or result.get("company") or "?",
+                "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                "relevance": min(1, (result.get("total_results", 1) or 1) / 10),
+            })
+        memory["loading"] = False
+
+    def _extract_memory_calibration(self, result: dict) -> None:
+        """Extract calibration summary for replay snapshots."""
+        memory = self.accumulated_frontend_panels["memory"]
+        if result.get("hits") is not None:
+            memory["calibrationHits"] = result.get("hits", 0) or 0
+        if result.get("misses") is not None:
+            memory["calibrationMisses"] = result.get("misses", 0) or 0
+        memory["loading"] = False
+
+    def _extract_research_section(self, result: dict) -> None:
+        """Extract research section for the fundamentals panel."""
+        fundamentals = self.accumulated_frontend_panels["fundamentals"]
+        title = result.get("title", "")
+        content = result.get("content", "")
+        if title and content:
+            fundamentals["sections"].append({
+                "title": title,
+                "content": content,
+                "timestamp": time.time(),
+            })
+        fundamentals["loading"] = False
 
     # ── Text parsing ────────────────────────────────────────────
 

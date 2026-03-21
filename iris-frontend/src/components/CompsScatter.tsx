@@ -1,15 +1,15 @@
 "use client";
 
 import {
-  ScatterChart,
-  Scatter,
-  XAxis,
-  YAxis,
   CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
   Cell,
   Label,
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import type { ScatterPoint } from "@/types/analysis";
 
@@ -19,42 +19,23 @@ interface CompsScatterProps {
   yLabel: string;
 }
 
-interface CustomTooltipProps {
+function CustomTooltip({
+  active,
+  payload,
+}: {
   active?: boolean;
-  payload?: Array<{
-    payload: ScatterPoint;
-  }>;
-}
-
-function CustomTooltip({ active, payload }: CustomTooltipProps) {
+  payload?: Array<{ payload: ScatterPoint }>;
+}) {
   if (!active || !payload?.length) return null;
+
   const point = payload[0].payload;
+
   return (
-    <div
-      className="border border-[var(--iris-border)] px-[6px] py-[3px]"
-      style={{ background: "rgba(7,8,12,0.95)" }}
-    >
-      <p
-        className={`font-mono text-[11px] font-semibold ${
-          point.isTarget
-            ? "text-[var(--iris-accent)]"
-            : "text-[var(--iris-data)]"
-        }`}
-      >
-        {point.ticker}
-        {point.isTarget && (
-          <span className="ml-1 text-[10px] font-normal text-[var(--iris-text-muted)]">
-            (target)
-          </span>
-        )}
-      </p>
-      <div className="flex gap-2 font-mono text-[10px] text-[var(--iris-text-secondary)]">
-        <span>
-          x: {point.x.toFixed(1)}
-        </span>
-        <span>
-          y: {point.y.toFixed(1)}%
-        </span>
+    <div className="rounded-lg border border-[var(--b1)] bg-white px-3 py-2 shadow-card">
+      <div className="font-mono text-[12px] font-semibold text-[var(--ac)]">{point.ticker}</div>
+      <div className="mt-1 flex gap-3 font-mono text-[11px] text-[var(--t3)]">
+        <span>x: {point.x.toFixed(1)}</span>
+        <span>y: {point.y.toFixed(1)}%</span>
       </div>
     </div>
   );
@@ -64,70 +45,45 @@ export function CompsScatter({ data, xLabel, yLabel }: CompsScatterProps) {
   if (data.length === 0) return null;
 
   return (
-    <div className="border border-[var(--iris-border)] overflow-hidden" role="figure" aria-label={`Valuation scatter chart: ${xLabel} vs ${yLabel}`}>
-      <div className="p-[5px_8px] border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
-        <span className="font-mono text-[11px] text-[var(--iris-accent)] uppercase tracking-[0.08em]">
-          Valuation Scatter
-        </span>
+    <div className="prism-panel overflow-hidden">
+      <div className="border-b border-[var(--b1)] px-5 py-4">
+        <h3 className="text-[15px] font-semibold text-[var(--t1)]">Valuation Scatter</h3>
       </div>
-      <div className="p-[4px]" style={{ background: "var(--iris-bg)" }}>
-        <ResponsiveContainer width="100%" height={260}>
-          <ScatterChart margin={{ top: 6, right: 10, bottom: 28, left: 16 }}>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="var(--iris-border)"
-              opacity={0.3}
-            />
+      <div className="p-4">
+        <ResponsiveContainer width="100%" height={320}>
+          <ScatterChart margin={{ top: 10, right: 16, bottom: 32, left: 12 }}>
+            <CartesianGrid stroke="rgba(0,0,0,0.08)" strokeDasharray="4 4" />
             <XAxis
               type="number"
               dataKey="x"
-              tick={{ fill: "#525264", fontSize: 10, fontFamily: "ui-monospace, monospace" }}
-              stroke="var(--iris-border)"
-              tickLine={{ stroke: "var(--iris-border)" }}
+              stroke="rgba(0,0,0,0.12)"
+              tick={{ fill: "#888888", fontSize: 10, fontFamily: "var(--mono)" }}
             >
-              <Label
-                value={xLabel}
-                position="bottom"
-                offset={8}
-                style={{
-                  fill: "#8B8B9E",
-                  fontSize: 10,
-                  fontFamily: "ui-monospace, monospace",
-                }}
-              />
+              <Label value={xLabel} position="bottom" offset={10} style={{ fill: "#888888", fontSize: 11 }} />
             </XAxis>
             <YAxis
               type="number"
               dataKey="y"
-              tick={{ fill: "#525264", fontSize: 10, fontFamily: "ui-monospace, monospace" }}
-              stroke="var(--iris-border)"
-              tickLine={{ stroke: "var(--iris-border)" }}
+              stroke="rgba(0,0,0,0.12)"
+              tick={{ fill: "#888888", fontSize: 10, fontFamily: "var(--mono)" }}
             >
               <Label
                 value={yLabel}
                 angle={-90}
                 position="insideLeft"
-                offset={-6}
-                style={{
-                  fill: "#8B8B9E",
-                  fontSize: 10,
-                  fontFamily: "ui-monospace, monospace",
-                }}
+                offset={-4}
+                style={{ fill: "#888888", fontSize: 11 }}
               />
             </YAxis>
-            <Tooltip
-              content={<CustomTooltip />}
-              cursor={{ strokeDasharray: "3 3", stroke: "var(--iris-border)" }}
-            />
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: "rgba(67,56,202,0.18)", strokeDasharray: "4 4" }} />
             <Scatter data={data}>
-              {data.map((entry, idx) => (
+              {data.map((entry, index) => (
                 <Cell
-                  key={idx}
-                  fill={entry.isTarget ? "#F58025" : "#2DD4BF"}
-                  r={entry.isTarget ? 7 : 4}
-                  stroke={entry.isTarget ? "#F58025" : "transparent"}
+                  key={`${entry.ticker}-${index}`}
+                  fill={entry.isTarget ? "#4338CA" : "#06B6D4"}
+                  opacity={entry.isTarget ? 1 : 0.72}
+                  stroke={entry.isTarget ? "#312E81" : "transparent"}
                   strokeWidth={entry.isTarget ? 2 : 0}
-                  opacity={entry.isTarget ? 1 : 0.75}
                 />
               ))}
             </Scatter>

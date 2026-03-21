@@ -626,7 +626,7 @@ async def resume_analysis(run_id: str, req: SteerRequest):
         thinking = run.get("thinking_text") or ""
         session._raw_text = reasoning + (f"\n<thinking>\n{thinking}\n</thinking>" if thinking else "")
         panels = json.loads(run.get("panels_json") or "{}")
-        for key in ("data", "model", "comps", "memory"):
+        for key in ("data", "model", "comps", "strategy", "memory"):
             if key in panels:
                 session.accumulated_frontend_panels[key] = panels[key]
     except Exception:
@@ -1014,6 +1014,171 @@ async def search_knowledge(req: KnowledgeSearchRequest):
         source_category="human_knowledge",
     )
     return {"query": req.query, "results": results, "count": len(results)}
+
+
+# ── Developer panel endpoints ────────────────────────────────
+
+@app.get("/api/dev/tools")
+async def dev_list_tools():
+    """List all registered tools with their schemas."""
+    from main import build_harness
+
+    harness, _ = build_harness(streaming=False)
+    tools = []
+    for name, tool in harness.tool_registry.items():
+        fn = tool.schema.get("function", {})
+        params = fn.get("parameters", {})
+        tools.append({
+            "name": name,
+            "description": fn.get("description", ""),
+            "parameters": params.get("properties", {}),
+            "required": params.get("required", []),
+        })
+    return {"tools": tools, "count": len(tools)}
+
+
+@app.get("/api/dev/skills")
+async def dev_list_skills():
+    """List all skills with their SKILL.md content."""
+    skills_dir = Path(config_get("skills.dir", "./skills"))
+    skills = []
+    if skills_dir.exists():
+        for d in sorted(skills_dir.iterdir()):
+            if not d.is_dir():
+                continue
+            skill_md = d / "SKILL.md"
+            tools_py = d / "tools.py"
+            skill = {
+                "name": d.name,
+                "prompt": skill_md.read_text(encoding="utf-8") if skill_md.exists() else "",
+                "has_tools": tools_py.exists(),
+            }
+            # Extract tool function names from tools.py
+            if tools_py.exists():
+                code = tools_py.read_text(encoding="utf-8")
+                import re as re_mod
+                fns = re_mod.findall(r"^def\s+(\w+)\s*\(", code, re_mod.MULTILINE)
+                schemas = re_mod.findall(r"(\w+_SCHEMA)\s*=", code)
+                skill["tool_functions"] = [f for f in fns if not f.startswith("_")]
+                skill["schemas"] = schemas
+            skills.append(skill)
+    return {"skills": skills, "count": len(skills)}
+
+
+@app.get("/api/dev/soul")
+async def dev_list_soul():
+    """List all soul prompt files with content."""
+    soul_dir = Path(__file__).parent.parent / "soul"
+    files = []
+    if soul_dir.exists():
+        for f in sorted(soul_dir.glob("*.md")):
+            files.append({
+                "name": f.name,
+                "content": f.read_text(encoding="utf-8"),
+                "size": f.stat().st_size,
+            })
+    return {"files": files, "count": len(files)}
+
+
+@app.put("/api/dev/soul/{filename}")
+async def dev_update_soul(filename: str, req: MemoryWriteRequest):
+    """Update a soul prompt file."""
+    soul_dir = Path(__file__).parent.parent / "soul"
+    path = soul_dir / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Soul file not found: {filename}")
+    if not filename.endswith(".md"):
+        raise HTTPException(status_code=400, detail="Only .md files allowed")
+    path.write_text(req.content, encoding="utf-8")
+    # Clear config cache so changes take effect
+    from core.config import reset_config_cache
+    reset_config_cache()
+    return {"ok": True, "name": filename}
+
+
+@app.get("/api/dev/config")
+async def dev_get_config():
+    """Return the full iris_config.yaml as JSON."""
+    from core.config import load_config, reset_config_cache
+    reset_config_cache()
+    cfg = load_config()
+    return cfg
+
+
+@app.put("/api/dev/config")
+async def dev_update_config(req: MemoryWriteRequest):
+    """Update iris_config.yaml (expects YAML string)."""
+    import yaml as yaml_mod
+    # Validate YAML first
+    try:
+        parsed = yaml_mod.safe_load(req.content)
+        if not isinstance(parsed, dict):
+            raise ValueError("Config must be a YAML mapping")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
+
+    config_path = Path(__file__).parent.parent / "iris_config.yaml"
+    config_path.write_text(req.content, encoding="utf-8")
+    from core.config import reset_config_cache
+    reset_config_cache()
+    return {"ok": True}
+
+
+@app.get("/api/dev/sessions")
+async def dev_list_sessions():
+    """List all active analysis sessions."""
+    sessions = all_sessions()
+    result = []
+    for sid, s in sessions.items():
+        result.append({
+            "id": sid,
+            "query": s.query,
+            "status": s.status,
+            "turn_count": s.turn_count,
+            "last_activity": s.last_activity.isoformat() if s.last_activity else None,
+            "timeline_count": len(s.accumulated_timeline),
+        })
+    return {"sessions": result, "count": len(result)}
+
+
+@app.get("/api/dev/stats")
+async def dev_system_stats():
+    """System statistics: DB size, knowledge count, memory files, etc."""
+    import os as os_mod
+    retriever = _get_retriever()
+
+    # DB file size
+    db_size = 0
+    if os_mod.path.exists(DB_PATH):
+        db_size = os_mod.path.getsize(DB_PATH)
+
+    # Knowledge doc count
+    docs = retriever.list_documents()
+    doc_count = len(docs) if docs else 0
+
+    # Memory file count
+    base = _memory_base()
+    mem_count = 0
+    for mt in _MEMORY_TYPES:
+        type_dir = base / mt
+        if type_dir.exists():
+            mem_count += sum(1 for f in type_dir.iterdir() if f.is_file())
+
+    # Analysis run count
+    runs = retriever.list_analysis_runs(limit=1000)
+    run_count = len(runs) if runs else 0
+
+    # Active sessions
+    sessions = all_sessions()
+
+    return {
+        "db_size_mb": round(db_size / (1024 * 1024), 2),
+        "knowledge_docs": doc_count,
+        "memory_files": mem_count,
+        "analysis_runs": run_count,
+        "active_sessions": len(sessions),
+        "config_path": str(Path(__file__).parent.parent / "iris_config.yaml"),
+    }
 
 
 # ── Session cleanup background task ─────────────────────────

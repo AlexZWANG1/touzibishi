@@ -10,99 +10,118 @@ interface WatchlistRowProps {
   item: WatchlistItem;
 }
 
+const REC_META: Record<string, { label: string; bg: string; color: string }> = {
+  BUY: { label: "买入", bg: "var(--green-bg)", color: "var(--green)" },
+  STRONG_BUY: { label: "买入", bg: "var(--green-bg)", color: "var(--green)" },
+  ACCUMULATE: { label: "买入", bg: "var(--green-bg)", color: "var(--green)" },
+  HOLD: { label: "持有", bg: "var(--amber-bg)", color: "var(--amber)" },
+  WATCH: { label: "观察", bg: "var(--amber-bg)", color: "var(--amber)" },
+  REDUCE: { label: "减持", bg: "var(--red-bg)", color: "var(--red)" },
+  TRIM: { label: "减持", bg: "var(--red-bg)", color: "var(--red)" },
+  SELL: { label: "减持", bg: "var(--red-bg)", color: "var(--red)" },
+  STRONG_SELL: { label: "减持", bg: "var(--red-bg)", color: "var(--red)" },
+};
+
+function recommendationMeta(value: string | null) {
+  if (!value) {
+    return { label: "观察", bg: "var(--bg-2)", color: "var(--t2)" };
+  }
+  return REC_META[value.toUpperCase().replace(/[\s-]+/g, "_")] || {
+    label: value,
+    bg: "var(--bg-2)",
+    color: "var(--t2)",
+  };
+}
+
 export function WatchlistRow({ item }: WatchlistRowProps) {
   const router = useRouter();
+  const [opening, setOpening] = useState(false);
   const [reflecting, setReflecting] = useState(false);
-  const fairValid = item.fair_value != null && item.fair_value > 0 && !isNaN(item.fair_value);
+
+  const fairValid = item.fair_value != null && item.fair_value > 0 && !Number.isNaN(item.fair_value);
   const gapPct = fairValid && item.gap != null ? item.gap * 100 : null;
-  const isPositiveGap = gapPct != null && gapPct > 0;
-  const isNegativeGap = gapPct != null && gapPct < 0;
+  const recommendation = recommendationMeta(item.recommendation);
+
+  async function openAnalysis() {
+    if (opening || reflecting) return;
+    if (item.latest_run_id) {
+      router.push(`/analysis/${item.latest_run_id}`);
+      return;
+    }
+
+    setOpening(true);
+    try {
+      const res = await startAnalysis({
+        query: `深度分析 ${item.ticker}，更新当前公允价值与交易判断`,
+      });
+      router.push(`/analysis/${res.analysisId}`);
+    } catch (error) {
+      console.error("Failed to open analysis from watchlist:", error);
+      setOpening(false);
+    }
+  }
 
   return (
     <tr
-      className="cursor-pointer transition-colors"
-      style={{ borderBottom: "1px solid var(--iris-border)" }}
-      onClick={() => {
-        if (item.latest_run_id) {
-          router.push(`/analysis/${item.latest_run_id}`);
-        } else {
-          router.push(`/analysis?query=${encodeURIComponent(item.ticker)}`);
-        }
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--iris-surface)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+      className="cursor-pointer border-b border-[var(--b1)] transition-colors hover:bg-[var(--bg-hover)]"
+      onClick={() => void openAnalysis()}
     >
-      {/* Ticker */}
-      <td className="font-mono text-[12px] font-bold py-1.5 px-2" style={{ color: "var(--iris-accent)" }}>
-        {item.ticker}
+      <td className="px-5 py-4 font-mono text-[13px] font-semibold text-[var(--ac)]">{item.ticker}</td>
+      <td className="max-w-[240px] px-5 py-4">
+        <div className="truncate text-[14px] font-medium text-[var(--t1)]">{item.name ?? item.ticker}</div>
+        {item.thesis && <div className="mt-1 truncate text-[12px] text-[var(--t3)]">{item.thesis}</div>}
       </td>
-
-      {/* Company name */}
-      <td
-        className="font-mono max-w-[180px] truncate text-[12px] py-1.5 px-2"
-        style={{ color: "var(--iris-text-muted)" }}
-      >
-        {item.name ?? "—"}
-      </td>
-
-      {/* Market Price */}
-      <td className="font-mono text-right text-[12px] py-1.5 px-2" style={{ color: "var(--iris-data)" }}>
+      <td className="px-5 py-4 text-right font-mono text-[13px] text-[var(--cy-t)]">
         {item.market_price != null ? formatCurrency(item.market_price) : "—"}
       </td>
-
-      {/* Gap % */}
       <td
-        className="font-mono text-right text-[12px] font-bold py-1.5 px-2"
+        className="px-5 py-4 text-right font-mono text-[13px] font-semibold"
         style={{
-          color: isPositiveGap
-            ? "#22C55E"
-            : isNegativeGap
-            ? "#EF4444"
-            : "var(--iris-text-secondary)",
+          color:
+            gapPct == null
+              ? "var(--t3)"
+              : gapPct >= 0
+                ? "var(--green)"
+                : "var(--red)",
         }}
       >
-        {gapPct != null ? `${gapPct >= 0 ? "+" : ""}${gapPct.toFixed(1)}%` : "—"}
+        {gapPct == null ? "—" : `${gapPct >= 0 ? "+" : ""}${gapPct.toFixed(1)}%`}
       </td>
-
-      {/* Fair Value */}
-      <td className="font-mono text-right text-[12px] py-1.5 px-2" style={{ color: fairValid ? "var(--iris-data)" : "var(--iris-text-muted)" }}>
+      <td className="px-5 py-4 text-right font-mono text-[13px] text-[var(--cy-t)]">
         {fairValid ? formatCurrency(item.fair_value!) : "N/A"}
       </td>
-
-      {/* Recommendation */}
-      <td className="font-mono text-right text-[12px] uppercase py-1.5 px-2" style={{ color: "var(--iris-text-secondary)" }}>
-        {item.recommendation ?? "—"}
+      <td className="px-5 py-4 text-right">
+        <span
+          className="inline-flex rounded-pill px-3 py-1 text-[11px] font-semibold"
+          style={{
+            background: recommendation.bg,
+            color: recommendation.color,
+          }}
+        >
+          {recommendation.label}
+        </span>
       </td>
-
-      {/* Actions */}
-      <td className="text-right py-1.5 px-2">
+      <td className="px-5 py-4 text-right">
         <button
-          onClick={async (e) => {
-            e.stopPropagation();
-            if (reflecting) return;
+          onClick={async (event) => {
+            event.stopPropagation();
+            if (reflecting || opening) return;
             setReflecting(true);
             try {
               const res = await startAnalysis({
-                query: `复盘 ${item.ticker} 的最新财报表现`,
-                mode: 'learning',
+                query: `复盘 ${item.ticker} 的最新财报表现与原始判断偏差`,
+                mode: "learning",
               });
               router.push(`/analysis/${res.analysisId}`);
-            } catch (err) {
-              console.error('Failed to start reflection:', err);
+            } catch (error) {
+              console.error("Failed to start reflection:", error);
               setReflecting(false);
             }
           }}
-          className="font-mono px-1 py-px text-[12px] border transition-colors uppercase tracking-wider hover:opacity-100 hover:border-[var(--iris-accent)] disabled:opacity-40"
-          style={{
-            color: "var(--iris-accent)",
-            borderColor: "var(--iris-border)",
-            backgroundColor: "transparent",
-            opacity: reflecting ? 0.4 : 0.7,
-          }}
-          title="Verify prediction / 验证预测"
-          disabled={reflecting}
+          disabled={reflecting || opening}
+          className="rounded-md border border-[var(--ac-s)] bg-[var(--ac-s)] px-3 py-1.5 text-[11px] font-medium text-[var(--ac)] transition-colors hover:bg-[var(--ac-m)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {reflecting ? "..." : "复盘"}
+          {reflecting ? "处理中..." : opening ? "打开中..." : "复盘"}
         </button>
       </td>
     </tr>

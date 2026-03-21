@@ -11,30 +11,23 @@ interface SensitivityHeatmapProps {
   colValues: string[];
 }
 
-function getCellStyle(
-  value: number,
-  baseValue: number,
-  isBase: boolean
-): { bg: string; text: string; border?: string } {
+function getCellStyle(value: number, baseValue: number, isBase: boolean) {
   if (isBase) {
     return {
-      bg: "rgba(245,128,37,0.12)",
-      text: "var(--iris-text)",
-      border: "1px solid var(--iris-accent)",
+      bg: "var(--ac-m)",
+      color: "var(--ac-t)",
+      border: "1px solid var(--ac)",
+      weight: 700,
     };
   }
 
-  if (isNaN(value) || isNaN(baseValue)) return { bg: "transparent", text: "var(--iris-text-muted)" };
   const diff = baseValue !== 0 ? ((value - baseValue) / baseValue) * 100 : 0;
 
-  if (diff > 20) return { bg: "rgba(34,197,94,0.25)", text: "#4ade80" };
-  if (diff > 10) return { bg: "rgba(34,197,94,0.15)", text: "#86efac" };
-  if (diff > 5) return { bg: "rgba(34,197,94,0.08)", text: "#bbf7d0" };
-  if (diff > 0) return { bg: "rgba(34,197,94,0.04)", text: "var(--iris-text-secondary)" };
-  if (diff > -5) return { bg: "rgba(239,68,68,0.04)", text: "var(--iris-text-secondary)" };
-  if (diff > -10) return { bg: "rgba(239,68,68,0.08)", text: "#fca5a5" };
-  if (diff > -20) return { bg: "rgba(239,68,68,0.15)", text: "#f87171" };
-  return { bg: "rgba(239,68,68,0.25)", text: "#ef4444" };
+  if (diff > 18) return { bg: "var(--green-bg)", color: "var(--green)", border: "none", weight: 600 };
+  if (diff > 8) return { bg: "rgba(21,128,61,0.035)", color: "var(--t2)", border: "none", weight: 500 };
+  if (diff > -8) return { bg: "var(--bg-2)", color: "var(--t2)", border: "none", weight: 500 };
+  if (diff > -18) return { bg: "rgba(185,28,28,0.035)", color: "var(--t2)", border: "none", weight: 500 };
+  return { bg: "var(--red-bg)", color: "var(--red)", border: "none", weight: 600 };
 }
 
 export function SensitivityHeatmap({
@@ -46,70 +39,65 @@ export function SensitivityHeatmap({
 }: SensitivityHeatmapProps) {
   if (data.length === 0) return null;
 
-  const baseCell = data.find((c) => c.isBase);
-  const baseValue =
-    baseCell?.value ?? data[Math.floor(data.length / 2)]?.value ?? 0;
-
+  const baseCell = data.find((cell) => cell.isBase);
+  const baseValue = baseCell?.value ?? data[Math.floor(data.length / 2)]?.value ?? 0;
   const cellMap = new Map<string, SensitivityCell>();
   data.forEach((cell) => cellMap.set(`${cell.row}-${cell.col}`, cell));
 
   return (
-    <div className="overflow-hidden border border-[var(--iris-border)]">
-      <div className="p-[5px_8px] border-b border-[var(--iris-border)] bg-[var(--iris-surface)]">
-        <span className="font-mono text-[11px] text-[var(--iris-accent)] uppercase tracking-[0.08em]">
-          Sensitivity Analysis
-        </span>
-        <span className="font-mono text-[10px] text-[var(--iris-text-muted)] ml-2">
+    <div className="prism-panel overflow-hidden">
+      <div className="border-b border-[var(--b1)] px-5 py-4">
+        <h3 className="text-[15px] font-semibold text-[var(--t1)]">Sensitivity</h3>
+        <p className="mt-1 text-[12px] text-[var(--t3)]">
           {rowLabel} vs {colLabel}
-        </span>
+        </p>
       </div>
-      <div className="grid gap-[1px] p-[6px]" style={{ gridTemplateColumns: `auto repeat(${colValues.length}, 1fr)` }}>
-        {/* Header row */}
-        <div className="p-[3px] font-mono text-[10px] text-[var(--iris-text-muted)]">
-          {rowLabel}\{colLabel}
-        </div>
-        {colValues.map((col) => (
-          <div
-            key={col}
-            className="p-[3px] text-center font-mono text-[10px] text-[var(--iris-accent)]"
-            style={{ opacity: 0.7 }}
-          >
-            {col}
+
+      <div className="overflow-x-auto p-4">
+        <div
+          className="grid gap-[6px]"
+          style={{ gridTemplateColumns: `auto repeat(${colValues.length}, minmax(72px, 1fr))` }}
+        >
+          <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
+            {rowLabel}\{colLabel}
           </div>
-        ))}
-
-        {/* Data rows */}
-        {rowValues.map((row) => (
-          <React.Fragment key={row}>
+          {colValues.map((col) => (
             <div
-              className="p-[3px] font-mono text-[10px] text-[var(--iris-accent)]"
-              style={{ opacity: 0.7 }}
+              key={col}
+              className="px-2 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
             >
-              {row}
+              {col}
             </div>
-            {colValues.map((col) => {
-              const cell = cellMap.get(`${row}-${col}`);
-              const value = Number(cell?.value ?? 0);
-              const isBase = cell?.isBase ?? false;
-              const style = getCellStyle(value, baseValue, isBase);
+          ))}
 
-              return (
-                <div
-                  key={`${row}-${col}`}
-                  className="p-[3px] text-center font-mono text-[10px]"
-                  style={{
-                    backgroundColor: style.bg,
-                    color: style.text,
-                    fontWeight: isBase ? 700 : 400,
-                    border: style.border || "none",
-                  }}
-                >
-                  {isNaN(value) ? "—" : `$${value.toFixed(0)}`}
-                </div>
-              );
-            })}
-          </React.Fragment>
-        ))}
+          {rowValues.map((row) => (
+            <React.Fragment key={row}>
+              <div className="px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
+                {row}
+              </div>
+              {colValues.map((col) => {
+                const cell = cellMap.get(`${row}-${col}`);
+                const value = Number(cell?.value ?? 0);
+                const style = getCellStyle(value, baseValue, cell?.isBase ?? false);
+
+                return (
+                  <div
+                    key={`${row}-${col}`}
+                    className="rounded-sm px-2 py-3 text-center font-mono text-[12px]"
+                    style={{
+                      background: style.bg,
+                      color: style.color,
+                      border: style.border,
+                      fontWeight: style.weight,
+                    }}
+                  >
+                    {Number.isNaN(value) ? "—" : `$${value.toFixed(0)}`}
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
     </div>
   );

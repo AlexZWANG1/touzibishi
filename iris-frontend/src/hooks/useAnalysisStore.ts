@@ -8,7 +8,9 @@ import type {
   DataPanelState,
   ModelPanelState,
   CompsPanelState,
+  StrategyPanelState,
   MemoryPanelState,
+  FundamentalsPanelState,
   AnalysisSnapshot,
 } from "@/types/analysis";
 import type { SSEEvent } from "@/types/api";
@@ -31,7 +33,9 @@ interface AnalysisStore {
   dataPanel: DataPanelState;
   modelPanel: ModelPanelState;
   compsPanel: CompsPanelState;
+  strategyPanel: StrategyPanelState;
   memoryPanel: MemoryPanelState;
+  fundamentalsPanel: FundamentalsPanelState;
 
   resumable: boolean;
 
@@ -73,10 +77,21 @@ const initialCompsPanel: CompsPanelState = {
   loading: false,
 };
 
+const initialStrategyPanel: StrategyPanelState = {
+  signal: null,
+  portfolio: null,
+  loading: false,
+};
+
 const initialMemoryPanel: MemoryPanelState = {
   calibrationHits: 0,
   calibrationMisses: 0,
   recentRecalls: [],
+  loading: false,
+};
+
+const initialFundamentalsPanel: FundamentalsPanelState = {
+  sections: [],
   loading: false,
 };
 
@@ -97,7 +112,9 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   dataPanel: initialDataPanel,
   modelPanel: initialModelPanel,
   compsPanel: initialCompsPanel,
+  strategyPanel: initialStrategyPanel,
   memoryPanel: initialMemoryPanel,
+  fundamentalsPanel: initialFundamentalsPanel,
 
   startAnalysis: async (query: string, contextDocs?: string[]) => {
     set({ pageState: "RUNNING", analysisQuery: query, timeline: [], reasoningText: "", thinkingText: "", _rawTextBuffer: "", currentPhase: "gather", isReplay: false });
@@ -476,7 +493,9 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
       dataPanel: snapshot.panels?.data || initialDataPanel,
       modelPanel: snapshot.panels?.model || initialModelPanel,
       compsPanel: snapshot.panels?.comps || initialCompsPanel,
+      strategyPanel: snapshot.panels?.strategy || initialStrategyPanel,
       memoryPanel: snapshot.panels?.memory || initialMemoryPanel,
+      fundamentalsPanel: snapshot.panels?.fundamentals || initialFundamentalsPanel,
     });
   },
 
@@ -497,7 +516,9 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
       dataPanel: initialDataPanel,
       modelPanel: initialModelPanel,
       compsPanel: initialCompsPanel,
+      strategyPanel: initialStrategyPanel,
       memoryPanel: initialMemoryPanel,
+      fundamentalsPanel: initialFundamentalsPanel,
     });
   },
 }));
@@ -667,6 +688,7 @@ function _extractPanelData(
         evEbitda: (p.ev_ebitda as number) || 0,
         revenueGrowth: (p.revenue_growth as number) || 0,
         margin: (p.gross_margin as number) || 0,
+        isTarget: Boolean(p.is_target),
       }));
       const scatter: import("@/types/analysis").ScatterPoint[] = rawPeers
         .filter((p) => p.ev_ebitda != null && p.revenue_growth != null)
@@ -682,6 +704,71 @@ function _extractPanelData(
           ...s.compsPanel,
           peers: peers.length > 0 ? peers : s.compsPanel.peers,
           scatterData: scatter.length > 0 ? scatter : s.compsPanel.scatterData,
+          loading: false,
+        },
+      }));
+      break;
+    }
+
+    case "generate_trade_signal": {
+      set((s) => ({
+        strategyPanel: {
+          ...s.strategyPanel,
+          signal: {
+            ticker: (result.ticker as string) || "",
+            action: (result.action as string) || "WATCH",
+            targetWeight: typeof result.target_weight === "number" ? result.target_weight : 0,
+            conviction: (result.conviction as string) || null,
+            discountPct: typeof result.discount_pct === "number" ? result.discount_pct : null,
+            signalStrength: (result.signal_strength as string) || "NEUTRAL",
+            reasoning: (result.reasoning as string) || "",
+            constraintChecks: Array.isArray(result.constraint_checks)
+              ? (result.constraint_checks as string[])
+              : [],
+            suggestedShares: typeof result.suggested_shares === "number" ? result.suggested_shares : null,
+            unrealizedPnlPct: typeof result.unrealized_pnl_pct === "number" ? result.unrealized_pnl_pct : null,
+          },
+          loading: false,
+        },
+      }));
+      break;
+    }
+
+    case "get_portfolio": {
+      const positions = Array.isArray(result.positions)
+        ? (result.positions as Record<string, unknown>[]).map((position) => ({
+            ticker: (position.ticker as string) || "",
+            shares: typeof position.shares === "number" ? position.shares : 0,
+            avgCost: typeof position.avg_cost === "number" ? position.avg_cost : 0,
+            livePrice: typeof position.live_price === "number" ? position.live_price : null,
+            marketValue: typeof position.market_value === "number" ? position.market_value : 0,
+            unrealizedPnl: typeof position.unrealized_pnl === "number" ? position.unrealized_pnl : 0,
+            unrealizedPnlPct:
+              typeof position.unrealized_pnl_pct === "number" ? position.unrealized_pnl_pct : 0,
+            entryDate: (position.entry_date as string) || null,
+          }))
+        : [];
+
+      set((s) => ({
+        strategyPanel: {
+          ...s.strategyPanel,
+          portfolio: {
+            cash: typeof result.cash === "number" ? result.cash : 0,
+            totalMarketValue:
+              typeof result.total_market_value === "number" ? result.total_market_value : 0,
+            totalPortfolioValue:
+              typeof result.total_portfolio_value === "number" ? result.total_portfolio_value : 0,
+            totalUnrealizedPnl:
+              typeof result.total_unrealized_pnl === "number" ? result.total_unrealized_pnl : 0,
+            totalRealizedPnl:
+              typeof result.total_realized_pnl === "number" ? result.total_realized_pnl : 0,
+            totalReturnPct:
+              typeof result.total_return_pct === "number" ? result.total_return_pct : 0,
+            positionCount: typeof result.position_count === "number" ? result.position_count : positions.length,
+            winLoss: (result.win_loss as string) || "—",
+            investedPct: typeof result.invested_pct === "number" ? result.invested_pct : 0,
+            positions,
+          },
           loading: false,
         },
       }));
@@ -805,6 +892,24 @@ function _extractPanelData(
                 date: new Date().toISOString().split("T")[0],
                 relevance: typeof result.total_results === "number" ? Math.min(1, (result.total_results as number) / 10) : 1,
               },
+            ],
+            loading: false,
+          },
+        }));
+      }
+      break;
+    }
+
+    case "emit_research_section": {
+      const title = (result.title as string) || "";
+      const content = (result.content as string) || "";
+      if (title && content) {
+        set((s) => ({
+          fundamentalsPanel: {
+            ...s.fundamentalsPanel,
+            sections: [
+              ...s.fundamentalsPanel.sections,
+              { title, content, timestamp: Date.now() },
             ],
             loading: false,
           },

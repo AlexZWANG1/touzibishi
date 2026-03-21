@@ -11,68 +11,51 @@ interface WatchlistGridProps {
 
 export function WatchlistGrid({ items, loading, onRefresh }: WatchlistGridProps) {
   return (
-    <div>
-      {/* Section header */}
-      <div
-        className="flex items-center gap-2 px-1 py-1"
-        style={{ borderBottom: "1px solid var(--iris-accent)" }}
-      >
-        <h2
-          className="font-mono text-[12px] font-semibold tracking-[0.15em] uppercase"
-          style={{ color: "var(--iris-text-secondary)" }}
-        >
-          WATCHLIST
+    <section className="space-y-4">
+      <div className="flex items-center gap-3">
+        <h2 className="font-display text-[28px] font-medium tracking-[-0.03em] text-[var(--ink)]">
+          Watchlist
         </h2>
-        <span
-          className="font-mono text-[11px]"
-          style={{ color: "var(--iris-accent)" }}
-        >
-          {items.length}
-        </span>
+        <span className="prism-mono-chip">{items.length}</span>
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="ml-auto font-mono text-[12px] px-1.5 py-px border cursor-pointer uppercase tracking-wider transition-colors"
-          style={{
-            borderColor: "var(--iris-border)",
-            color: "var(--iris-text-muted)",
-            backgroundColor: "transparent",
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--iris-accent)"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--iris-border)"; }}
+          className="ml-auto rounded-md border border-[var(--b2)] bg-[var(--bg-w)] px-3 py-2 text-[12px] font-medium text-[var(--t2)] shadow-card transition-all hover:border-[var(--b3)] hover:text-[var(--t1)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "..." : "REFRESH"}
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
-      {loading && items.length === 0 ? (
-        <div className="flex items-center gap-1.5 py-3 font-mono text-[11px]" style={{ color: "var(--iris-text-muted)" }}>
-          <div
-            className="h-2.5 w-2.5 animate-spin border border-t-transparent"
-            style={{ borderColor: "var(--iris-accent)", borderTopColor: "transparent" }}
-          />
-          LOADING...
+      <div className="prism-panel overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead>
+              <tr className="border-b border-[var(--b2)] bg-[var(--bg-2)]">
+                {["Ticker", "Name", "Price", "Gap", "Fair Value", "建议", "操作"].map((label, index) => (
+                  <th
+                    key={label}
+                    className="px-5 py-3 text-left font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
+                    style={{ textAlign: index >= 2 ? "right" : "left" }}
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-[14px] text-[var(--t3)]">
+                    暂无追踪标的，先在首页发起一轮分析。
+                  </td>
+                </tr>
+              ) : (
+                items.map((item) => <WatchlistRow key={item.ticker} item={item} />)
+              )}
+            </tbody>
+          </table>
         </div>
-      ) : (
-        <table className="mt-0.5 w-full" style={{ borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--iris-border)" }}>
-              <th className="text-left font-mono text-[11px] uppercase tracking-wider py-1.5 px-2 font-normal" style={{ color: "var(--iris-text-secondary)" }}>TICKER</th>
-              <th className="text-left font-mono text-[11px] uppercase tracking-wider py-1.5 px-2 font-normal" style={{ color: "var(--iris-text-secondary)" }}>NAME</th>
-              <th className="text-right font-mono text-[11px] uppercase tracking-wider py-1.5 px-2 font-normal" style={{ color: "var(--iris-text-secondary)" }}>PRICE</th>
-              <th className="text-right font-mono text-[11px] uppercase tracking-wider py-1.5 px-2 font-normal" style={{ color: "var(--iris-text-secondary)" }}>GAP%</th>
-              <th className="text-right font-mono text-[11px] uppercase tracking-wider py-1.5 px-2 font-normal" style={{ color: "var(--iris-text-secondary)" }}>FV</th>
-              <th className="text-right font-mono text-[11px] uppercase tracking-wider py-1.5 px-2 font-normal" style={{ color: "var(--iris-text-secondary)" }}>REC</th>
-              <th className="text-right font-mono text-[11px] uppercase tracking-wider py-1.5 px-2 font-normal" style={{ color: "var(--iris-text-secondary)" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <WatchlistRow key={item.ticker} item={item} />
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }
