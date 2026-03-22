@@ -3,6 +3,7 @@
 import { memo, useState } from "react";
 import type { TimelineEvent } from "@/types/analysis";
 import { formatDuration, formatTime } from "@/utils/formatters";
+import { getToolLabel } from "@/utils/toolRegistry";
 
 interface TimelineItemProps {
   event: TimelineEvent;
@@ -16,34 +17,6 @@ const PHASE_COLOR_MAP: Record<string, string> = {
   finalize: "var(--phase-finalize)",
 };
 
-const TOOL_LABELS: Record<string, string> = {
-  recall: "检索记忆",
-  search_knowledge: "检索知识库",
-  remember: "写入记忆",
-  financials: "拉取财报",
-  macro: "宏观数据",
-  quote: "获取报价",
-  history: "历史行情",
-  valuation: "统一估值",
-  get_portfolio: "查看组合",
-  generate_trade_signal: "交易信号",
-  create_hypothesis: "形成假说",
-  add_evidence_card: "添加证据",
-  exa_search: "搜索资讯",
-  web_fetch: "抓取网页",
-  recall_memory: "回忆历史",
-  fmp_get_financials: "拉取财报",
-  yf_quote: "获取报价",
-  yf_history: "历史行情",
-  build_dcf: "构建 DCF",
-  get_comps: "可比分析",
-  extract_observation: "提取观察",
-  save_memory: "保存记忆",
-  memory_search: "搜索记忆",
-  query_knowledge: "查询知识",
-  check_calibration: "校准检查",
-  fred_get_macro: "宏观数据",
-};
 
 export const TimelineItem = memo(function TimelineItem({ event, isLast }: TimelineItemProps) {
   if (event.tool === "thinking") {
@@ -63,7 +36,7 @@ export const TimelineItem = memo(function TimelineItem({ event, isLast }: Timeli
     event.status === "error"
       ? "var(--red)"
       : PHASE_COLOR_MAP[event.phase] || "var(--t3)";
-  const toolLabel = TOOL_LABELS[event.tool] || event.tool;
+  const toolLabel = getToolLabel(event.tool);
 
   return (
     <div className="relative flex gap-3 px-4 py-3 animate-[slide-in-left_0.3s_cubic-bezier(0.16,1,0.3,1)]">

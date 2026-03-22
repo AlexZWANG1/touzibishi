@@ -154,14 +154,35 @@ def generate_trade_signal(
     portfolio = _load_portfolio()
     already_held = ticker.upper() in portfolio.get("positions", {})
 
+    # Compute risk/reward ratio
+    risk_reward_ratio = None
+    if action == "BUY" and target_price > 0 and stop_loss > 0 and price > stop_loss:
+        upside = target_price - price
+        downside = price - stop_loss
+        if downside > 0:
+            risk_reward_ratio = round(upside / downside, 2)
+
+    # Soft warnings
+    warnings = []
+    total_invested = sum(
+        p["shares"] * p["avg_cost"]
+        for p in portfolio.get("positions", {}).values()
+    )
+    total_value = portfolio["cash"] + total_invested
+
+    if action == "BUY" and position_pct > 0:
+        if position_pct / 100 * total_value > portfolio["cash"]:
+            warnings.append(f"Position size ${position_pct/100*total_value:,.0f} exceeds available cash ${portfolio['cash']:,.0f}.")
+        if already_held:
+            existing_pct = (portfolio["positions"][ticker.upper()]["shares"] * portfolio["positions"][ticker.upper()]["avg_cost"]) / total_value * 100
+            warnings.append(f"Already hold {ticker.upper()} at {existing_pct:.1f}% of portfolio. Adding would increase exposure.")
+
+    if risk_reward_ratio is not None and risk_reward_ratio < 1.5:
+        warnings.append(f"Risk/reward ratio is {risk_reward_ratio}:1 — below typical 1.5:1 threshold.")
+
     # Calculate suggested shares if BUY
     suggested_shares = 0
     if action == "BUY" and position_pct > 0 and price > 0:
-        total_invested = sum(
-            p["shares"] * p["avg_cost"]
-            for p in portfolio.get("positions", {}).values()
-        )
-        total_value = portfolio["cash"] + total_invested
         target_value = total_value * (position_pct / 100)
         suggested_shares = int(target_value / price)
 
@@ -181,6 +202,8 @@ def generate_trade_signal(
         "reasoning": reasoning,
         "suggested_shares": suggested_shares,
         "already_held": already_held,
+        "risk_reward_ratio": risk_reward_ratio,
+        "warnings": warnings,
     })
 
 
@@ -193,25 +216,12 @@ def execute_trade(
     """Execute trade in paper portfolio."""
     ticker = ticker.upper()
     portfolio = _load_portfolio()
-    cfg = get_skill_config("trading")
-    constraints = cfg.get("constraints", {})
 
     if action == "BUY":
         cost = shares * price
         if cost > portfolio["cash"]:
             return ToolResult.fail(
                 f"Insufficient cash: need ${cost:,.2f}, have ${portfolio['cash']:,.2f}"
-            )
-
-        # Check single position limit
-        total_value = portfolio["cash"] + sum(
-            p["shares"] * p["avg_cost"]
-            for p in portfolio.get("positions", {}).values()
-        )
-        max_single = constraints.get("max_single_position", 0.10)
-        if cost / total_value > max_single:
-            return ToolResult.fail(
-                f"Position would exceed {max_single*100:.0f}% limit"
             )
 
         portfolio["cash"] -= cost
@@ -278,13 +288,27 @@ def execute_trade(
 
     _save_portfolio(portfolio)
 
+    # Compute portfolio summary after trade
+    total_invested = sum(
+        p["shares"] * p["avg_cost"]
+        for p in portfolio.get("positions", {}).values()
+    )
+    total_value = portfolio["cash"] + total_invested
+    closed = portfolio.get("closed_trades", [])
+    realized = sum(t.get("pnl", 0) for t in closed)
+
     return ToolResult.ok({
         "status": "executed",
         "ticker": ticker,
         "action": action,
         "shares": shares,
         "price": price,
-        "cash_remaining": round(portfolio["cash"], 2),
+        "portfolio_after": {
+            "cash": round(portfolio["cash"], 2),
+            "position_count": len(portfolio.get("positions", {})),
+            "total_value": round(total_value, 2),
+            "total_realized_pnl": round(realized, 2),
+        },
     })
 
 
@@ -346,6 +370,85 @@ def get_portfolio(live_prices: dict = None) -> ToolResult:
     })
 
 
+REVIEW_TRADES_SCHEMA = make_tool_schema(
+    name="review_trades",
+    description=(
+        "Review past trading performance: open positions with current P&L, "
+        "closed trades with realized P&L, and holding periods. "
+        "Use in learning mode to compare predictions with outcomes."
+    ),
+    properties={
+        "ticker": {
+            "type": "string",
+            "description": "Optional: filter to a specific ticker",
+        },
+    },
+    required=[],
+)
+
+
+def review_trades(ticker: str = None) -> ToolResult:
+    """Read-only review of trading history for reflection."""
+    portfolio = _load_portfolio()
+
+    # Open positions
+    open_positions = []
+    for t, pos in portfolio.get("positions", {}).items():
+        if ticker and t.upper() != ticker.upper():
+            continue
+        open_positions.append({
+            "ticker": t,
+            "shares": pos["shares"],
+            "entry_price": round(pos["avg_cost"], 2),
+            "entry_date": pos.get("entry_date"),
+        })
+
+    # Closed trades
+    closed_trades = []
+    for trade in portfolio.get("closed_trades", []):
+        if ticker and trade.get("ticker", "").upper() != ticker.upper():
+            continue
+        entry = trade.get("entry_price", 0)
+        exit_p = trade.get("exit_price", 0)
+        pnl_pct = ((exit_p - entry) / entry * 100) if entry > 0 else 0
+        # Compute holding days
+        holding_days = None
+        if trade.get("entry_date") and trade.get("exit_date"):
+            try:
+                entry_dt = datetime.fromisoformat(trade["entry_date"].replace("Z", "+00:00"))
+                exit_dt = datetime.fromisoformat(trade["exit_date"].replace("Z", "+00:00"))
+                holding_days = (exit_dt - entry_dt).days
+            except Exception:
+                pass
+        closed_trades.append({
+            "ticker": trade.get("ticker"),
+            "entry_price": round(entry, 2),
+            "exit_price": round(exit_p, 2),
+            "pnl": round(trade.get("pnl", 0), 2),
+            "pnl_pct": round(pnl_pct, 1),
+            "holding_days": holding_days,
+            "entry_date": trade.get("entry_date"),
+            "exit_date": trade.get("exit_date"),
+        })
+
+    # Summary stats
+    total_closed = len(closed_trades)
+    wins = sum(1 for t in closed_trades if t["pnl"] > 0)
+    losses = total_closed - wins
+    total_pnl = sum(t["pnl"] for t in closed_trades)
+
+    return ToolResult.ok({
+        "open_positions": open_positions,
+        "closed_trades": closed_trades,
+        "summary": {
+            "open_count": len(open_positions),
+            "closed_count": total_closed,
+            "win_rate": f"{wins}/{total_closed}" if total_closed > 0 else "N/A",
+            "total_realized_pnl": round(total_pnl, 2),
+        },
+    })
+
+
 # ── Registration ─────────────────────────────────────────────
 
 def register(context: dict) -> list[Tool]:
@@ -353,4 +456,5 @@ def register(context: dict) -> list[Tool]:
         Tool(generate_trade_signal, GENERATE_TRADE_SIGNAL_SCHEMA),
         Tool(execute_trade, EXECUTE_TRADE_SCHEMA),
         Tool(get_portfolio, GET_PORTFOLIO_SCHEMA),
+        Tool(review_trades, REVIEW_TRADES_SCHEMA),
     ]

@@ -228,6 +228,8 @@ class SQLiteRetriever(EvidenceRetriever):
                 "ALTER TABLE knowledge_documents ADD COLUMN content_hash TEXT",
                 "ALTER TABLE knowledge_documents ADD COLUMN ai_metadata_json TEXT DEFAULT '{}'",
                 "ALTER TABLE knowledge_documents ADD COLUMN extraction_meta_json TEXT DEFAULT '{}'",
+                "ALTER TABLE knowledge_documents ADD COLUMN category TEXT DEFAULT 'other'",
+                "ALTER TABLE knowledge_documents ADD COLUMN industry TEXT",
             ]
             for migration_sql in migrations:
                 try:
@@ -238,6 +240,11 @@ class SQLiteRetriever(EvidenceRetriever):
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_kdocs_canonical_url ON knowledge_documents(canonical_url)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_kdocs_url_hash ON knowledge_documents(url_hash)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_kdocs_content_hash ON knowledge_documents(content_hash)")
+            except Exception:
+                pass
+            try:
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_kdocs_category ON knowledge_documents(category)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_kdocs_industry ON knowledge_documents(industry)")
             except Exception:
                 pass
             # Idempotent migration: add conversation persistence columns
@@ -627,6 +634,8 @@ class SQLiteRetriever(EvidenceRetriever):
         source_path: str = None,
         company: str = None,
         tags: list[str] = None,
+        category: str = "other",
+        industry: str = None,
         source_type: str = "manual",
         source_name: str = None,
         published_at: str = None,
@@ -645,11 +654,11 @@ class SQLiteRetriever(EvidenceRetriever):
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO knowledge_documents "
-                "(id, title, doc_type, source_path, content_text, tags, company, source_type, source_name, "
+                "(id, title, doc_type, source_path, content_text, tags, company, category, industry, source_type, source_name, "
                 "published_at, canonical_url, url_hash, content_hash, ai_metadata_json, extraction_meta_json, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    doc_id, title, doc_type, source_path, content_text, tags_json, company, source_type, source_name,
+                    doc_id, title, doc_type, source_path, content_text, tags_json, company, category, industry, source_type, source_name,
                     published_at, canonical_url, url_hash, content_hash, ai_metadata_json, extraction_meta_json, now, now,
                 ),
             )
@@ -681,17 +690,19 @@ class SQLiteRetriever(EvidenceRetriever):
             "doc_type": doc_type,
             "chunk_count": len(chunk_ids),
             "company": company,
+            "category": category,
+            "industry": industry,
             "source_type": source_type,
             "source_name": source_name,
             "published_at": published_at,
             "canonical_url": canonical_url,
         }
-    def list_documents(self, company: str = None, doc_type: str = None) -> list[dict]:
+    def list_documents(self, company: str = None, doc_type: str = None, category: str = None, industry: str = None) -> list[dict]:
         """List knowledge documents with metadata."""
         with self._conn() as conn:
             conn.row_factory = sqlite3.Row
             query = (
-                "SELECT id, title, doc_type, source_path, tags, company, source_type, source_name, "
+                "SELECT id, title, doc_type, source_path, tags, company, category, industry, source_type, source_name, "
                 "published_at, canonical_url, url_hash, content_hash, ai_metadata_json, extraction_meta_json, "
                 "created_at, updated_at FROM knowledge_documents"
             )
@@ -703,6 +714,12 @@ class SQLiteRetriever(EvidenceRetriever):
             if doc_type:
                 conditions.append("doc_type = ?")
                 params.append(doc_type)
+            if category:
+                conditions.append("category = ?")
+                params.append(category)
+            if industry:
+                conditions.append("industry = ?")
+                params.append(industry)
             if conditions:
                 query += " WHERE " + " AND ".join(conditions)
             query += " ORDER BY created_at DESC"

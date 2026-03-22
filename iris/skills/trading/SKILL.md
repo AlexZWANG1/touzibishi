@@ -1,31 +1,65 @@
-# Trading — 交易决策与模拟仓管理
+# Trading
 
-## 何时激活
+Three tools: `generate_trade_signal`, `execute_trade`, `get_portfolio`.
 
-当分析完成后需要做出买卖决策，或需要查看/调整模拟仓位时。
+Always call `get_portfolio` before generating a signal — you need to know what you hold and how much cash you have.
+
+A signal must be anchored in a valuation conclusion. If your valuation didn't produce a clear fair value, don't force a trade. "No trade" is a valid output.
 
 ---
 
-## 核心原则
+## Example: BUY with anchor (NVDA)
 
-1. **仓位管理是核心。** 买什么不重要，买多少、什么时候退出才重要。
-2. **催化剂驱动交易。** 不要因为"便宜"就买，要有明确的催化剂和时间窗口。
-3. **止损纪律。** 每笔交易必须有止损价，触发即退出，不找理由。
-4. **让分析说话。** 前面的深度研究已经给了你足够的信息，交易信号应该自然而然地从分析中得出。
+After valuation concluded fair value ~$155, current price $118:
 
-## 工具使用
+```
+get_portfolio()
+# → $100K total, no NVDA, 15% cash
 
-- `generate_trade_signal` — 在分析结束后，输出你的交易建议。给出买/卖/持有判断、目标价、止损价、建议仓位比例、催化剂和理由。
-- `execute_trade` — 用户在UI确认后，系统会调用此工具执行模拟交易，写入仓位。你不需要主动调用它。
-- `get_portfolio` — 查看当前模拟仓位和盈亏。先用 `quote` 获取实时价格，再传入。
+generate_trade_signal(
+  ticker='NVDA', action='BUY', price=118.0,
+  target_price=155.0, stop_loss=98.0, position_pct=8.0,
+  catalysts="Q4 earnings Feb 26, AI capex cycle acceleration",
+  reasoning="DCF fair value $155, cross-check aligned. Stop at $98 = pre-earnings support. R:R = (155-118)/(118-98) = 1.85:1."
+)
+```
 
-## 交易信号要求
+---
 
-信号应包含：
-- 明确的方向（买入/卖出/减仓/持有/观察）
-- 目标价和止损价（基于前面的估值分析）
-- 建议仓位比例（占总资产的百分比）
-- 催化剂（什么事件会推动股价？什么时候？）
-- 一句话理由（为什么现在要做这个交易？）
+## Example: no trade (COST)
 
-不需要：置信度评分、信号强度标签、conviction tier 等指标。用文字把逻辑说清楚就够了。
+Valuation shows fair value ~$920, current price $950:
+
+Don't call generate_trade_signal. Write in your conclusion:
+"Costco at $950 vs fair value $920 — margin of safety too thin. Revisit below $880."
+
+---
+
+## Example: adding to existing (MSFT)
+
+```
+get_portfolio()
+# → Holding 50 MSFT @ $410 (5% of portfolio), $12K cash
+
+generate_trade_signal(
+  ticker='MSFT', action='BUY', price=425.0,
+  target_price=500.0, stop_loss=395.0, position_pct=4.0,
+  reasoning="Adding post-earnings. Updated fair value $490. New capital $4K brings exposure to ~9%. R:R on addition: (500-425)/(425-395) = 2.5:1."
+)
+```
+
+---
+
+## Example: SELL — thesis invalidated (BABA)
+
+```
+get_portfolio()
+# → Holding 200 BABA @ $88, current $82
+
+generate_trade_signal(
+  ticker='BABA', action='SELL', price=82.0,
+  reasoning="Cloud growth decelerated to 7% — original thesis (regulatory normalization + Cloud re-acceleration) invalidated. Exit at -6.8% loss."
+)
+```
+
+SELL because the thesis broke, not because the price dropped.

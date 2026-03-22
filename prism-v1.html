@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prism — Investment Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FAFAF9;--bg-w:#FFFFFF;--bg-2:#F3F2F0;--bg-3:#ECEAE6;--bg-h:#F0EEEB;
+  --b1:rgba(0,0,0,.06);--b2:rgba(0,0,0,.10);--b3:rgba(0,0,0,.16);
+  --t1:#111;--t2:#555;--t3:#888;--t4:#BBB;--ink:#1D1B16;
+  --ac:#4338CA;--ac-h:#5246D6;--ac-s:rgba(67,56,202,.05);--ac-m:rgba(67,56,202,.10);--ac-t:#312E81;
+  --cy:#0F766E;--cy-s:rgba(15,118,110,.05);--cy-t:#0F766E;
+  --green:#15803D;--green-b:rgba(21,128,61,.06);--red:#B91C1C;--red-b:rgba(185,28,28,.06);--amber:#A16207;--amber-b:rgba(161,98,7,.06);
+  /* Prism spectrum */
+  --sp1:#6366F1;--sp2:#06B6D4;--sp3:#10B981;--sp4:#F59E0B;--sp5:#EF4444;
+  --r-sm:6px;--r-md:10px;--r-lg:14px;--r-xl:20px;--r-pill:9999px;
+  --display:'Playfair Display',Georgia,serif;
+  --sans:'Sora',-apple-system,'PingFang SC',sans-serif;
+  --mono:'JetBrains Mono',Consolas,monospace;
+  --sh:0 1px 3px rgba(0,0,0,.04),0 1px 6px rgba(0,0,0,.02);
+  --sh-lg:0 4px 16px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.04);
+}
+*{margin:0;padding:0;box-sizing:border-box}html{font-size:16px}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);-webkit-font-smoothing:antialiased;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+::selection{background:var(--ac-m)}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.1);border-radius:3px}
+
+/* Demo switcher */
+.dt{display:flex;gap:2px;padding:6px 16px;background:var(--bg-2);border-bottom:1px solid var(--b1);flex-shrink:0}
+.dt button{background:none;border:none;color:var(--t3);font-family:var(--sans);font-size:11px;font-weight:500;padding:5px 12px;border-radius:var(--r-pill);cursor:pointer;transition:all .15s}
+.dt button:hover{color:var(--t2);background:var(--bg-3)}.dt button.on{background:var(--ac);color:#fff;font-weight:600}
+.dt .lbl{margin-left:auto;font-size:10px;color:var(--t4);align-self:center;font-family:var(--mono)}
+
+/* ─── Nav ─── */
+.nav{display:flex;align-items:center;height:56px;padding:0 28px;border-bottom:1px solid var(--b2);flex-shrink:0;background:var(--bg-w)}
+/* Prism Logo */
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;margin-right:36px}
+.logo svg{flex-shrink:0}
+.logo-text{font-family:var(--sans);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.03em}
+.logo-text span{color:var(--ac)}
+.nav .links{display:flex;gap:4px}
+.nav .links a{font-size:13px;color:var(--t2);text-decoration:none;padding:7px 14px;border-radius:var(--r-md);font-weight:500;transition:all .15s}
+.nav .links a:hover{color:var(--t1);background:var(--bg-h)}.nav .links a.on{color:var(--t1);background:var(--bg-2)}
+.nav .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.nav .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:bl 2s ease-in-out infinite}
+.nav .st{font-size:11px;color:var(--t3);font-family:var(--mono)}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.3}}
+.pg{display:none;flex:1;overflow:hidden}.pg.on{display:flex;flex-direction:column}
+
+/* ════════════════════════════════════════
+   HOMEPAGE
+   ════════════════════════════════════════ */
+.home{overflow-y:auto}.home-in{max-width:880px;margin:0 auto;padding:0 32px 80px}
+
+/* Hero — asymmetric editorial */
+.hero{padding:56px 0 0;margin-bottom:40px;display:flex;gap:40px;align-items:flex-end}
+.hero-left{flex:1}
+.hero-ey{display:inline-flex;align-items:center;gap:8px;margin-bottom:20px}
+.hero-ey .bar{width:28px;height:2px;border-radius:1px;background:linear-gradient(90deg,var(--sp1),var(--sp2),var(--sp3))}
+.hero-ey span{font-size:11px;font-weight:600;color:var(--ac);letter-spacing:.1em;text-transform:uppercase}
+.hero h1{font-family:var(--display);font-size:46px;font-weight:600;line-height:1.08;color:var(--ink);letter-spacing:-.03em;margin-bottom:16px}
+.hero h1 em{font-style:italic;font-weight:400;color:var(--ac)}
+.hero-desc{font-size:15px;color:var(--t2);line-height:1.7;max-width:440px}
+
+/* ─── Main Input — tall textarea for long prompts ─── */
+.input-section{margin-bottom:44px}
+.main-input{
+  background:var(--bg-w);border:1.5px solid var(--b2);border-radius:var(--r-xl);
+  padding:16px 20px 12px;transition:all .25s;box-shadow:var(--sh);
+  position:relative;
+}
+.main-input:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-s),var(--sh-lg)}
+.main-input textarea{
+  width:100%;background:none;border:none;color:var(--t1);font-family:var(--sans);
+  font-size:15px;line-height:1.65;padding:0;outline:none;resize:none;
+  min-height:72px;max-height:200px;
+}
+.main-input textarea::placeholder{color:var(--t4)}
+.main-input-footer{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--b1)}
+.mi-mode{display:flex;align-items:center;gap:5px;padding:7px 14px;border:1px solid var(--b2);background:var(--bg);border-radius:var(--r-lg);color:var(--ac);font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;transition:all .15s}
+.mi-mode:hover{border-color:var(--b3);background:var(--bg-2)}
+.mi-hint{flex:1;font-size:12px;color:var(--t4);text-align:right}
+.mi-go{
+  width:40px;height:40px;border-radius:var(--r-lg);border:none;
+  background:var(--ac);color:#fff;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;transition:all .15s;
+}
+.mi-go:hover{background:var(--ac-h);transform:scale(1.03)}
+
+/* Onboarding hint */
+.onboard{
+  display:flex;align-items:flex-start;gap:14px;padding:16px 20px;
+  background:linear-gradient(135deg,rgba(99,102,241,.03) 0%,rgba(6,182,212,.03) 50%,rgba(16,185,129,.02) 100%);
+  border:1px solid rgba(99,102,241,.08);border-radius:var(--r-lg);margin-bottom:44px;
+}
+.onboard-icon{width:32px;height:32px;border-radius:var(--r-md);background:var(--ac-s);color:var(--ac);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.onboard-body{flex:1}
+.onboard-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:4px}
+.onboard-text{font-size:13px;color:var(--t2);line-height:1.65}
+.onboard-text b{color:var(--t1);font-weight:600}
+
+/* ─── Modules (merged with templates) ─── */
+.mod-grid{display:flex;flex-direction:column;gap:14px;margin-bottom:52px}
+.mod{background:var(--bg-w);border:1.5px solid var(--b1);border-radius:var(--r-lg);overflow:hidden;transition:all .2s;box-shadow:var(--sh)}
+.mod:hover{border-color:var(--b2);box-shadow:var(--sh-lg)}
+.mod .bar{height:3px}
+.mod.fund .bar{background:linear-gradient(90deg,var(--sp2),var(--sp3))}.mod.val .bar{background:linear-gradient(90deg,var(--sp1),var(--sp2))}.mod.trade .bar{background:linear-gradient(90deg,var(--sp4),var(--sp5))}
+.mod-inner{padding:22px 24px 18px;display:flex;gap:24px}
+.mod-info{flex:1;min-width:0}
+.mod-hd{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.mod-ic{width:32px;height:32px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center}
+.mod.fund .mod-ic{background:var(--cy-s);color:var(--cy)}.mod.val .mod-ic{background:var(--ac-s);color:var(--ac)}.mod.trade .mod-ic{background:var(--amber-b);color:var(--amber)}
+.mod-nm{font-size:15px;font-weight:600;color:var(--t1)}
+.mod-ds{font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:10px}
+.mod-pills{display:flex;gap:5px;flex-wrap:wrap}
+.mod-pill{font-size:10px;font-weight:500;padding:3px 9px;border-radius:var(--r-pill);background:var(--bg-2);color:var(--t2)}
+.mod-tpls{width:300px;flex-shrink:0;border-left:1px solid var(--b1);padding-left:20px;display:flex;flex-direction:column;gap:4px;justify-content:center}
+.mod-tpl{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-md);cursor:pointer;transition:all .15s;border:1px solid transparent}
+.mod-tpl:hover{background:var(--bg-h);border-color:var(--b1)}
+.mod-tpl-ic{width:24px;height:24px;border-radius:var(--r-sm);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--bg-2);color:var(--t3);font-size:11px;transition:all .15s}
+.mod-tpl:hover .mod-tpl-ic{background:var(--ac-m);color:var(--ac)}
+.mod-tpl-tx{flex:1;font-size:13px;color:var(--t1);font-weight:500}
+.mod-tpl-ar{color:var(--t4);font-size:13px;opacity:0;transform:translateX(-4px);transition:all .15s}
+.mod-tpl:hover .mod-tpl-ar{opacity:1;transform:translateX(0)}
+
+/* Watchlist */
+.wl-sec{margin-bottom:52px}
+.sec-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.sec-h h2{font-family:var(--display);font-size:20px;font-weight:500;color:var(--ink)}
+.sec-h .c{font-family:var(--mono);font-size:11px;color:var(--t3);background:var(--bg-2);padding:2px 8px;border-radius:var(--r-pill)}
+.sec-h .act{margin-left:auto;font-size:12px;color:var(--t2);background:none;border:1px solid var(--b2);border-radius:var(--r-md);padding:5px 14px;cursor:pointer;font-family:var(--sans);font-weight:500;transition:all .15s}
+.sec-h .act:hover{border-color:var(--b3);color:var(--t1)}
+.tw{background:var(--bg-w);border:1.5px solid var(--b1);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--sh)}
+table.tb{width:100%;border-collapse:collapse}
+table.tb th{text-align:left;font-size:11px;font-weight:600;color:var(--t3);padding:12px 20px;border-bottom:1px solid var(--b2);font-family:var(--sans);letter-spacing:.04em}
+table.tb th.r{text-align:right}
+table.tb td{padding:14px 20px;border-bottom:1px solid var(--b1);font-size:14px;color:var(--t2)}
+table.tb tr:last-child td{border-bottom:none}table.tb tr:hover td{background:var(--bg-h)}table.tb td.r{text-align:right}
+.tk{font-family:var(--mono);font-weight:600;color:var(--ac);font-size:13px}
+.nm{color:var(--t1);font-weight:500}
+.dv{font-family:var(--mono);font-size:13px;color:var(--cy-t)}
+.up{font-family:var(--mono);font-size:13px;color:var(--green);font-weight:600}
+.dn{font-family:var(--mono);font-size:13px;color:var(--red);font-weight:600}
+.badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill)}
+.badge.buy{background:var(--green-b);color:var(--green)}.badge.sell{background:var(--red-b);color:var(--red)}.badge.hold{background:var(--amber-b);color:var(--amber)}
+.rbtn{font-size:11px;color:var(--ac);background:var(--ac-s);border:none;border-radius:var(--r-md);padding:5px 12px;cursor:pointer;font-family:var(--sans);font-weight:500;transition:all .15s}
+.rbtn:hover{background:var(--ac-m)}
+
+/* ════════ ANALYSIS PAGE ════════ */
+.anl{flex:1;display:flex;overflow:hidden}
+.aside{width:260px;flex-shrink:0;border-right:1px solid var(--b2);display:flex;flex-direction:column;background:var(--bg-2)}
+.aside-hd{padding:18px 16px 14px;border-bottom:1px solid var(--b1)}
+.aside-q{font-size:13px;font-weight:500;color:var(--t1);margin-bottom:12px;display:flex;align-items:flex-start;gap:8px;line-height:1.5}
+.aside-q .c{color:var(--ac);font-family:var(--mono);font-weight:700;font-size:14px;flex-shrink:0;margin-top:1px}
+.phs{display:flex;gap:3px}
+.ph{font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--r-pill);color:var(--t4)}.ph.done{color:var(--t2)}.ph.now{background:var(--ac-s);color:var(--ac)}
+.aside-tabs{display:flex;gap:2px;padding:6px 10px;border-bottom:1px solid var(--b1)}
+.at{font-size:12px;font-weight:500;color:var(--t3);padding:6px 12px;border-radius:var(--r-md);border:none;background:none;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.at:hover{color:var(--t2);background:var(--bg-h)}.at.on{color:var(--t1);background:var(--bg-w)}
+.tl{flex:1;overflow-y:auto;padding:8px 12px}
+.ti{display:flex;gap:10px;padding:5px 0;position:relative}
+.td{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.td.g{background:var(--green)}.td.a{background:#2563EB}.td.e{background:var(--amber)}.td.f{background:#7C3AED}.td.pulse{animation:bl 1s ease-in-out infinite}
+.tl-line{position:absolute;left:3px;top:16px;bottom:-5px;width:1px;background:var(--b1)}
+.ti-body{flex:1;min-width:0}.ti-tool{font-size:12px;font-weight:500;color:var(--cy-t)}.ti-msg{font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ti-time{font-family:var(--mono);font-size:10px;color:var(--t4);flex-shrink:0;margin-top:1px}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg-w)}
+.skill-bar{display:flex;align-items:center;gap:3px;padding:8px 24px;border-bottom:1px solid var(--b2);flex-shrink:0;background:var(--bg)}
+.sk{font-size:12px;font-weight:500;color:var(--t3);padding:6px 14px;border-radius:var(--r-pill);border:none;background:none;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.sk:hover{color:var(--t2);background:var(--bg-h)}.sk.on{color:#fff;background:var(--ac);font-weight:600}
+.sk .b{font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:var(--r-pill);margin-left:4px;background:rgba(255,255,255,.2)}.sk:not(.on) .b{background:var(--bg-2);color:var(--t3)}
+
+/* Chat */
+.chat{flex:1;overflow-y:auto;padding:28px 40px}.chat-mx{max-width:700px}
+.thk{border-left:2px solid var(--ac-m);background:var(--ac-s);border-radius:0 var(--r-md) var(--r-md) 0;margin-bottom:18px}
+.thk-tog{display:flex;align-items:center;gap:8px;padding:9px 14px;cursor:pointer;border:none;background:none;width:100%;text-align:left;color:var(--t3);font-family:var(--sans);font-size:12px;font-weight:500}
+.thk-tog:hover{background:var(--ac-s)}.thk-chv{font-size:8px;transition:transform .15s}.thk-chv.op{transform:rotate(90deg)}
+.thk-body{padding:0 14px 12px;font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--t3);white-space:pre-wrap}
+.ai{display:flex;gap:14px;margin-bottom:28px}
+.av{width:32px;height:32px;border-radius:var(--r-md);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.av.ai{background:var(--ac-s);color:var(--ac);border:1px solid var(--ac-m)}
+.ai-b{flex:1;min-width:0}.ai-b p{font-size:15px;line-height:1.85;color:var(--t1);margin-bottom:14px}.ai-b p:last-child{margin-bottom:0}.ai-b strong{font-weight:600}
+.hi{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cy-t)}.hi.g{color:var(--green)}.hi.r{color:var(--red)}
+.ur{display:flex;justify-content:flex-end;margin-bottom:28px}
+.ub{max-width:68%;padding:12px 20px;border-radius:20px 20px 4px 20px;background:var(--ac);color:#fff;font-size:14px;line-height:1.5;font-weight:500}
+
+/* Analysis input — also textarea */
+.chat-inp{flex-shrink:0;padding:12px 24px 20px;border-top:1px solid var(--b2);background:var(--bg-w)}
+.chat-inp-bar{background:var(--bg-w);border:1.5px solid var(--b3);border-radius:var(--r-xl);padding:10px 14px 8px;transition:all .25s;box-shadow:var(--sh)}
+.chat-inp-bar:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-s)}
+.chat-inp-bar textarea{width:100%;background:none;border:none;outline:none;font-family:var(--sans);font-size:14px;color:var(--t1);resize:none;min-height:24px;max-height:120px;line-height:1.5}
+.chat-inp-bar textarea::placeholder{color:var(--t4)}
+.chat-inp-footer{display:flex;align-items:center;gap:8px;margin-top:8px}
+.chat-inp-footer .hint{flex:1;font-size:11px;color:var(--t4)}
+.snd{width:34px;height:34px;border-radius:50%;border:none;background:var(--ac);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}.snd:hover{background:var(--ac-h)}
+
+/* Data panels */
+.pnl{flex:1;overflow-y:auto;padding:28px 36px}
+.mg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px}
+.mc{background:var(--bg-w);border:1.5px solid var(--b1);border-radius:var(--r-lg);padding:18px;box-shadow:var(--sh)}.mc:hover{border-color:var(--b2)}
+.mc-l{font-size:11px;color:var(--t3);margin-bottom:6px;font-weight:600;letter-spacing:.04em}
+.mc-v{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--cy-t)}.mc-u{font-size:11px;color:var(--t3);margin-left:4px}
+.fv{background:var(--bg-w);border:1.5px solid var(--b2);border-radius:var(--r-lg);padding:28px;margin-bottom:20px;box-shadow:var(--sh-lg)}
+.fv-top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.fv-lbl{font-size:11px;color:var(--t3);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.fv-val{font-family:var(--mono);font-size:32px;font-weight:700;color:var(--ac)}.fv-vs{font-size:14px;color:var(--t3)}.fv-cur{font-family:var(--mono);font-size:20px;color:var(--t2)}
+.fv-gap{font-family:var(--mono);font-size:20px;font-weight:600}
+.fv-conf{font-size:10px;color:var(--t3);background:var(--bg-2);padding:3px 10px;border-radius:var(--r-pill);font-weight:600}
+.fv-bar{height:5px;background:var(--bg-2);border-radius:3px;position:relative;margin-bottom:8px}
+.fv-bf{position:absolute;left:0;top:0;bottom:0;border-radius:3px}.fv-bm{position:absolute;top:-5px;width:3px;height:15px;border-radius:2px;transform:translateX(-50%)}
+.fv-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--t3);font-family:var(--mono)}
+.mults{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px}
+.ml{font-family:var(--mono);font-size:11px;font-weight:500;padding:6px 14px;border-radius:var(--r-pill);background:var(--cy-s);color:var(--cy-t);border:1px solid rgba(15,118,110,.08)}
+.tc{background:var(--bg-w);border:1.5px solid var(--b1);border-radius:var(--r-lg);overflow:hidden;margin-bottom:16px;box-shadow:var(--sh)}
+.tc-h{padding:14px 20px;border-bottom:1px solid var(--b2);font-size:14px;font-weight:600;color:var(--t1)}
+table.ft{width:100%;border-collapse:collapse}
+table.ft th{text-align:right;font-size:11px;font-weight:600;color:var(--t3);padding:10px 20px;border-bottom:1px solid var(--b2);font-family:var(--sans)}table.ft th:first-child{text-align:left}
+table.ft td{text-align:right;font-family:var(--mono);font-size:13px;padding:11px 20px;border-bottom:1px solid var(--b1);color:var(--t2)}table.ft td:first-child{text-align:left;font-family:var(--sans);font-size:14px;color:var(--t1);font-weight:500}
+table.ft tr:last-child td{border-bottom:none;font-weight:600;color:var(--t1)}table.ft tr:hover td{background:var(--bg-h)}
+.sg{display:grid;gap:2px;padding:14px}
+.sc{padding:8px;text-align:center;font-family:var(--mono);font-size:12px;border-radius:var(--r-sm)}
+.sc.base{background:var(--ac-m);color:var(--ac-t);font-weight:700;border:1px solid var(--ac-m)}
+.sc.hi2{background:var(--green-b);color:var(--green)}.sc.hi1{background:rgba(21,128,61,.03);color:var(--t2)}
+.sc.lo1{background:rgba(185,28,28,.03);color:var(--t2)}.sc.lo2{background:var(--red-b);color:var(--red)}
+.sc.hd{background:transparent;color:var(--t3);font-size:10px;font-weight:600}.sc.cn{background:transparent;color:var(--t4);font-size:9px}
+
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.an{animation:rise .4s ease-out forwards;opacity:0}.d1{animation-delay:.06s}.d2{animation-delay:.12s}.d3{animation-delay:.18s}.d4{animation-delay:.24s}
+</style>
+</head>
+<body>
+
+<div class="dt">
+  <button class="on" onclick="go('home',this)">首页</button>
+  <button onclick="go('chat',this)">分析 · 对话</button>
+  <button onclick="go('data',this)">分析 · 数据</button>
+  <button onclick="go('model',this)">分析 · 模型</button>
+  <span class="lbl">Prism v1</span>
+</div>
+
+<!-- Nav with Prism Logo -->
+<div class="nav">
+  <a class="logo" href="#">
+    <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
+      <path d="M16 2L28 28H4L16 2Z" fill="none" stroke="#4338CA" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M16 10L22 24H10L16 10Z" fill="url(#pg)" opacity=".15"/>
+      <line x1="16" y1="2" x2="28" y2="28" stroke="url(#pl)" stroke-width="1.5" opacity=".5"/>
+      <defs>
+        <linearGradient id="pg" x1="10" y1="10" x2="22" y2="24"><stop stop-color="#6366F1"/><stop offset=".5" stop-color="#06B6D4"/><stop offset="1" stop-color="#10B981"/></linearGradient>
+        <linearGradient id="pl" x1="16" y1="2" x2="28" y2="28"><stop stop-color="#6366F1"/><stop offset=".5" stop-color="#06B6D4"/><stop offset="1" stop-color="#10B981"/></linearGradient>
+      </defs>
+    </svg>
+    <div class="logo-text">Pr<span>i</span>sm</div>
+  </a>
+  <div class="links"><a class="on">首页</a><a>知识库</a><a>记忆管理</a></div>
+  <div class="right"><div class="dot"></div><span class="st">LIVE</span></div>
+</div>
+
+<!-- ════════ HOME ════════ -->
+<div class="pg on" id="p-home"><div class="home"><div class="home-in">
+
+  <div class="hero an">
+    <div class="hero-left">
+      <div class="hero-ey"><span class="bar"></span><span>Prism Research Intelligence</span></div>
+      <h1>Decompose complexity.<br><em>See clearly.</em></h1>
+      <div class="hero-desc">一束复杂的市场数据进来，Prism 将它分解成清晰的光谱：基本面假说、估值模型、交易信号。</div>
+    </div>
+  </div>
+
+  <!-- Main input — textarea for long prompts -->
+  <div class="input-section an d1">
+    <div class="main-input">
+      <textarea placeholder="描述你的研究任务...&#10;&#10;例如：深度分析 AAPL 最新财报，重点关注服务业务增长趋势对估值的影响，对比 MSFT 和 GOOGL 的云业务，给出 DCF 模型和交易建议。" rows="3" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+      <div class="main-input-footer">
+        <button class="mi-mode">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          深度分析
+        </button>
+        <span class="mi-hint">Shift+Enter 换行 · Enter 发送</span>
+        <button class="mi-go"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onboarding -->
+  <div class="onboard an d2">
+    <div class="onboard-icon">
+      <svg width="16" height="16" viewBox="0 0 32 32" fill="none"><path d="M16 2L28 28H4L16 2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="onboard-body">
+      <div class="onboard-title">Prism 是一个独立的 AI Research Harness</div>
+      <div class="onboard-text">它会自动编排多步研究流程：<b>拉取财务数据 → 搜索最新资讯 → 构建估值模型 → 对比同业 → 生成交易建议</b>。你只需要描述研究目标，Prism 会选择合适的工具并实时展示中间过程。分析过程中你可以随时引导方向。</div>
+    </div>
+  </div>
+
+  <!-- Modules + Templates -->
+  <div class="mod-grid an d3">
+    <div class="mod fund">
+      <div class="bar"></div>
+      <div class="mod-inner">
+        <div class="mod-info">
+          <div class="mod-hd"><div class="mod-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div><div class="mod-nm">基本面研究</div></div>
+          <div class="mod-ds">挖掘投资假说，自动搜索证据验证。</div>
+          <div class="mod-pills"><span class="mod-pill">假说面板</span><span class="mod-pill">证据卡片</span><span class="mod-pill">资讯搜索</span></div>
+        </div>
+        <div class="mod-tpls">
+          <div class="mod-tpl"><div class="mod-tpl-ic">&#9656;</div><div class="mod-tpl-tx">深度分析 AAPL 最新财报</div><span class="mod-tpl-ar">&rarr;</span></div>
+          <div class="mod-tpl"><div class="mod-tpl-ic">&#9656;</div><div class="mod-tpl-tx">分析 AI 芯片行业竞争格局</div><span class="mod-tpl-ar">&rarr;</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="mod val">
+      <div class="bar"></div>
+      <div class="mod-inner">
+        <div class="mod-info">
+          <div class="mod-hd"><div class="mod-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg></div><div class="mod-nm">估值研究</div></div>
+          <div class="mod-ds">构建 DCF 模型，敏感性分析，同业对比。</div>
+          <div class="mod-pills"><span class="mod-pill">财务数据</span><span class="mod-pill">DCF 模型</span><span class="mod-pill">可比公司</span></div>
+        </div>
+        <div class="mod-tpls">
+          <div class="mod-tpl"><div class="mod-tpl-ic">&#9656;</div><div class="mod-tpl-tx">对比 MSFT 和 GOOGL 云估值</div><span class="mod-tpl-ar">&rarr;</span></div>
+          <div class="mod-tpl"><div class="mod-tpl-ic">&#9656;</div><div class="mod-tpl-tx">12% WACC 重新估值 TSLA</div><span class="mod-tpl-ar">&rarr;</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="mod trade">
+      <div class="bar"></div>
+      <div class="mod-inner">
+        <div class="mod-info">
+          <div class="mod-hd"><div class="mod-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg></div><div class="mod-nm">交易策略</div></div>
+          <div class="mod-ds">生成交易信号，仓位建议，追踪预测准确度。</div>
+          <div class="mod-pills"><span class="mod-pill">策略面板</span><span class="mod-pill">信号跟踪</span><span class="mod-pill">校准数据</span></div>
+        </div>
+        <div class="mod-tpls">
+          <div class="mod-tpl"><div class="mod-tpl-ic">&#9656;</div><div class="mod-tpl-tx">生成 META 交易策略建议</div><span class="mod-tpl-ar">&rarr;</span></div>
+          <div class="mod-tpl"><div class="mod-tpl-ic">&#9656;</div><div class="mod-tpl-tx">复盘 NVDA 最新财报预测</div><span class="mod-tpl-ar">&rarr;</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wl-sec an d4">
+    <div class="sec-h"><h2>Watchlist</h2><span class="c">4</span><button class="act">Refresh</button></div>
+    <div class="tw"><table class="tb"><thead><tr><th>Ticker</th><th>Name</th><th class="r">Price</th><th class="r">Gap</th><th class="r">Fair Value</th><th class="r">建议</th><th class="r"></th></tr></thead><tbody>
+      <tr><td><span class="tk">AAPL</span></td><td class="nm">Apple Inc.</td><td class="r dv">$178.72</td><td class="r up">+15.3%</td><td class="r dv">$206.07</td><td class="r"><span class="badge buy">买入</span></td><td class="r"><button class="rbtn">复盘</button></td></tr>
+      <tr><td><span class="tk">NVDA</span></td><td class="nm">NVIDIA Corp.</td><td class="r dv">$875.30</td><td class="r dn">-22.1%</td><td class="r dv">$681.87</td><td class="r"><span class="badge sell">减持</span></td><td class="r"><button class="rbtn">复盘</button></td></tr>
+      <tr><td><span class="tk">MSFT</span></td><td class="nm">Microsoft Corp.</td><td class="r dv">$415.60</td><td class="r up">+8.7%</td><td class="r dv">$451.76</td><td class="r"><span class="badge hold">持有</span></td><td class="r"><button class="rbtn">复盘</button></td></tr>
+      <tr><td><span class="tk">GOOGL</span></td><td class="nm">Alphabet Inc.</td><td class="r dv">$155.80</td><td class="r up">+12.4%</td><td class="r dv">$175.12</td><td class="r"><span class="badge buy">买入</span></td><td class="r"><button class="rbtn">复盘</button></td></tr>
+    </tbody></table></div>
+  </div>
+
+</div></div></div>
+
+<!-- ════════ ANALYSIS — Chat ════════ -->
+<div class="pg" id="p-chat"><div class="anl">
+  <div class="aside"><div class="aside-hd"><div class="aside-q"><span class="c">&gt;</span>深度分析 AAPL 最新财报，重点关注服务业务增长对估值影响</div><div class="phs"><span class="ph done">收集</span><span class="ph done">分析</span><span class="ph now">评估</span><span class="ph">总结</span></div></div><div class="aside-tabs"><button class="at on">日志</button><button class="at">记忆</button></div><div class="tl">
+    <div class="ti"><div class="td g"></div><div class="tl-line"></div><div class="ti-body"><div class="ti-tool">获取行情</div><div class="ti-msg">AAPL 实时报价</div></div><div class="ti-time">14:32:01</div></div>
+    <div class="ti"><div class="td g"></div><div class="tl-line"></div><div class="ti-body"><div class="ti-tool">拉取财报</div><div class="ti-msg">AAPL income-statement</div></div><div class="ti-time">14:32:03</div></div>
+    <div class="ti"><div class="td g"></div><div class="tl-line"></div><div class="ti-body"><div class="ti-tool">检索记忆</div><div class="ti-msg">AAPL 历史分析</div></div><div class="ti-time">14:32:08</div></div>
+    <div class="ti"><div class="td a"></div><div class="tl-line"></div><div class="ti-body"><div class="ti-tool">搜索资讯</div><div class="ti-msg">Apple Q1 2026</div></div><div class="ti-time">14:32:12</div></div>
+    <div class="ti"><div class="td e"></div><div class="tl-line"></div><div class="ti-body"><div class="ti-tool">估值计算</div><div class="ti-msg">DCF + Comps</div></div><div class="ti-time">14:32:18</div></div>
+    <div class="ti"><div class="td e pulse"></div><div class="ti-body"><div class="ti-tool">形成假设</div><div class="ti-msg">构建投资论点...</div></div><div class="ti-time">14:32:24</div></div>
+  </div></div>
+  <div class="main">
+    <div class="skill-bar"><button class="sk on">对话</button><button class="sk">数据<span class="b">7</span></button><button class="sk">模型<span class="b">1</span></button><button class="sk">可比</button><button class="sk">策略</button></div>
+    <div class="chat"><div class="chat-mx">
+      <div class="thk"><button class="thk-tog" onclick="let b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.thk-chv').classList.toggle('op')"><span class="thk-chv">&#9654;</span><span>Trace</span><span style="flex:1;color:var(--t4);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:8px">分析 AAPL 财报，重点服务业务...</span></button><div class="thk-body" style="display:none">用户要求重点分析服务业务增长趋势对估值的影响。需获取多年 income statement，对比服务/硬件毛利率，在 DCF 中单独建模服务收入线。</div></div>
+      <div class="ai"><div class="av ai"><svg width="14" height="14" viewBox="0 0 32 32" fill="none"><path d="M16 4L26 26H6L16 4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div><div class="ai-b"><p>我正在分析 <strong>Apple (AAPL)</strong> 的最新财报，重点关注你提到的服务业务增长。</p><p>营收 <span class="hi">$124.3B</span>，同比 <span class="hi g">+6.1%</span>，超预期。服务业务创纪录 <span class="hi">$24.2B</span>，环比加速明显。</p><p>毛利率 <span class="hi">46.6%</span>（YoY +70bps），主要受服务占比提升驱动。EPS <span class="hi">$2.40</span> 超预期 3.4%。</p></div></div>
+      <div class="ur"><div class="ub">服务业务的毛利率拆分看一下，和硬件之间的差距有多大？对 DCF 的影响量化一下</div></div>
+      <div class="ai"><div class="av ai"><svg width="14" height="14" viewBox="0 0 32 32" fill="none"><path d="M16 4L26 26H6L16 4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div><div class="ai-b"><p>服务毛利率约 <span class="hi">71%</span>，硬件约 <span class="hi">37%</span>，差距 <span class="hi">34 个百分点</span>。</p><p>服务占比过去四季度：<span class="hi">19.2% → 20.1% → 21.3% → 24.2%</span>（按收入计），趋势非常明确。</p><p>在 DCF 模型中，我将服务和硬件分开建模。服务 5Y CAGR 假设 <span class="hi">14%</span>，硬件 <span class="hi">3%</span>。仅服务线贡献的 NPV 约 <span class="hi">$78/share</span>，占总估值的 <span class="hi">38%</span>。如果服务增速从 14% 提升到 18%，公允价值从 $206 提升到约 <span class="hi">$228</span>（+10.7%）。</p></div></div>
+    </div></div>
+    <!-- Textarea input for analysis -->
+    <div class="chat-inp">
+      <div class="chat-inp-bar">
+        <textarea placeholder="引导分析方向，可以写详细的要求..." rows="1" oninput="this.style.height='24px';this.style.height=this.scrollHeight+'px'"></textarea>
+        <div class="chat-inp-footer">
+          <span class="hint">Shift+Enter 换行</span>
+          <button class="snd"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5m0 0l-7 7m7-7l7 7"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ════════ ANALYSIS — Data ════════ -->
+<div class="pg" id="p-data"><div class="anl">
+  <div class="aside"><div class="aside-hd"><div class="aside-q"><span class="c">&gt;</span>分析 AAPL 服务业务</div><div class="phs"><span class="ph done">收集</span><span class="ph done">分析</span><span class="ph done">评估</span><span class="ph done">总结</span></div></div><div class="aside-tabs"><button class="at on">日志</button><button class="at">记忆</button></div><div class="tl" style="display:flex;align-items:center;justify-content:center"><p style="font-size:12px;color:var(--t3);font-family:var(--mono)">8 tools · 22s</p></div></div>
+  <div class="main">
+    <div class="skill-bar"><button class="sk">对话</button><button class="sk on">数据<span class="b">7</span></button><button class="sk">模型<span class="b">1</span></button><button class="sk">可比<span class="b">5</span></button><button class="sk">策略</button></div>
+    <div class="pnl">
+      <div class="mg"><div class="mc"><div class="mc-l">AAPL PRICE</div><div class="mc-v">$178.72<span class="mc-u">USD</span></div></div><div class="mc"><div class="mc-l">MARKET CAP</div><div class="mc-v">$2.78T</div></div><div class="mc"><div class="mc-l">P/E (TTM)</div><div class="mc-v">29.4</div></div><div class="mc"><div class="mc-l">FWD P/E</div><div class="mc-v">27.1</div></div><div class="mc"><div class="mc-l">EV/EBITDA</div><div class="mc-v">23.8</div></div><div class="mc"><div class="mc-l">DIVIDEND</div><div class="mc-v">0.55%</div></div></div>
+      <div class="tc"><div class="tc-h">AAPL 利润表</div><table class="ft"><thead><tr><th>指标</th><th>2025</th><th>2024</th><th>2023</th></tr></thead><tbody><tr><td>营收</td><td style="color:var(--cy-t)">$412.3B</td><td>$383.3B</td><td>$394.3B</td></tr><tr><td>毛利</td><td style="color:var(--cy-t)">$192.1B</td><td>$169.1B</td><td>$169.1B</td></tr><tr><td>营业利润</td><td style="color:var(--cy-t)">$130.5B</td><td>$114.3B</td><td>$114.3B</td></tr><tr><td>净利润</td><td>$105.6B</td><td>$94.8B</td><td>$97.0B</td></tr></tbody></table></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ════════ ANALYSIS — Model ════════ -->
+<div class="pg" id="p-model"><div class="anl">
+  <div class="aside"><div class="aside-hd"><div class="aside-q"><span class="c">&gt;</span>分析 AAPL 服务业务</div><div class="phs"><span class="ph done">收集</span><span class="ph done">分析</span><span class="ph done">评估</span><span class="ph done">总结</span></div></div><div class="aside-tabs"><button class="at on">日志</button><button class="at">记忆</button></div><div class="tl" style="display:flex;align-items:center;justify-content:center"><p style="font-size:12px;color:var(--t3)">完成</p></div></div>
+  <div class="main">
+    <div class="skill-bar"><button class="sk">对话</button><button class="sk">数据<span class="b">7</span></button><button class="sk on">模型<span class="b">1</span></button><button class="sk">可比<span class="b">5</span></button><button class="sk">策略</button></div>
+    <div class="pnl">
+      <div class="fv"><div class="fv-top"><span class="fv-lbl">DCF Fair Value</span><span class="fv-val">$206.07</span><span class="fv-vs">vs</span><span class="fv-cur">$178.72</span><span class="fv-gap" style="color:var(--green)">+15.3%</span><span class="fv-conf">MED CONF</span></div><div class="fv-bar"><div class="fv-bf" style="width:72%;background:rgba(21,128,61,.08)"></div><div class="fv-bm" style="left:58%;background:var(--t3)"></div><div class="fv-bm" style="left:72%;background:var(--ac)"></div></div><div class="fv-labels"><span>$0</span><span>CUR $178.72 · FV $206.07</span></div></div>
+      <div class="mults"><span class="ml">Fwd P/E: 27.1x</span><span class="ml">EV/EBITDA: 23.8x</span><span class="ml">FCF Yield: 3.8%</span><span class="ml">PEG: 2.1x</span></div>
+      <div class="tc"><div class="tc-h">Sensitivity — WACC vs Terminal Growth</div><div class="sg" style="grid-template-columns:auto repeat(5,1fr)"><div class="sc cn">WACC\TG</div><div class="sc hd">1.5%</div><div class="sc hd">2.0%</div><div class="sc hd">2.5%</div><div class="sc hd">3.0%</div><div class="sc hd">3.5%</div><div class="sc hd">8.0%</div><div class="sc hi2">$228</div><div class="sc hi2">$241</div><div class="sc hi1">$258</div><div class="sc hi2">$278</div><div class="sc hi2">$304</div><div class="sc hd">9.0%</div><div class="sc hi1">$196</div><div class="sc base">$206</div><div class="sc hi1">$218</div><div class="sc hi1">$232</div><div class="sc hi2">$250</div><div class="sc hd">10.0%</div><div class="sc lo1">$172</div><div class="sc lo1">$180</div><div class="sc lo1">$189</div><div class="sc hi1">$200</div><div class="sc hi1">$213</div><div class="sc hd">11.0%</div><div class="sc lo2">$153</div><div class="sc lo1">$159</div><div class="sc lo1">$167</div><div class="sc lo1">$176</div><div class="sc lo1">$186</div><div class="sc hd">12.0%</div><div class="sc lo2">$137</div><div class="sc lo2">$143</div><div class="sc lo2">$149</div><div class="sc lo1">$156</div><div class="sc lo1">$164</div></div></div>
+    </div>
+  </div>
+</div></div>
+
+<script>
+function go(id,btn){document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.dt button').forEach(b=>b.classList.remove('on'));document.getElementById('p-'+id).classList.add('on');btn.classList.add('on')}
+</script>
+</body>
+</html>

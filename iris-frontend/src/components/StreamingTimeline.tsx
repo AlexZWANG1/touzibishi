@@ -4,97 +4,58 @@ import { useEffect, useMemo, useRef } from "react";
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 import { TimelineItem } from "./TimelineItem";
 import type { TimelineEvent } from "@/types/analysis";
-
-const KNOWN_TOOLS = [
-  "recall",
-  "remember",
-  "search_knowledge",
-  "financials",
-  "macro",
-  "quote",
-  "history",
-  "valuation",
-  "exa_search",
-  "web_fetch",
-  "create_hypothesis",
-  "add_evidence_card",
-  "generate_trade_signal",
-  "get_portfolio",
-];
-
-function extractToolHint(thinkingText: string): string | null {
-  let lastTool: string | null = null;
-  for (const tool of KNOWN_TOOLS) {
-    if (thinkingText.includes(tool)) {
-      lastTool = tool;
-    }
-  }
-  return lastTool;
-}
+import { getKnownToolNames } from "@/utils/toolRegistry";
 
 function interleaveThinking(toolEvents: TimelineEvent[], rawTextBuffer: string): TimelineEvent[] {
   if (!rawTextBuffer) return toolEvents;
-  if (toolEvents.some((event) => event.tool === "thinking")) return toolEvents;
+  if (toolEvents.some((e) => e.tool === "thinking")) return toolEvents;
 
-  const thinkingBlocks: { text: string; toolHint: string | null }[] = [];
-  const matcher = /<thinking>([\s\S]*?)<\/thinking>/g;
-  let match: RegExpExecArray | null;
-
-  while ((match = matcher.exec(rawTextBuffer)) !== null) {
-    const text = match[1].trim();
-    thinkingBlocks.push({ text, toolHint: extractToolHint(text) });
+  const blocks: string[] = [];
+  const re = /<thinking>([\s\S]*?)<\/thinking>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(rawTextBuffer)) !== null) {
+    const text = m[1].trim();
+    if (text) blocks.push(text);
   }
-
-  if (thinkingBlocks.length === 0) return toolEvents;
+  if (blocks.length === 0) return toolEvents;
 
   const merged: TimelineEvent[] = [];
-  const used = new Set<number>();
-  let thinkingIndex = 0;
+  let bi = 0; // block index
 
-  for (let index = 0; index < toolEvents.length; index += 1) {
-    const event = toolEvents[index];
-    const block = thinkingBlocks[thinkingIndex];
-
-    if (block && !used.has(thinkingIndex)) {
-      const shouldPlace =
-        (block.toolHint && event.tool.includes(block.toolHint.split("_")[0])) ||
-        block.toolHint === event.tool ||
-        (index === 0 && thinkingIndex === 0) ||
-        (index > 0 && toolEvents[index - 1].tool !== event.tool);
-
-      if (shouldPlace) {
-        merged.push({
-          id: `thinking-${thinkingIndex}`,
-          timestamp: event.timestamp - 0.001,
-          tool: "thinking",
-          message: block.text.split("\n")[0]?.slice(0, 90) || "",
-          phase: event.phase,
-          color: "gold",
-          status: "complete",
-          fullText: block.text,
-        });
-        used.add(thinkingIndex);
-        thinkingIndex += 1;
-      }
+  for (let i = 0; i < toolEvents.length; i++) {
+    // Insert a thinking block before a tool event when:
+    // - we have blocks left, AND
+    // - it's the first event, or a different tool from the previous one (new step)
+    if (bi < blocks.length && (i === 0 || toolEvents[i].tool !== toolEvents[i - 1].tool)) {
+      merged.push({
+        id: `thinking-${bi}`,
+        timestamp: toolEvents[i].timestamp - 0.001,
+        tool: "thinking",
+        message: blocks[bi].split("\n")[0]?.slice(0, 120) || "",
+        phase: toolEvents[i].phase,
+        color: "gold" as const,
+        status: "complete" as const,
+        fullText: blocks[bi],
+      });
+      bi++;
     }
-
-    merged.push(event);
+    merged.push(toolEvents[i]);
   }
 
-  for (let index = 0; index < thinkingBlocks.length; index += 1) {
-    if (used.has(index)) continue;
-    const block = thinkingBlocks[index];
-    const lastTimestamp = toolEvents.length > 0 ? toolEvents[toolEvents.length - 1].timestamp : Date.now();
+  // Remaining blocks go at the end
+  const lastTs = toolEvents.length > 0 ? toolEvents[toolEvents.length - 1].timestamp : Date.now();
+  while (bi < blocks.length) {
     merged.push({
-      id: `thinking-${index}`,
-      timestamp: lastTimestamp + 0.001 * index,
+      id: `thinking-${bi}`,
+      timestamp: lastTs + 0.001 * bi,
       tool: "thinking",
-      message: block.text.split("\n")[0]?.slice(0, 90) || "",
-      phase: "finalize",
-      color: "gold",
-      status: "complete",
-      fullText: block.text,
+      message: blocks[bi].split("\n")[0]?.slice(0, 120) || "",
+      phase: "finalize" as const,
+      color: "gold" as const,
+      status: "complete" as const,
+      fullText: blocks[bi],
     });
+    bi++;
   }
 
   return merged;

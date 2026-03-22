@@ -14,7 +14,7 @@ import type {
   AnalysisSnapshot,
 } from "@/types/analysis";
 import type { SSEEvent } from "@/types/api";
-import { translateToolStart } from "@/utils/eventTranslator";
+import { buildToolMessage, getToolPhase, getPhaseColor, PHASE_ORDER } from "@/utils/toolRegistry";
 import * as api from "@/utils/api";
 
 interface AnalysisStore {
@@ -91,7 +91,8 @@ const initialMemoryPanel: MemoryPanelState = {
 };
 
 const initialFundamentalsPanel: FundamentalsPanelState = {
-  sections: [],
+  title: "",
+  content: "",
   loading: false,
 };
 
@@ -262,11 +263,13 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
           tool: string;
           args: Record<string, unknown>;
         };
-        const { message, phase, color } = translateToolStart(tool, args || {});
+        const message = buildToolMessage(tool, args || {});
+        const phase = getToolPhase(tool);
+        const color = getPhaseColor(phase);
         // Backend doesn't send call_id, so we generate one client-side
         const id = `tool-${tool}-${event.timestamp}`;
         set((s) => ({
-          currentPhase: phase,
+          currentPhase: PHASE_ORDER[phase] >= PHASE_ORDER[s.currentPhase] ? phase : s.currentPhase,
           timeline: [
             ...s.timeline,
             {
@@ -600,6 +603,18 @@ function _extractPanelData(
       if (comps && typeof comps === "object") {
         _extractPanelData("get_comps", comps, set);
       }
+      // Extract cross_check and warnings for ModelPanel
+      const crossCheck = result.cross_check as Record<string, unknown> | undefined;
+      const dcfWarnings = (dcf as Record<string, unknown>)?.warnings as string[] | undefined;
+      if (crossCheck || dcfWarnings) {
+        set((s) => ({
+          modelPanel: {
+            ...s.modelPanel,
+            crossCheck: crossCheck || s.modelPanel.crossCheck,
+            warnings: dcfWarnings || s.modelPanel.warnings,
+          },
+        }));
+      }
       break;
     }
 
@@ -725,6 +740,8 @@ function _extractPanelData(
             reasoning: (result.reasoning as string) || "",
             suggestedShares: typeof result.suggested_shares === "number" ? result.suggested_shares : 0,
             alreadyHeld: !!result.already_held,
+            riskRewardRatio: typeof result.risk_reward_ratio === "number" ? result.risk_reward_ratio : null,
+            warnings: Array.isArray(result.warnings) ? result.warnings as string[] : [],
           },
           loading: false,
         },
@@ -898,17 +915,14 @@ function _extractPanelData(
       break;
     }
 
-    case "emit_research_section": {
+    case "emit_report": {
       const title = (result.title as string) || "";
       const content = (result.content as string) || "";
-      if (title && content) {
-        set((s) => ({
+      if (content) {
+        set(() => ({
           fundamentalsPanel: {
-            ...s.fundamentalsPanel,
-            sections: [
-              ...s.fundamentalsPanel.sections,
-              { title, content, timestamp: Date.now() },
-            ],
+            title,
+            content,
             loading: false,
           },
         }));

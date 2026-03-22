@@ -11,26 +11,30 @@ interface MemoryFileTreeProps {
 }
 
 const TYPE_LABELS: Record<MemoryType, string> = {
-  companies: "COMPANIES",
-  sectors: "SECTORS",
-  patterns: "PATTERNS",
-  calibration: "CALIBRATION",
+  companies: "公司记忆",
+  sectors: "行业记忆",
+  patterns: "交易模式",
+  calibration: "校准数据",
 };
 
 export function MemoryFileTree({ tree, selectedType, selectedFilename, onSelect }: MemoryFileTreeProps) {
   return (
     <div className="space-y-2">
-      {(Object.keys(TYPE_LABELS) as MemoryType[]).map((type) => (
-        <FolderNode
-          key={type}
-          type={type}
-          label={TYPE_LABELS[type]}
-          files={tree[type]}
-          selectedType={selectedType}
-          selectedFilename={selectedFilename}
-          onSelect={onSelect}
-        />
-      ))}
+      {(Object.keys(TYPE_LABELS) as MemoryType[]).map((type) => {
+        const filtered = tree[type].filter((f) => f !== ".gitkeep");
+        if (filtered.length === 0) return null;
+        return (
+          <FolderNode
+            key={type}
+            type={type}
+            label={TYPE_LABELS[type]}
+            files={filtered}
+            selectedType={selectedType}
+            selectedFilename={selectedFilename}
+            onSelect={onSelect}
+          />
+        );
+      })}
     </div>
   );
 }

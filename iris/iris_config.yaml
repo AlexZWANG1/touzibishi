@@ -131,7 +131,7 @@ modes:
       - get_portfolio
       - sec_filing
       - transcript
-      - emit_research_section
+      - emit_report
     max_tool_rounds: 25
     max_total_tool_calls: 60
     max_wall_time_seconds: 480

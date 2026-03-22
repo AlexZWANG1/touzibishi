@@ -56,7 +56,8 @@ def _default_frontend_panels() -> dict:
             "loading": False,
         },
         "fundamentals": {
-            "sections": [],
+            "title": "",
+            "content": "",
             "loading": False,
         },
     }
@@ -156,8 +157,8 @@ class AnalysisSession:
                 self._extract_data_panel(result)
             elif tool == "yf_quote":
                 self._extract_quote_metrics(result)
-            elif tool == "emit_research_section":
-                self._extract_research_section(result)
+            elif tool == "emit_report":
+                self._extract_report(result)
 
     def _handle_text_delta(self, event: HarnessEvent) -> None:
         content = event.data.get("content", "")
@@ -469,17 +470,14 @@ class AnalysisSession:
             memory["calibrationMisses"] = result.get("misses", 0) or 0
         memory["loading"] = False
 
-    def _extract_research_section(self, result: dict) -> None:
-        """Extract research section for the fundamentals panel."""
+    def _extract_report(self, result: dict) -> None:
+        """Extract full research report for the fundamentals panel."""
         fundamentals = self.accumulated_frontend_panels["fundamentals"]
         title = result.get("title", "")
         content = result.get("content", "")
-        if title and content:
-            fundamentals["sections"].append({
-                "title": title,
-                "content": content,
-                "timestamp": time.time(),
-            })
+        if content:
+            fundamentals["title"] = title
+            fundamentals["content"] = content
         fundamentals["loading"] = False
 
     # ── Text parsing ────────────────────────────────────────────

@@ -19,7 +19,7 @@ export function PanelTabBar() {
   const state = useAnalysisStore(
     useShallow((s) => ({
       hasReasoning: Boolean(s.reasoningText?.trim()),
-      fundamentalsCount: s.fundamentalsPanel.sections.length,
+      fundamentalsCount: s.fundamentalsPanel.content ? 1 : 0,
       dataCount: s.dataPanel.metrics.length + s.dataPanel.financialTables.length,
       modelCount:
         (s.modelPanel.fairValue ? 1 : 0) +
@@ -56,7 +56,7 @@ export function PanelTabBar() {
             disabled={!enabled}
             data-active={active}
             onClick={() => enabled && setActiveTab(tab.key)}
-            className="prism-pill-tab disabled:cursor-not-allowed disabled:opacity-45"
+            className="prism-pill-tab min-h-[44px] disabled:cursor-not-allowed disabled:opacity-45"
           >
             <span>{tab.label}</span>
             {count > 0 && (

@@ -158,11 +158,11 @@ export default function DevPage() {
 
   // ── Tabs ──────────────────────────────────────────────────
   const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: "overview", label: "Overview", icon: "SYS" },
-    { key: "tools", label: "Tools", icon: "FN" },
-    { key: "skills", label: "Skills", icon: "SK" },
-    { key: "prompts", label: "Prompts", icon: "PM" },
-    { key: "config", label: "Config", icon: "CF" },
+    { key: "overview", label: "概览", icon: "SYS" },
+    { key: "tools", label: "工具", icon: "FN" },
+    { key: "skills", label: "技能", icon: "SK" },
+    { key: "prompts", label: "提示词", icon: "PM" },
+    { key: "config", label: "配置", icon: "CF" },
   ];
 
   return (
@@ -285,24 +285,22 @@ function OverviewTab({
 ├─────┼──────────┼───────────┼─────────┼─────────┼────────┤
 │  SSE│     REST │      REST │    REST │    REST │        │
 ├─────┼──────────┼───────────┼─────────┼─────────┼────────┤
-│  Backend (FastAPI)                                       │
+│  Backend (FastAPI + Uvicorn)                             │
 │  ┌─────────────────────────────────────────────────────┐ │
 │  │              Harness (Agent Loop)                   │ │
-│  │  ┌──────┐ ┌────────┐ ┌──────┐ ┌──────────────────┐ │ │
-│  │  │Budget│ │  Loop  │ │Context│ │   LLM Client     │ │ │
-│  │  │Track │ │Detector│ │Compact│ │  (OpenAI API)    │ │ │
-│  │  └──────┘ └────────┘ └──────┘ └──────────────────┘ │ │
+│  │  Budget · Loop Detection · Context Compaction       │ │
+│  │  LLM Client → cliproxy → gpt-5.4                   │ │
 │  └─────────────────────────────────────────────────────┘ │
 │  ┌──────────────────┐  ┌───────────────────────────────┐ │
-│  │     Tools (12)    │  │       Skills (4)              │ │
-│  │ search·financials │  │ DCF·Valuation·Hypothesis·     │ │
-│  │ market·retrieval  │  │ Trading                       │ │
-│  │ knowledge·memory  │  │ (SKILL.md + tools.py)         │ │
+│  │  Tools            │  │  Skills                       │ │
+│  │  search·financials│  │  Valuation (DCF+Comps)        │ │
+│  │  market·retrieval │  │  Trading (Signal+Portfolio)   │ │
+│  │  knowledge·memory │  │  Hypothesis (Research)        │ │
 │  └────────┬─────────┘  └──────────────────────────────┘ │
 │  ┌────────┴─────────┐  ┌───────────────────────────────┐ │
-│  │    Soul (Prompt)  │  │        Config (YAML)          │ │
-│  │ role·v0.1·check   │  │ harness·budget·loop·modes     │ │
-│  │ steering·reflect  │  │ knowledge·skills·memory       │ │
+│  │  Soul (Prompt)    │  │  Config (YAML)                │ │
+│  │  role·reflection  │  │  harness·budget·modes         │ │
+│  │  self_check       │  │  knowledge·skills·memory      │ │
 │  └──────────────────┘  └───────────────────────────────┘ │
 │  ┌─────────────────────────────────────────────────────┐ │
 │  │               SQLite (iris.db)                      │ │
@@ -379,7 +377,7 @@ function ToolsTab({
     else if (["remember", "recall", "search_knowledge"].includes(t.name)) cat = "memory";
     else if (["valuation", "build_dcf", "get_comps"].includes(t.name)) cat = "valuation";
     else if (["create_hypothesis", "add_evidence_card"].includes(t.name)) cat = "hypothesis";
-    else if (["generate_trade_signal", "get_portfolio"].includes(t.name)) cat = "trading";
+    else if (["generate_trade_signal", "get_portfolio", "execute_trade", "review_trades"].includes(t.name)) cat = "trading";
     if (!categories[cat]) categories[cat] = [];
     categories[cat].push(t);
   }

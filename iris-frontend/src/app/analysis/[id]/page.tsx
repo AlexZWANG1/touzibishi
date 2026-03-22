@@ -28,7 +28,7 @@ export default function AnalysisPage() {
 
   const tabsWithData = useAnalysisStore(
     useShallow((s) => ({
-      fundamentals: s.fundamentalsPanel.sections.length > 0,
+      fundamentals: Boolean(s.fundamentalsPanel.content),
       data: s.dataPanel.metrics.length > 0 || s.dataPanel.financialTables.length > 0,
       model:
         s.modelPanel.fairValue !== null ||
@@ -61,14 +61,14 @@ export default function AnalysisPage() {
   useAnalysisStream(id);
 
   return (
-    <div className="h-[calc(100vh-56px)] bg-[var(--bg)]">
+    <div className="flex h-[calc(100vh-56px)] flex-col bg-[var(--bg)]">
       {isReplay && (
-        <div className="border-b border-[var(--ac-m)] bg-[var(--ac-s)] px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--ac)]">
-          Replay · 历史回看
+        <div className="shrink-0 border-b border-[var(--ac-m)] bg-[var(--ac-s)] px-5 py-1.5 text-center font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--ac)]">
+          历史回看
         </div>
       )}
 
-      <div className="flex h-full min-h-0">
+      <div className="flex min-h-0 flex-1">
         <aside
           className="shrink-0 border-r border-[var(--b2)] bg-[var(--bg-2)] transition-[width] duration-200"
           style={{ width: sidebarCollapsed ? 84 : 280 }}

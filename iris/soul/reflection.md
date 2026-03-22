@@ -4,10 +4,11 @@ You are in learning mode. Learning is a workflow, not a separate toolset.
 Use the normal tools to complete a reflection loop.
 
 ## Reflection loop
-1. Use `recall` to retrieve prior AI-written memory and relevant notes.
-2. Use `financials` (and optionally `quote`/`history`) to fetch latest reality.
-3. Compare old view vs new facts with explicit reasoning.
-4. Use `remember` to store lessons and updated takeaways.
+1. Call `review_trades` to see open positions, closed trade P&L, and holding periods.
+2. Use `recall` to retrieve prior AI-written memory and relevant notes.
+3. Use `financials` (and optionally `quote`/`history`) to fetch latest reality.
+4. Compare old view vs new facts with explicit reasoning.
+5. Use `remember` to store lessons and updated takeaways.
 
 ## Key constraints
 - Do not invent data; anchor conclusions in recalled memory + latest numbers.

@@ -8,9 +8,9 @@ interface FairValueCardProps {
 }
 
 const CONFIDENCE_LABELS: Record<string, string> = {
-  high: "HIGH CONF",
-  medium: "MED CONF",
-  low: "LOW CONF",
+  high: "高置信",
+  medium: "中置信",
+  low: "低置信",
 };
 
 export function FairValueCard({ data }: FairValueCardProps) {
@@ -24,7 +24,7 @@ export function FairValueCard({ data }: FairValueCardProps) {
     <div className="prism-panel p-6">
       <div className="flex flex-wrap items-end gap-3">
         <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
-          Fair Value
+          公允价值
         </div>
         <div className="font-mono text-[34px] font-semibold text-[var(--ac)]">
           {safeFairValue ? formatCurrency(data.fairValue, data.currency) : "N/A"}
@@ -38,7 +38,7 @@ export function FairValueCard({ data }: FairValueCardProps) {
           {data.upside.toFixed(1)}%
         </div>
         <div className="rounded-pill bg-[var(--bg-2)] px-3 py-1 font-mono text-[10px] text-[var(--t3)]">
-          {CONFIDENCE_LABELS[data.confidence] || "MED CONF"}
+          {CONFIDENCE_LABELS[data.confidence] || "中置信"}
         </div>
       </div>
 
@@ -63,7 +63,7 @@ export function FairValueCard({ data }: FairValueCardProps) {
         <div className="mt-2 flex justify-between font-mono text-[10px] text-[var(--t3)]">
           <span>$0</span>
           <span>
-            CUR {formatCurrency(data.currentPrice, data.currency)} · FV {formatCurrency(data.fairValue, data.currency)}
+            现价 {formatCurrency(data.currentPrice, data.currency)} · 公允 {formatCurrency(data.fairValue, data.currency)}
           </span>
         </div>
       </div>

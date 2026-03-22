@@ -1,0 +1,1 @@
+AI芯片三分法：NVDA=通用AI平台与全栈生态；AMD=第二供应商/替代GPU，关键变量是ROCm与客户验证；AVGO= hyperscaler定制ASIC+AI网络受益者。交易上更适合‘NVDA主仓 + AVGO辅仓 + AMD观察’而非三选一。核心风险分别是NVDA受自研ASIC侵蚀、AMD生态执行不及预期、AVGO客户集中与CapEx波动。

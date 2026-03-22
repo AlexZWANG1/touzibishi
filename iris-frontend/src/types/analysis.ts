@@ -92,6 +92,8 @@ export interface ModelPanelState {
   sensitivityRowValues: string[];
   sensitivityColValues: string[];
   yearByYear: YearProjection[];
+  crossCheck?: Record<string, unknown> | null;
+  warnings?: string[];
   loading: boolean;
 }
 
@@ -133,6 +135,8 @@ export interface StrategySignal {
   reasoning: string;
   suggestedShares: number;
   alreadyHeld: boolean;
+  riskRewardRatio?: number | null;
+  warnings?: string[];
 }
 
 export interface StrategyPosition {
@@ -165,14 +169,9 @@ export interface StrategyPanelState {
   loading: boolean;
 }
 
-export interface ResearchSection {
+export interface FundamentalsPanelState {
   title: string;
   content: string;
-  timestamp: number;
-}
-
-export interface FundamentalsPanelState {
-  sections: ResearchSection[];
   loading: boolean;
 }
 

@@ -62,7 +62,7 @@ function AIAvatar() {
 
 export function ChatPanel() {
   const reasoningText = useAnalysisStore((s) => s.reasoningText);
-  const thinkingText = useAnalysisStore((s) => s.thinkingText);
+
   const pageState = useAnalysisStore((s) => s.pageState);
   const pendingQuestion = useAnalysisStore((s) => s.pendingQuestion);
   const sendSteering = useAnalysisStore((s) => s.sendSteering);
@@ -76,12 +76,12 @@ export function ChatPanel() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [inputValue, setInputValue] = useState("");
   const [resumeLoading, setResumeLoading] = useState(false);
-  const [thinkingOpen, setThinkingOpen] = useState(false);
+
 
   const isStreaming = pageState === "RUNNING";
   const cleanText = useMemo(() => stripThinking(reasoningText), [reasoningText]);
   const segments = useMemo(() => splitIntoChatSegments(cleanText), [cleanText]);
-  const thinkingPreview = useMemo(() => thinkingText.split("\n")[0]?.slice(0, 100) ?? "", [thinkingText]);
+
 
   useEffect(() => {
     const scroller = scrollRef.current;
@@ -90,7 +90,7 @@ export function ChatPanel() {
     if (nearBottom) {
       scroller.scrollTop = scroller.scrollHeight;
     }
-  }, [cleanText, pendingQuestion, thinkingText]);
+  }, [cleanText, pendingQuestion]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -137,30 +137,6 @@ export function ChatPanel() {
     <div className="flex h-full flex-col bg-[linear-gradient(180deg,rgba(255,255,255,0.5)_0%,rgba(255,255,255,0.82)_24%,rgba(255,255,255,0.94)_100%)]">
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6 sm:px-8">
         <div className="mx-auto max-w-[780px]">
-          {thinkingText && (
-            <div className="mb-6 overflow-hidden rounded-lg border border-[var(--ac-m)] bg-[var(--ac-s)]">
-              <button
-                type="button"
-                onClick={() => setThinkingOpen((open) => !open)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left"
-              >
-                <span
-                  className="inline-block text-[10px] text-[var(--ac)] transition-transform"
-                  style={{ transform: thinkingOpen ? "rotate(90deg)" : "rotate(0deg)" }}
-                >
-                  ▶
-                </span>
-                <span className="text-[12px] font-semibold text-[var(--ac)]">Trace</span>
-                <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--t3)]">{thinkingPreview}</span>
-              </button>
-              {thinkingOpen && (
-                <pre className="border-t border-[var(--ac-m)] px-4 py-4 font-mono text-[11px] leading-[1.7] text-[var(--t2)]">
-                  {thinkingText}
-                </pre>
-              )}
-            </div>
-          )}
-
           {segments.length === 0 && !isStreaming && pageState === "IDLE" && (
             <div className="flex h-full flex-col items-center justify-center px-6 text-center">
               <div className="mb-4 text-[var(--ac)]">

@@ -1,72 +1,50 @@
 "use client";
 
-import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAnalysisStore } from "@/hooks/useAnalysisStore";
 
 export function FundamentalsPanel() {
-  const sections = useAnalysisStore((s) => s.fundamentalsPanel.sections);
+  const { title, content, loading } = useAnalysisStore((s) => s.fundamentalsPanel);
   const pageState = useAnalysisStore((s) => s.pageState);
-  const [activeIdx, setActiveIdx] = useState(0);
 
-  if (sections.length === 0) {
+  if (!content) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t4)]">研究面板</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t4)]">
+          研究面板
+        </div>
         <p className="mt-2 text-[13px] text-[var(--t3)]">
-          {pageState === "RUNNING" ? "研究进行中，章节将逐步出现..." : "等待研究产出..."}
+          {pageState === "RUNNING"
+            ? "深度研究进行中，报告将在研究完成后出现..."
+            : "等待研究产出..."}
         </p>
+        {pageState === "RUNNING" && (
+          <div className="mt-4 flex flex-col gap-3 w-full max-w-xl">
+            <div className="prism-shimmer h-4 w-3/4 rounded" />
+            <div className="prism-shimmer h-4 w-full rounded" />
+            <div className="prism-shimmer h-4 w-5/6 rounded" />
+            <div className="prism-shimmer h-4 w-2/3 rounded" />
+          </div>
+        )}
       </div>
     );
   }
 
-  const current = sections[Math.min(activeIdx, sections.length - 1)];
-
   return (
-    <div className="flex h-full">
-      {/* Section nav */}
-      <nav className="w-48 shrink-0 overflow-y-auto border-r border-[var(--b1)] bg-[var(--bg-2)]">
-        <div className="px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--t4)]">
-            研究章节
-          </div>
-        </div>
-        {sections.map((section, idx) => (
-          <button
-            key={`${section.title}-${idx}`}
-            type="button"
-            onClick={() => setActiveIdx(idx)}
-            className={`w-full px-3 py-2.5 text-left text-[12px] leading-[1.5] transition-colors ${
-              idx === activeIdx
-                ? "bg-[var(--ac-s)] font-medium text-[var(--ac)]"
-                : "text-[var(--t2)] hover:bg-[var(--bg-hover)]"
-            }`}
-          >
-            <span className="mr-1.5 inline-block font-mono text-[10px] text-[var(--t4)]">
-              {String(idx + 1).padStart(2, "0")}
-            </span>
-            {section.title}
-          </button>
-        ))}
-        {pageState === "RUNNING" && (
-          <div className="px-3 py-2.5 text-[11px] text-[var(--t4)]">
-            <span className="prism-shimmer inline-block h-3 w-20 rounded" />
-          </div>
+    <article className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-3xl px-6 py-8 sm:px-10">
+        {title && (
+          <h1 className="mb-6 text-xl font-bold leading-tight text-[var(--t1)]">
+            {title}
+          </h1>
         )}
-      </nav>
-
-      {/* Content area */}
-      <article className="min-w-0 flex-1 overflow-y-auto px-6 py-5 sm:px-8">
-        <h2 className="mb-4 text-[15px] font-semibold text-[var(--t1)]">
-          {current.title}
-        </h2>
-        <div className="prose prose-sm max-w-none text-[var(--t1)]">
+        <div className="prose prose-sm max-w-none text-[var(--t1)] prose-headings:text-[var(--t1)] prose-headings:font-semibold prose-h2:text-[16px] prose-h2:mt-8 prose-h2:mb-3 prose-h3:text-[14px] prose-h3:mt-6 prose-h3:mb-2 prose-p:text-[13px] prose-p:leading-[1.8] prose-li:text-[13px] prose-li:leading-[1.7] prose-strong:text-[var(--t1)] prose-blockquote:border-[var(--ac)] prose-blockquote:text-[var(--t2)] prose-hr:border-[var(--b1)] prose-a:text-[var(--ac)] prose-code:text-[12px] prose-code:bg-[var(--bg-2)] prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {current.content}
+            {content}
           </ReactMarkdown>
         </div>
-      </article>
-    </div>
+      </div>
+    </article>
   );
 }

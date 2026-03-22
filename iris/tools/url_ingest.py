@@ -327,6 +327,18 @@ def _safe_json_load(value: str) -> dict[str, Any] | None:
         return None
 
 
+def _guess_category(url: str, content: str) -> str:
+    """Heuristic category guess when AI extraction is unavailable."""
+    text = (url + " " + content[:2000]).lower()
+    if any(w in text for w in ("interview", "访谈", "交流", "纪要", "expert call")):
+        return "interview"
+    if any(w in text for w in ("paper", "论文", "arxiv", "abstract", "methodology")):
+        return "paper"
+    if any(w in text for w in ("research", "研报", "analysis", "initiat", "coverage", "rating")):
+        return "research"
+    return "other"
+
+
 def _fallback_metadata(
     *,
     canonical_url: str,
@@ -345,6 +357,8 @@ def _fallback_metadata(
         "title": extracted_title or source_name or canonical_url,
         "summary": summary,
         "content_type": _guess_content_type(canonical_url, content),
+        "category": _guess_category(canonical_url, content),
+        "industry": None,
         "source_name": source_name,
         "published_at": published_at_guess,
         "tags": [],
@@ -377,7 +391,7 @@ def extract_metadata_with_ai(
     try:
         from openai import OpenAI
 
-        model = os.getenv("INGEST_METADATA_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
+        model = os.getenv("INGEST_METADATA_MODEL") or "gpt-5.4-mini"
         client = OpenAI(
             api_key=os.getenv("OPENAI_API_KEY"),
             base_url=os.getenv("OPENAI_BASE_URL"),
@@ -400,8 +414,11 @@ def extract_metadata_with_ai(
                     "role": "system",
                     "content": (
                         "Extract metadata from article content. Return strict JSON only with keys: "
-                        "title, summary, content_type, source_name, published_at, tags, companies, language, confidence. "
-                        "Rules: published_at must be ISO8601 or null; tags/companies are arrays of strings; "
+                        "title, summary, content_type, category, industry, source_name, published_at, tags, companies, language, confidence. "
+                        "Rules: "
+                        "category must be one of: research (研报/行业分析), interview (专家访谈/管理层交流), paper (学术论文/白皮书), note (笔记/备忘), other; "
+                        "industry is a short label like '半导体', '云计算', '新能源汽车', 'SaaS', 'Fintech' — use the most specific applicable term; "
+                        "published_at must be ISO8601 or null; tags/companies are arrays of strings; "
                         "confidence is 0-1 float."
                     ),
                 },
@@ -443,6 +460,19 @@ def extract_metadata_with_ai(
             merged["confidence"] = 0.0
         if merged["confidence"] > 1:
             merged["confidence"] = 1.0
+
+        # Parse category
+        category = merged.get("category", "other")
+        if category not in ("research", "interview", "paper", "note", "other"):
+            category = "other"
+        merged["category"] = category
+
+        # Parse industry
+        industry = merged.get("industry")
+        if isinstance(industry, str):
+            merged["industry"] = _clean_text(industry)[:50]
+        else:
+            merged["industry"] = None
 
         return merged
 
@@ -596,6 +626,8 @@ def ingest_url_document(
         source_path=raw_url,
         company=final_company,
         tags=final_tags,
+        category=ai_metadata.get("category", "other"),
+        industry=ai_metadata.get("industry"),
         source_type=source_type or "manual_url",
         source_name=source_name,
         published_at=final_published_at,

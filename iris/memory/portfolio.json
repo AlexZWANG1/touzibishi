@@ -1,0 +1,21 @@
+{
+  "initial_capital": 1000000,
+  "cash": 940040.34,
+  "positions": {
+    "META": {
+      "shares": 101,
+      "avg_cost": 593.66,
+      "entry_date": "2026-03-22T15:41:13.654256"
+    }
+  },
+  "closed_trades": [],
+  "trade_log": [
+    {
+      "ticker": "META",
+      "action": "BUY",
+      "shares": 101,
+      "price": 593.66,
+      "timestamp": "2026-03-22T15:41:13.654256"
+    }
+  ]
+}

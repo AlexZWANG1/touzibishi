@@ -68,13 +68,27 @@ export function StrategyPanel() {
           <div className="flex flex-wrap items-center gap-3">
             <span
               className="inline-flex rounded-pill px-3 py-1 text-[11px] font-semibold"
-              style={ACTION_STYLES[strategy.signal.action] || { bg: "var(--bg-2)", color: "var(--t2)" }}
+              style={{
+                background: ACTION_STYLES[strategy.signal.action]?.bg || "var(--bg-2)",
+                color: ACTION_STYLES[strategy.signal.action]?.color || "var(--t2)",
+              }}
             >
               {ACTION_STYLES[strategy.signal.action]?.label || strategy.signal.action}
             </span>
             <span className="font-mono text-[13px] font-semibold text-[var(--ac)]">
               {strategy.signal.ticker}
             </span>
+            {strategy.signal.riskRewardRatio != null && strategy.signal.riskRewardRatio > 0 && (
+              <span
+                className="rounded-pill px-3 py-1 font-mono text-[11px] font-semibold"
+                style={{
+                  background: strategy.signal.riskRewardRatio >= 2 ? "var(--green-bg)" : strategy.signal.riskRewardRatio >= 1.5 ? "var(--amber-bg)" : "var(--red-bg)",
+                  color: strategy.signal.riskRewardRatio >= 2 ? "var(--green)" : strategy.signal.riskRewardRatio >= 1.5 ? "var(--amber)" : "var(--red)",
+                }}
+              >
+                R:R {strategy.signal.riskRewardRatio}:1
+              </span>
+            )}
           </div>
 
           {/* Key Metrics */}
@@ -131,6 +145,17 @@ export function StrategyPanel() {
                 催化剂
               </span>
               <p className="mt-1 text-[13px] text-[var(--t2)]">{strategy.signal.catalysts}</p>
+            </div>
+          )}
+
+          {/* Warnings */}
+          {strategy.signal.warnings && strategy.signal.warnings.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {strategy.signal.warnings.map((w, i) => (
+                <div key={i} className="rounded-md bg-[var(--amber-bg)] px-4 py-2.5 text-[12px] leading-[1.6] text-[var(--amber)]">
+                  {w}
+                </div>
+              ))}
             </div>
           )}
 

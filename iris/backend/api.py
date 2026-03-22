@@ -161,6 +161,8 @@ class KnowledgeNoteRequest(BaseModel):
     content: str
     company: Optional[str] = None
     tags: Optional[list[str]] = None
+    category: Optional[str] = "other"
+    industry: Optional[str] = None
 
 
 class KnowledgeUrlRequest(BaseModel):
@@ -311,6 +313,24 @@ def _save_to_db(session: AnalysisSession, snap: dict, ticker: str | None, result
         messages_json=messages_json,
         turn_count=session.turn_count + 1,
     )
+
+    # Auto-save analysis summary as a knowledge note for future recall
+    if ticker and reasoning_text:
+        try:
+            summary = reasoning_text[-2000:] if len(reasoning_text) > 2000 else reasoning_text
+            retriever.save_knowledge_item(
+                type="note",
+                subject=ticker,
+                content=summary,
+                structured_data={
+                    "note_category": "company",
+                    "run_id": session.id,
+                    "auto_generated": True,
+                },
+                source=f"analysis_run:{session.id}",
+            )
+        except Exception:
+            pass  # best-effort
 
 
 # ── Analysis endpoints ───────────────────────────────────────
@@ -626,7 +646,7 @@ async def resume_analysis(run_id: str, req: SteerRequest):
         thinking = run.get("thinking_text") or ""
         session._raw_text = reasoning + (f"\n<thinking>\n{thinking}\n</thinking>" if thinking else "")
         panels = json.loads(run.get("panels_json") or "{}")
-        for key in ("data", "model", "comps", "strategy", "memory"):
+        for key in ("data", "model", "comps", "strategy", "memory", "fundamentals"):
             if key in panels:
                 session.accumulated_frontend_panels[key] = panels[key]
     except Exception:
@@ -724,9 +744,30 @@ async def execute_trade(req: ExecuteTradeRequest):
 
 @app.get("/api/portfolio")
 async def get_portfolio_api():
-    """Get current paper portfolio state."""
-    from skills.trading.tools import get_portfolio as _get_portfolio
-    result = _get_portfolio()
+    """Get current paper portfolio state with live prices."""
+    from skills.trading.tools import get_portfolio as _get_portfolio, _load_portfolio
+    from tools.market import quote as _quote
+
+    # Fetch live prices for all held tickers (same pattern as /api/watchlist)
+    portfolio_raw = _load_portfolio()
+    tickers = list(portfolio_raw.get("positions", {}).keys())
+    live_prices = {}
+    if tickers:
+        loop = asyncio.get_event_loop()
+
+        async def _fetch(t: str):
+            try:
+                qr = await loop.run_in_executor(None, functools.partial(_quote, t))
+                if qr.status == "ok" and qr.data.get("price"):
+                    return t, qr.data["price"]
+            except Exception:
+                pass
+            return t, None
+
+        results = await asyncio.gather(*[_fetch(t) for t in tickers])
+        live_prices = {t: p for t, p in results if p is not None}
+
+    result = _get_portfolio(live_prices=live_prices)
     return result.data
 
 
@@ -895,10 +936,12 @@ async def get_calibration(company: Optional[str] = Query(default=None)):
 async def list_knowledge(
     company: Optional[str] = Query(default=None),
     doc_type: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    industry: Optional[str] = Query(default=None),
 ):
     """List all knowledge documents."""
     retriever = _get_retriever()
-    return retriever.list_documents(company=company, doc_type=doc_type)
+    return retriever.list_documents(company=company, doc_type=doc_type, category=category, industry=industry)
 
 
 @app.get("/api/knowledge/{doc_id}")
@@ -921,6 +964,8 @@ async def upload_knowledge_note(req: KnowledgeNoteRequest):
         content_text=req.content,
         company=req.company,
         tags=req.tags,
+        category=req.category or "other",
+        industry=req.industry,
     )
     return result
 
@@ -966,6 +1011,8 @@ async def upload_knowledge_file(
     title: str = Form(None),
     company: str = Form(None),
     tags: str = Form(None),
+    category: str = Form(None),
+    industry: str = Form(None),
     engine: str = Form(None),
 ):
     """Upload a file (PDF, Excel, or text) to the knowledge base.
@@ -1015,6 +1062,8 @@ async def upload_knowledge_file(
         source_path=filename,
         company=company,
         tags=tag_list,
+        category=category or "other",
+        industry=industry,
     )
 
     # Include parser metadata in response

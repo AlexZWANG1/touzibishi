@@ -23,7 +23,7 @@ export function AppNav() {
     <nav className="shrink-0 border-b border-[var(--b2)] bg-[rgba(255,255,255,0.88)] backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 px-4 sm:px-6">
         <Link href="/" className="shrink-0">
-          <PrismLogo />
+          <PrismLogo size={20} textClassName="text-[16px]" />
         </Link>
 
         <div className="hidden flex-1 items-center justify-center gap-1 md:flex">

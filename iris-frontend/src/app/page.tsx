@@ -5,12 +5,9 @@ import { useRouter } from "next/navigation";
 import { SearchBar, type AnalysisMode } from "@/components/SearchBar";
 import { WatchlistGrid } from "@/components/WatchlistGrid";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
-import { PrismLogo } from "@/components/PrismLogo";
 import type { WatchlistItem, HistoryItem } from "@/types/analysis";
 import { getHistory, getWatchlist, startAnalysis } from "@/utils/api";
 import { classNames } from "@/utils/formatters";
-
-const ONBOARDING_STORAGE_KEY = "prism-onboarding-dismissed";
 
 const CAPABILITY_MODULES = [
   {
@@ -105,16 +102,7 @@ export default function HomePage() {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<AnalysisMode>("analysis");
   const [searchLoading, setSearchLoading] = useState(false);
-  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const router = useRouter();
-
-  useEffect(() => {
-    try {
-      setOnboardingDismissed(window.localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1");
-    } catch {
-      setOnboardingDismissed(false);
-    }
-  }, []);
 
   useEffect(() => {
     async function load() {
@@ -173,15 +161,6 @@ export default function HomePage() {
     }
   }, [mode, query, router, searchLoading]);
 
-  const dismissOnboarding = useCallback(() => {
-    setOnboardingDismissed(true);
-    try {
-      window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
-    } catch {
-      // ignore localStorage failures
-    }
-  }, []);
-
   return (
     <div className="h-[calc(100vh-56px)] overflow-y-auto">
       <div className="mx-auto max-w-[980px] px-5 pb-20 pt-10 sm:px-8">
@@ -212,77 +191,50 @@ export default function HomePage() {
           />
         </section>
 
-        {!onboardingDismissed && (
-          <aside className="prism-card mt-6 flex gap-4 border-[rgba(99,102,241,0.08)] bg-[linear-gradient(135deg,rgba(99,102,241,0.03)_0%,rgba(6,182,212,0.03)_52%,rgba(16,185,129,0.02)_100%)] p-5 animate-fade-up [animation-delay:180ms]">
-            <div className="mt-0.5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--ac-s)] text-[var(--ac)]">
-                <PrismLogo size={18} showWordmark={false} />
-              </div>
-            </div>
-            <div className="flex-1">
-              <div className="text-[13px] font-semibold text-[var(--t1)]">
-                Prism 是一个独立的 AI Research Harness
-              </div>
-              <p className="mt-1 text-[13px] leading-[1.75] text-[var(--t2)]">
-                它会自动编排多步研究流程：<strong>拉取财务数据 → 搜索最新资讯 → 构建估值模型 → 对比同业 → 生成交易建议</strong>。你只需要描述研究目标，Prism 会选择合适的工具并实时展示中间过程。分析过程中你可以随时引导方向。
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={dismissOnboarding}
-              className="self-start rounded-md p-1.5 text-[var(--t3)] transition-colors hover:bg-white/60 hover:text-[var(--t1)]"
-              aria-label="关闭引导"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </aside>
-        )}
-
-        <section className="gap-fluid-section space-y-4 animate-fade-up [animation-delay:240ms]">
-          {CAPABILITY_MODULES.map((module, idx) => (
-            <article key={module.key} className="prism-card overflow-hidden">
-              <div className="h-[3px]" style={{ background: module.bar }} />
-              <div className="flex flex-col gap-5 p-6 lg:flex-row lg:items-center">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3">
-                    <CapabilityIcon path={module.iconPath} style={module.iconStyle} />
-                    <div>
-                      <h2 className={`${idx === 0 ? "text-[18px]" : "text-[16px]"} font-semibold text-[var(--t1)]`}>{module.title}</h2>
-                      <p className="mt-1 text-[13px] leading-[1.7] text-[var(--t2)]">{module.description}</p>
-                    </div>
+        <section className="gap-fluid-section animate-fade-up [animation-delay:240ms]">
+          <div className="prism-panel overflow-hidden divide-y divide-[var(--b1)]">
+            {CAPABILITY_MODULES.map((module) => (
+              <details key={module.key} className="group">
+                <summary className="flex cursor-pointer items-center gap-4 px-5 py-4 transition-colors hover:bg-[var(--bg-hover)] [&::-webkit-details-marker]:hidden list-none">
+                  <div className="h-[3px] w-6 rounded-full" style={{ background: module.bar }} />
+                  <CapabilityIcon path={module.iconPath} style={module.iconStyle} />
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-[15px] font-semibold text-[var(--t1)]">{module.title}</h2>
+                    <p className="mt-0.5 text-[12px] text-[var(--t3)]">{module.description}</p>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="text-[var(--t4)] transition-transform group-open:rotate-90">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 5l7 7-7 7" />
+                    </svg>
+                  </span>
+                </summary>
+                <div className="border-t border-[var(--b1)] bg-[var(--bg)] px-5 py-4">
+                  <div className="mb-3 flex flex-wrap gap-2">
                     {module.chips.map((chip) => (
                       <span key={chip} className="rounded-pill bg-[var(--bg-2)] px-3 py-1 text-[11px] font-medium text-[var(--t2)]">
                         {chip}
                       </span>
                     ))}
                   </div>
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    {module.templates.map((template) => (
+                      <button
+                        key={template}
+                        type="button"
+                        onClick={() => setQuery(template)}
+                        className="group/tpl flex items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left transition-all hover:border-[var(--b1)] hover:bg-[var(--bg-w)]"
+                      >
+                        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm bg-[var(--bg-2)] text-[11px] text-[var(--t3)] transition-colors group-hover/tpl:bg-[var(--ac-m)] group-hover/tpl:text-[var(--ac)]">
+                          ▷
+                        </span>
+                        <span className="flex-1 text-[12px] text-[var(--t1)]">{template}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-
-                <div className="grid gap-2 lg:w-[320px] lg:shrink-0">
-                  {module.templates.map((template) => (
-                    <button
-                      key={template}
-                      type="button"
-                      onClick={() => setQuery(template)}
-                      className="group flex items-center gap-3 rounded-md border border-transparent px-4 py-3 text-left transition-all hover:border-[var(--b1)] hover:bg-[var(--bg-hover)]"
-                    >
-                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-[var(--bg-2)] text-[var(--t3)] transition-colors group-hover:bg-[var(--ac-m)] group-hover:text-[var(--ac)]">
-                        ▷
-                      </span>
-                      <span className="flex-1 text-[13px] font-medium text-[var(--t1)]">{template}</span>
-                      <span className="translate-x-[-4px] text-[13px] text-[var(--t4)] opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100">
-                        →
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </article>
-          ))}
+              </details>
+            ))}
+          </div>
         </section>
 
         {error && (
@@ -294,7 +246,7 @@ export default function HomePage() {
         <div className="gap-fluid-section space-y-10">
           {loading ? (
             <div className="rounded-lg border border-[var(--b1)] bg-[var(--bg-w)] px-5 py-4 text-[13px] text-[var(--t3)] shadow-card">
-              正在加载 watchlist 和历史分析...
+              正在加载追踪列表和历史分析...
             </div>
           ) : (
             <>
@@ -305,7 +257,7 @@ export default function HomePage() {
                 <section className="space-y-4">
                   <div className="flex items-center gap-3">
                     <h2 className="font-display text-fluid-h2 font-medium tracking-[-0.03em] text-[var(--ink)]">
-                      Recent Analyses
+                      历史分析
                     </h2>
                     <span className="prism-mono-chip">{history.length}</span>
                   </div>
@@ -315,7 +267,7 @@ export default function HomePage() {
                       <table className="min-w-full border-collapse">
                         <thead>
                           <tr className="border-b border-[var(--b2)] bg-[var(--bg-2)]">
-                            {["Date", "Query", "Ticker", "Status", "Tokens"].map((label, index) => (
+                            {["时间", "查询", "代码", "状态", "Token"].map((label, index) => (
                               <th
                                 key={label}
                                 className="px-5 py-3 text-left font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"

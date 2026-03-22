@@ -54,13 +54,24 @@ BUILD_DCF_SCHEMA = make_tool_schema(
         "assumptions": {
             "type": "object",
             "description": (
-                "All DCF assumptions. Required: company (str), ticker (str), "
-                "projection_years (int), segments (array of {name, current_annual_revenue, growth_rates: [float], reasoning}), "
-                "gross_margin ({value: float}), wacc (float 0.05-0.20), terminal_growth (float < wacc), "
-                "net_cash (float, $M), shares_outstanding (float, millions), current_price (float). "
-                "Optional: opex_pct_of_revenue, tax_rate, capex_pct_of_revenue, "
-                "da_pct_of_revenue (D&A as pct of revenue — IMPORTANT for capital-intensive companies), "
-                "working_capital_change_pct (all as {value: float}), scenarios."
+                "All DCF assumptions.\n\n"
+                "Required fields:\n"
+                "  company (str), ticker (str), projection_years (int),\n"
+                "  segments (array of {name, current_annual_revenue (in $M, matching financials output), "
+                "growth_rates: [float per year], reasoning}),\n"
+                "  gross_margin ({value: float}), wacc (float 0.05-0.20), "
+                "terminal_growth (float, must be < wacc),\n"
+                "  net_cash (float, $M — = cashAndShortTermInvestments - totalDebt from balance sheet; "
+                "negative means net debt, pass the negative number),\n"
+                "  shares_outstanding (float — ACTUAL SHARE COUNT, not in millions; "
+                "get from income-statement weightedAverageShsOutDil),\n"
+                "  current_price (float).\n\n"
+                "Optional fields:\n"
+                "  opex_pct_of_revenue, tax_rate, capex_pct_of_revenue,\n"
+                "  da_pct_of_revenue (D&A / revenue — from cash-flow-statement depreciationAndAmortization / revenue; "
+                "if omitted, defaults to capex_pct which may overstate D&A for companies in heavy investment phases),\n"
+                "  working_capital_change_pct (all as {value: float} or [float per year]),\n"
+                "  scenarios (array for probability-weighted analysis)."
             ),
         },
     },
@@ -307,6 +318,30 @@ def build_dcf(assumptions: dict) -> ToolResult:
 
     result["scenario_weighted_value"] = scenario_weighted_value
 
+    # ── Soft warnings ──
+    warnings = []
+    if assumptions.get("da_pct_of_revenue") is None:
+        warnings.append(
+            "D&A defaulted to CapEx rate. If this company is in a heavy investment phase "
+            "(data centers, fabs), D&A on existing assets is usually lower than current CapEx — "
+            "consider setting da_pct_of_revenue explicitly from cash-flow-statement."
+        )
+    tv_pct = (result["discounted_terminal_value"] / result["enterprise_value"] * 100) if result["enterprise_value"] != 0 else 0
+    if tv_pct > 75:
+        warnings.append(
+            f"Terminal value is {tv_pct:.0f}% of enterprise value. Near-term FCF may be "
+            "understated — either CapEx is high, margins are thin, or growth assumptions "
+            "are conservative relative to terminal expectations."
+        )
+    if len(segments) == 1:
+        seg_rev = float(segments[0].get("current_annual_revenue", 0))
+        if seg_rev > 50000:
+            warnings.append(
+                "Single-segment model for a large-revenue company. Consider checking "
+                "financials(ticker, 'segments') for business-line breakdowns."
+            )
+    result["warnings"] = warnings
+
     # ── Revision history ──
     round_num = len(_revision_history) + 1
     _revision_history.append({
@@ -523,8 +558,5 @@ def get_comps(ticker: str, peers: list[str]) -> ToolResult:
 # ── Registration ─────────────────────────────────────────────
 
 def register(context: dict) -> list[Tool]:
-    """Called by skill_loader with shared dependencies."""
-    return [
-        Tool(build_dcf, BUILD_DCF_SCHEMA),
-        Tool(get_comps, GET_COMPS_SCHEMA),
-    ]
+    """DCF/comps exposed only through the unified valuation skill entry point."""
+    return []

@@ -119,7 +119,7 @@ export function WatchlistRow({ item }: WatchlistRowProps) {
             }
           }}
           disabled={reflecting || opening}
-          className="rounded-md border border-[var(--ac-s)] bg-[var(--ac-s)] px-3 py-1.5 text-[11px] font-medium text-[var(--ac)] transition-colors hover:bg-[var(--ac-m)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-[var(--ac-s)] bg-[var(--ac-s)] px-3 py-2.5 text-[11px] font-medium text-[var(--ac)] transition-colors hover:bg-[var(--ac-m)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {reflecting ? "处理中..." : opening ? "打开中..." : "复盘"}
         </button>

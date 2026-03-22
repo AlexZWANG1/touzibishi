@@ -1,7 +1,11 @@
+export type DocCategory = "research" | "interview" | "paper" | "note" | "other";
+
 export interface KnowledgeDocument {
   id: string;
   title: string;
   doc_type: "pdf" | "url" | "note" | "report";
+  category: DocCategory;
+  industry: string | null;
   source_path: string | null;
   tags: string[];
   company: string | null;

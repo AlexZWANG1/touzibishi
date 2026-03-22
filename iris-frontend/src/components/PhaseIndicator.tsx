@@ -65,12 +65,12 @@ export function PhaseIndicator({ compact = false }: PhaseIndicatorProps) {
 
       <span className="ml-auto rounded-pill bg-[var(--bg-2)] px-3 py-1.5 font-mono text-[10px] text-[var(--t3)]">
         {isComplete
-          ? "COMPLETE"
+          ? "已完成"
           : pageState === "WAITING"
-            ? "WAITING"
+            ? "等待输入"
             : pageState === "RUNNING"
-              ? "RUNNING"
-              : "IDLE"}
+              ? "运行中"
+              : "就绪"}
       </span>
     </div>
   );

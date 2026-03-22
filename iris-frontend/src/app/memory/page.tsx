@@ -30,7 +30,7 @@ export default function MemoryPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]">
-                Memory Manager
+                记忆管理
               </div>
               <div className="mt-1 text-[14px] font-medium text-[var(--t1)]">公司、行业、模式与校准文件</div>
             </div>
@@ -88,7 +88,7 @@ export default function MemoryPage() {
                   <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
               </div>
-              <h2 className="mt-5 font-display text-[32px] font-medium text-[var(--ink)]">Memory Files</h2>
+              <h2 className="mt-5 font-display text-[32px] font-medium text-[var(--ink)]">记忆档案</h2>
               <p className="mt-3 text-[14px] leading-[1.8] text-[var(--t3)]">
                 左侧文件树管理的是长期记忆与校准资料。选中任意文件后，你可以在右侧查看渲染效果、源码，或直接编辑。
               </p>

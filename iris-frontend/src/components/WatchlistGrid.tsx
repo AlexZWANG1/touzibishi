@@ -14,7 +14,7 @@ export function WatchlistGrid({ items, loading, onRefresh }: WatchlistGridProps)
     <section className="space-y-4">
       <div className="flex items-center gap-3">
         <h2 className="font-display text-fluid-h2 font-medium tracking-[-0.03em] text-[var(--ink)]">
-          Watchlist
+          追踪列表
         </h2>
         <span className="prism-mono-chip">{items.length}</span>
         <button
@@ -22,7 +22,7 @@ export function WatchlistGrid({ items, loading, onRefresh }: WatchlistGridProps)
           disabled={loading}
           className="ml-auto rounded-md border border-[var(--b2)] bg-[var(--bg-w)] px-3 py-2 text-[12px] font-medium text-[var(--t2)] shadow-card transition-all hover:border-[var(--b3)] hover:text-[var(--t1)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "Refreshing..." : "Refresh"}
+          {loading ? "刷新中..." : "刷新"}
         </button>
       </div>
 
@@ -31,7 +31,7 @@ export function WatchlistGrid({ items, loading, onRefresh }: WatchlistGridProps)
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="border-b border-[var(--b2)] bg-[var(--bg-2)]">
-                {["Ticker", "Name", "Price", "Gap", "Fair Value", "建议", "操作"].map((label, index) => (
+                {["代码", "名称", "现价", "偏离", "公允价值", "建议", "操作"].map((label, index) => (
                   <th
                     key={label}
                     className={`px-5 py-3 font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)] ${
