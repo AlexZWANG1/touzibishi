@@ -99,21 +99,22 @@ def build_harness(
     retriever = SQLiteRetriever(db)
 
     # Core tools — external data sources
+    # panel_type declares which frontend panel extractor to use (see sessions.py)
     core_tools = [
         Tool(exa_search, EXA_SEARCH_SCHEMA),
         Tool(web_fetch, WEB_FETCH_SCHEMA),
-        Tool(financials, FINANCIALS_SCHEMA),
+        Tool(financials, FINANCIALS_SCHEMA, panel_type="data"),
         Tool(macro, MACRO_SCHEMA),
-        Tool(quote, QUOTE_SCHEMA),
+        Tool(quote, QUOTE_SCHEMA, panel_type="quote"),
         Tool(history, HISTORY_SCHEMA),
         Tool(sec_filing, SEC_FILING_SCHEMA),
         Tool(transcript, TRANSCRIPT_SCHEMA),
     ]
 
-    # Memory tools
+    # Memory tools — is_knowledge=True means they must be flushed before compaction
     memory_tools = [
-        Tool(remember, REMEMBER_SCHEMA, retriever=retriever),
-        Tool(recall, RECALL_SCHEMA, retriever=retriever),
+        Tool(remember, REMEMBER_SCHEMA, retriever=retriever, is_knowledge=True),
+        Tool(recall, RECALL_SCHEMA, retriever=retriever, panel_type="memory_recall"),
         Tool(search_knowledge, SEARCH_KNOWLEDGE_SCHEMA, retriever=retriever),
     ]
 

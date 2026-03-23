@@ -35,35 +35,9 @@ TRACKING_QUERY_KEYS = {
     "utm_term",
 }
 
-COMMON_TICKER_STOPWORDS = {
-    "A",
-    "AN",
-    "AND",
-    "ARE",
-    "AS",
-    "AT",
-    "BE",
-    "BY",
-    "FOR",
-    "FROM",
-    "HAS",
-    "HE",
-    "IN",
-    "IS",
-    "IT",
-    "ITS",
-    "NOT",
-    "OF",
-    "ON",
-    "OR",
-    "THE",
-    "TO",
-    "US",
-    "USD",
-    "WAS",
-    "WE",
-    "WITH",
-}
+# NOTE: COMMON_TICKER_STOPWORDS removed — ticker extraction is now handled
+# entirely by the AI metadata path (extract_metadata_with_ai).
+# The old regex + blacklist approach was unreliable and could never be complete.
 
 
 def normalize_url(raw_url: str) -> str:
@@ -251,32 +225,8 @@ def _source_name_from_url(url: str) -> str | None:
 
 
 def _guess_content_type(url: str, content: str) -> str:
-    lowered_url = (url or "").lower()
-    lowered = (content or "").lower()[:5000]
-
-    if "sec.gov" in lowered_url or "10-k" in lowered or "10-q" in lowered:
-        return "filing"
-    if "earnings" in lowered_url or "earnings" in lowered:
-        return "earnings"
-    if "research" in lowered_url or "analysis" in lowered_url:
-        return "research"
+    """Fallback content type when AI extraction is unavailable. Returns generic 'article'."""
     return "article"
-
-
-def _extract_tickers_from_text(content: str, max_items: int = 6) -> list[str]:
-    candidates = re.findall(r"\b[A-Z]{1,5}\b", (content or "")[:8000])
-    seen: set[str] = set()
-    output: list[str] = []
-    for item in candidates:
-        if item in COMMON_TICKER_STOPWORDS:
-            continue
-        if item in seen:
-            continue
-        seen.add(item)
-        output.append(item)
-        if len(output) >= max_items:
-            break
-    return output
 
 
 def _merge_tags(user_tags: list[str] | None, ai_tags: list[str] | None, max_items: int = 12) -> list[str]:
@@ -328,14 +278,7 @@ def _safe_json_load(value: str) -> dict[str, Any] | None:
 
 
 def _guess_category(url: str, content: str) -> str:
-    """Heuristic category guess when AI extraction is unavailable."""
-    text = (url + " " + content[:2000]).lower()
-    if any(w in text for w in ("interview", "访谈", "交流", "纪要", "expert call")):
-        return "interview"
-    if any(w in text for w in ("paper", "论文", "arxiv", "abstract", "methodology")):
-        return "paper"
-    if any(w in text for w in ("research", "研报", "analysis", "initiat", "coverage", "rating")):
-        return "research"
+    """Fallback category when AI extraction is unavailable. Returns generic 'other'."""
     return "other"
 
 
@@ -351,8 +294,6 @@ def _fallback_metadata(
     if len(content) > 280:
         summary += "..."
 
-    tickers = _extract_tickers_from_text(content)
-
     return {
         "title": extracted_title or source_name or canonical_url,
         "summary": summary,
@@ -362,7 +303,7 @@ def _fallback_metadata(
         "source_name": source_name,
         "published_at": published_at_guess,
         "tags": [],
-        "companies": tickers,
+        "companies": [],  # AI path will populate this; fallback returns empty
         "language": "unknown",
         "confidence": 0.3,
     }
@@ -461,10 +402,9 @@ def extract_metadata_with_ai(
         if merged["confidence"] > 1:
             merged["confidence"] = 1.0
 
-        # Parse category
-        category = merged.get("category", "other")
-        if category not in ("research", "interview", "paper", "note", "other"):
-            category = "other"
+        # Accept whatever category the LLM returns — don't squash to a rigid whitelist.
+        # Normalize to lowercase for consistency.
+        category = str(merged.get("category") or "other").lower().strip()
         merged["category"] = category
 
         # Parse industry

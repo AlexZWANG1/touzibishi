@@ -52,56 +52,118 @@ def _get_retriever() -> SQLiteRetriever:
     return SQLiteRetriever(DB_PATH)
 
 
-# ── Ticker extraction helper ────────────────────────────────
+# ── Metadata extraction via LLM ─────────────────────────────
 
-def _extract_ticker(query: str, session: AnalysisSession) -> str | None:
-    """Best-effort ticker extraction from query and tool results."""
-    tool_results = session.accumulated_panels
-    # Prefer market-data tools.
-    for tool_name in ["quote", "financials", "valuation", "yf_quote", "fmp_get_financials", "build_dcf"]:
-        result = tool_results.get(tool_name, {})
-        if isinstance(result, dict) and result.get("ticker"):
-            return result["ticker"].upper()
+def _extract_metadata_via_llm(query: str, reasoning_text: str) -> dict:
+    """Use a lightweight LLM call to extract structured metadata from analysis results.
 
-    # Fallback: parse raw query symbols, but exclude common finance acronyms.
-    blacklist = {
-        "DCF", "FCF", "EPS", "EBIT", "EBITDA", "EV", "PE", "PBR", "PB",
-        "PS", "ROE", "ROIC", "CAGR", "FY", "TTM", "WACC",
-    }
-    for candidate in re.findall(r"\b([A-Z]{1,5})\b", query or ""):
-        if candidate not in blacklist:
-            return candidate
-    return None
+    Returns dict with keys: ticker, recommendation, confidence.
+    """
+    import os
+    from openai import OpenAI
+
+    model = os.getenv("METADATA_MODEL") or os.getenv("INGEST_METADATA_MODEL") or "gpt-5.4-mini"
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        base_url=os.getenv("OPENAI_BASE_URL"),
+    )
+
+    excerpt = (reasoning_text or "")[:3000]
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Extract structured metadata from an investment analysis. "
+                        "Return JSON with keys: "
+                        "ticker (string or null — the primary stock ticker analyzed, e.g. 'NVDA', 'META', '600519.SS'; "
+                        "must be a real tradable ticker symbol, NOT an industry keyword like 'AI', 'IT', 'EV', 'ML'), "
+                        "recommendation (string or null — one of: STRONG BUY, BUY, HOLD, SELL, STRONG SELL, "
+                        "OVERWEIGHT, UNDERWEIGHT, OUTPERFORM, UNDERPERFORM, or null if none given), "
+                        "confidence (string or null — one of: high, medium, low, or null). "
+                        "If the query is a general question, greeting, industry overview, or not about a specific stock, "
+                        "return ticker as null."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Query: {query}\n\nAnalysis excerpt:\n{excerpt}",
+                },
+            ],
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        parsed = json.loads(raw)
+        return {
+            "ticker": parsed.get("ticker") or None,
+            "recommendation": parsed.get("recommendation") or None,
+            "confidence": parsed.get("confidence") or None,
+        }
+    except Exception as e:
+        logger.warning(f"Metadata extraction failed: {e}")
+        return {"ticker": None, "recommendation": None, "confidence": None}
 
 
-_META_QUERY_PATTERNS = [
-    re.compile(r"^(hi|hello|hey)[!?.\s]*$", re.IGNORECASE),
-    re.compile(r"^你好[呀啊吗嘛呢]?[!！。？?\s]*$"),
-    re.compile(r"^(您好|嗨|哈喽|在吗|在不在|早上好|下午好|晚上好)[!！。？?\s]*$"),
-    re.compile(r"^(who are you|what can you do)[!?.\s]*$", re.IGNORECASE),
-    re.compile(r"^(你是谁|你能做什么|你会什么|介绍一下你自己|自我介绍)[!！。？?\s]*$"),
-]
+def _classify_query_via_llm(query: str) -> dict:
+    """Classify whether a query is a greeting/meta question or a real analysis request.
 
+    Returns dict with keys: is_meta (bool), reply (str or None).
+    Uses a fast LLM call instead of brittle regex matching.
+    """
+    import os
+    from openai import OpenAI
 
-def _is_meta_query(query: str) -> bool:
     q = (query or "").strip()
     if not q:
-        return False
-    return any(p.fullmatch(q) for p in _META_QUERY_PATTERNS)
+        return {"is_meta": False, "reply": None}
 
+    # Short-circuit: queries longer than 30 chars are almost certainly not greetings
+    if len(q) > 30:
+        return {"is_meta": False, "reply": None}
 
-def _build_meta_reply(query: str) -> str:
-    q = (query or "").strip().lower()
-    if "who are you" in q or "你是谁" in query or "自我介绍" in query:
-        return (
-            "我是 IRIS，一个面向投研任务的分析助手。"
-            "你可以直接说“分析 NVDA”“比较 TSLA 和 AMD”“复盘昨天的策略信号”，"
-            "我会按分析流程给出结论、依据和关键数据。"
-        )
-    return (
-        "你好，我可以帮你做股票/行业分析、估值、财报解读和多轮追问。"
-        "如果你给我具体标的或问题（例如“分析一下英伟达”），我会直接开始。"
+    model = os.getenv("METADATA_MODEL") or os.getenv("INGEST_METADATA_MODEL") or "gpt-5.4-mini"
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        base_url=os.getenv("OPENAI_BASE_URL"),
     )
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a classifier for an investment analysis assistant called IRIS. "
+                        "Determine if the user's message is a greeting/meta question (NOT an analysis request). "
+                        "Return JSON: {\"is_meta\": bool, \"reply\": string or null}. "
+                        "is_meta=true ONLY for: greetings (hi, hello, 你好, etc.), "
+                        "identity questions (who are you, 你是谁), capability questions (what can you do, 你能做什么). "
+                        "is_meta=false for ANYTHING that could be an analysis request, even if it starts with a greeting "
+                        "(e.g. 'hello, analyze NVDA' → is_meta=false). "
+                        "If is_meta=true, provide a friendly reply in the same language as the query. "
+                        "Introduce yourself as IRIS, an investment research analysis assistant. "
+                        "Mention you can do: stock/industry analysis, valuation, earnings review, multi-turn follow-up."
+                    ),
+                },
+                {"role": "user", "content": q},
+            ],
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        parsed = json.loads(raw)
+        return {
+            "is_meta": bool(parsed.get("is_meta", False)),
+            "reply": parsed.get("reply") if parsed.get("is_meta") else None,
+        }
+    except Exception as e:
+        logger.warning(f"Meta query classification failed: {e}")
+        return {"is_meta": False, "reply": None}
 
 
 # ── App setup ─────────────────────────────────────────────────
@@ -205,50 +267,29 @@ def _memory_file_path(memory_type: str, filename: str) -> Path:
     return base / memory_type / filename
 
 
-# ── Recommendation extraction ────────────────────────────────
-
-_REC_KEYWORDS = [
-    "strong buy", "strong sell",
-    "buy", "sell", "hold",
-    "overweight", "underweight", "equal-weight", "equal weight",
-    "outperform", "underperform", "market perform",
-    "accumulate", "reduce",
-]
-_REC_PATTERN = re.compile(
-    r"\b(?:recommendation|rating|verdict|conclusion)\s*[:\-–—]\s*"
-    r"(" + "|".join(re.escape(k) for k in _REC_KEYWORDS) + r")\b",
-    re.IGNORECASE,
-)
-_REC_FALLBACK = re.compile(
-    r"\b(" + "|".join(re.escape(k) for k in _REC_KEYWORDS) + r")\b",
-    re.IGNORECASE,
-)
-
-
-def _extract_recommendation(text: str | None) -> str | None:
-    """Extract a recommendation keyword (BUY/SELL/HOLD/etc.) from reasoning text."""
-    if not text:
-        return None
-    # Prefer explicit "Recommendation: BUY" style
-    m = _REC_PATTERN.search(text)
-    if m:
-        return m.group(1).upper()
-    # Fallback: scan last 500 chars for a standalone keyword
-    tail = text[-500:]
-    m = _REC_FALLBACK.search(tail)
-    if m:
-        return m.group(1).upper()
-    return None
-
-
 logger = logging.getLogger(__name__)
 
 
 # ── DB persistence helper ────────────────────────────────────
 
-def _save_to_db(session: AnalysisSession, snap: dict, ticker: str | None, result) -> None:
+def _save_to_db(session: AnalysisSession, snap: dict, result) -> None:
     """Persist analysis results to the retriever DB. Shared by initial run and continuations."""
     retriever = _get_retriever()
+
+    # Use accumulated reasoning text, or fall back to result.reply
+    reasoning_text = snap["reasoning_text"] or result.reply or ""
+
+    # Skip expensive LLM extraction for trivial/meta queries (no tools used, no reasoning)
+    has_substance = bool(reasoning_text.strip()) and (
+        getattr(result, "tool_log", None) or snap.get("timeline")
+    )
+    if has_substance:
+        metadata = _extract_metadata_via_llm(session.query, reasoning_text)
+        ticker = metadata["ticker"]
+        rec = metadata["recommendation"]
+    else:
+        ticker = None
+        rec = None
 
     # Save valuation record if valuation model was produced
     if session.pending_valuation and ticker:
@@ -282,12 +323,6 @@ def _save_to_db(session: AnalysisSession, snap: dict, ticker: str | None, result
                 )
             except Exception:
                 pass  # best-effort
-
-    # Use accumulated reasoning text, or fall back to result.reply
-    reasoning_text = snap["reasoning_text"] or result.reply or ""
-
-    # Extract recommendation from the final reasoning text
-    rec = _extract_recommendation(reasoning_text)
 
     # Serialize conversation messages for resumability
     messages_json = None
@@ -376,8 +411,9 @@ async def start_analysis(req: AnalyzeRequest):
     # Run harness in background thread
     def _run():
         try:
-            if _is_meta_query(req.query):
-                reply = _build_meta_reply(req.query)
+            meta = _classify_query_via_llm(req.query)
+            if meta["is_meta"] and meta["reply"]:
+                reply = meta["reply"]
                 session._raw_text = reply
                 session.events.put({
                     "event": "system",
@@ -398,7 +434,7 @@ async def start_analysis(req: AnalyzeRequest):
                     tool_log=[],
                 )
                 snap = session.snapshot()
-                _save_to_db(session, snap, ticker=None, result=result)
+                _save_to_db(session, snap, result=result)
                 session.events.put({
                     "event": "analysis_complete",
                     "data": {
@@ -418,8 +454,7 @@ async def start_analysis(req: AnalyzeRequest):
 
             # --- Persist to DB ---
             snap = session.snapshot()
-            ticker = _extract_ticker(req.query, session)
-            _save_to_db(session, snap, ticker, result)
+            _save_to_db(session, snap, result)
 
             session.events.put({
                 "event": "analysis_complete",
@@ -568,8 +603,7 @@ async def continue_analysis(analysis_id: str, req: SteerRequest):
             )
             # Save updated snapshot
             snap = session.snapshot()
-            ticker = _extract_ticker(session.query, session)
-            _save_to_db(session, snap, ticker, result)
+            _save_to_db(session, snap, result)
 
             session.events.put({
                 "event": "analysis_complete",
@@ -683,8 +717,7 @@ async def resume_analysis(run_id: str, req: SteerRequest):
                 on_event=on_event,
             )
             snap = session.snapshot()
-            ticker = _extract_ticker(session.query, session)
-            _save_to_db(session, snap, ticker, result)
+            _save_to_db(session, snap, result)
 
             session.events.put({
                 "event": "analysis_complete",
@@ -1280,9 +1313,8 @@ def _cleanup_loop():
                 try:
                     if hasattr(session.harness, '_messages') and session.harness._messages:
                         snap = session.snapshot()
-                        ticker = _extract_ticker(session.query, session)
                         reasoning_text = snap.get("reasoning_text", "")
-                        rec = _extract_recommendation(reasoning_text)
+                        metadata = _extract_metadata_via_llm(session.query, reasoning_text)
                         messages_json = json.dumps(
                             session.harness._messages, ensure_ascii=False, default=str
                         )
@@ -1290,7 +1322,7 @@ def _cleanup_loop():
                         retriever.save_analysis_run(
                             id=session.id,
                             query=session.query,
-                            ticker=ticker,
+                            ticker=metadata["ticker"],
                             status="complete",
                             reasoning_text=reasoning_text,
                             thinking_text=snap.get("thinking_text", ""),
@@ -1300,7 +1332,7 @@ def _cleanup_loop():
                             panels_json=json.dumps(
                                 snap["panels"], ensure_ascii=False, default=str
                             ),
-                            recommendation=rec,
+                            recommendation=metadata["recommendation"],
                             messages_json=messages_json,
                             turn_count=session.turn_count + 1,
                         )

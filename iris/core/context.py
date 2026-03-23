@@ -13,18 +13,66 @@ class ContextAssembler:
         self.retriever = retriever
 
     def extract_subject(self, user_input: str) -> Optional[str]:
+        """Extract the primary analysis subject (ticker) from user input.
+
+        Uses DB-known tickers first (fast, free), then falls back to a
+        lightweight LLM call for ambiguous queries like '分析 AI Agent 产业链'.
+        """
         if not user_input:
             return None
 
-        # Prefer explicit ticker-like tokens.
-        tokens = re.findall(r"\b[A-Z]{1,6}\b", user_input)
-        if tokens:
-            return tokens[0].upper()
+        # Step 1: Collect uppercase token candidates from the query.
+        candidates = re.findall(r"\b[A-Z]{1,6}\b", user_input)
 
-        # Fallback: first non-empty alpha token.
-        words = re.findall(r"[A-Za-z][A-Za-z0-9._-]{1,20}", user_input)
-        if words:
-            return words[0].upper()
+        # Step 2: If we have a DB, check candidates against known tracked tickers.
+        if candidates and self.retriever:
+            try:
+                known = set(self.retriever.get_tracked_tickers())
+                for c in candidates:
+                    if c in known:
+                        return c
+            except Exception:
+                pass
+
+        # Step 3: Use LLM to determine the actual subject — avoids false
+        # positives like 'AI', 'GDP', 'EV' that look like tickers but aren't.
+        try:
+            import os
+            from openai import OpenAI
+
+            model = os.getenv("METADATA_MODEL") or os.getenv("INGEST_METADATA_MODEL") or "gpt-5.4-mini"
+            client = OpenAI(
+                api_key=os.getenv("OPENAI_API_KEY"),
+                base_url=os.getenv("OPENAI_BASE_URL"),
+            )
+            response = client.chat.completions.create(
+                model=model,
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Extract the primary stock ticker symbol from the user's investment query. "
+                            "Return JSON: {\"ticker\": \"NVDA\"} or {\"ticker\": null}. "
+                            "Must be a real tradable ticker (e.g. NVDA, META, 600519.SS). "
+                            "Do NOT return industry keywords like AI, IT, EV, ML, GDP, CEO, etc. "
+                            "If the query is about an industry/sector/concept rather than a specific stock, return null."
+                        ),
+                    },
+                    {"role": "user", "content": user_input[:500]},
+                ],
+            )
+            import json as _json
+            raw = (response.choices[0].message.content or "").strip()
+            parsed = _json.loads(raw)
+            ticker = parsed.get("ticker")
+            if ticker:
+                return str(ticker).upper()
+        except Exception:
+            pass
+
+        # Step 4: Final fallback — return first DB-known candidate, or None.
         return None
 
     def load_prior_context(self, subject: str, retriever) -> list[dict]:
@@ -178,9 +226,10 @@ class ContextAssembler:
         if len(messages) <= keep_recent + 2:
             return messages
 
+        # Use declarative is_knowledge flag instead of hardcoded name whitelist.
         knowledge_tools = [
             t for t in getattr(self, "_knowledge_tools", [])
-            if t.name in {"remember", "create_hypothesis", "add_evidence_card"}
+            if getattr(t, "is_knowledge", False)
         ]
         self.memory_flush(messages, knowledge_tools, budget)
 

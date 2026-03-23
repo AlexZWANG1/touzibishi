@@ -129,36 +129,35 @@ class AnalysisSession:
         if result is not None:
             self.accumulated_panels[tool] = result
 
-        # Extract frontend-shaped panel data
+        # Extract frontend-shaped panel data using declarative panel_type metadata.
+        # Each Tool declares its panel_type at registration (see tools/base.py).
         if result and isinstance(result, dict):
-            if tool == "valuation":
-                self._extract_valuation_panels(result)
-            elif tool == "financials":
-                self._extract_data_panel(result)
-            elif tool == "quote":
-                self._extract_quote_metrics(result)
-            elif tool == "generate_trade_signal":
-                self._extract_strategy_signal(result)
-            elif tool == "execute_trade":
-                self._extract_trade_execution(result)
-            elif tool == "get_portfolio":
-                self._extract_strategy_portfolio(result)
-            elif tool in ("recall", "recall_memory"):
-                self._extract_memory_recall(result)
-            elif tool == "check_calibration":
-                self._extract_memory_calibration(result)
-            # Backward compatibility for old tool names
-            elif tool == "build_dcf":
-                self.pending_valuation = result
-                self._extract_model_panel(result)
-            elif tool == "get_comps":
-                self._extract_comps_panel(result)
-            elif tool == "fmp_get_financials":
-                self._extract_data_panel(result)
-            elif tool == "yf_quote":
-                self._extract_quote_metrics(result)
-            elif tool == "emit_report":
-                self._extract_report(result)
+            # Resolve panel_type from tool metadata (harness.tool_registry)
+            panel_type = None
+            if hasattr(self, 'harness') and hasattr(self.harness, 'tool_registry'):
+                tool_obj = self.harness.tool_registry.get(tool)
+                if tool_obj:
+                    panel_type = getattr(tool_obj, 'panel_type', None)
+
+            _PANEL_DISPATCH = {
+                "valuation": self._extract_valuation_panels,
+                "data": self._extract_data_panel,
+                "quote": self._extract_quote_metrics,
+                "strategy_signal": self._extract_strategy_signal,
+                "trade_execution": self._extract_trade_execution,
+                "strategy_portfolio": self._extract_strategy_portfolio,
+                "memory_recall": self._extract_memory_recall,
+                "memory_calibration": self._extract_memory_calibration,
+                "model": self._extract_model_panel,
+                "comps": self._extract_comps_panel,
+                "report": self._extract_report,
+            }
+
+            if panel_type and panel_type in _PANEL_DISPATCH:
+                # Special case: model panels also set pending_valuation
+                if panel_type == "model":
+                    self.pending_valuation = result
+                _PANEL_DISPATCH[panel_type](result)
 
     def _handle_text_delta(self, event: HarnessEvent) -> None:
         content = event.data.get("content", "")

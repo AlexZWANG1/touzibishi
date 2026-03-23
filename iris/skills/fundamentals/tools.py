@@ -35,5 +35,5 @@ def emit_report(title: str, content: str) -> ToolResult:
 
 def register(context: dict) -> list[Tool]:
     return [
-        Tool(emit_report, EMIT_REPORT_SCHEMA),
+        Tool(emit_report, EMIT_REPORT_SCHEMA, panel_type="report"),
     ]

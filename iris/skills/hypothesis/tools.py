@@ -197,6 +197,6 @@ def register(context: dict) -> list[Tool]:
         raise ValueError("hypothesis skill requires 'retriever' in context")
 
     return [
-        Tool(create_hypothesis, CREATE_HYPOTHESIS_SCHEMA, retriever=retriever),
-        Tool(add_evidence_card, ADD_EVIDENCE_CARD_SCHEMA, retriever=retriever),
+        Tool(create_hypothesis, CREATE_HYPOTHESIS_SCHEMA, retriever=retriever, is_knowledge=True),
+        Tool(add_evidence_card, ADD_EVIDENCE_CARD_SCHEMA, retriever=retriever, is_knowledge=True),
     ]

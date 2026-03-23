@@ -174,4 +174,4 @@ def valuation(
 
 
 def register(context: dict) -> list[Tool]:
-    return [Tool(valuation, VALUATION_SCHEMA)]
+    return [Tool(valuation, VALUATION_SCHEMA, panel_type="valuation")]

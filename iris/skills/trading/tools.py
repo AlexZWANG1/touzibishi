@@ -453,8 +453,8 @@ def review_trades(ticker: str = None) -> ToolResult:
 
 def register(context: dict) -> list[Tool]:
     return [
-        Tool(generate_trade_signal, GENERATE_TRADE_SIGNAL_SCHEMA),
-        Tool(execute_trade, EXECUTE_TRADE_SCHEMA),
-        Tool(get_portfolio, GET_PORTFOLIO_SCHEMA),
+        Tool(generate_trade_signal, GENERATE_TRADE_SIGNAL_SCHEMA, panel_type="strategy_signal"),
+        Tool(execute_trade, EXECUTE_TRADE_SCHEMA, panel_type="trade_execution"),
+        Tool(get_portfolio, GET_PORTFOLIO_SCHEMA, panel_type="strategy_portfolio"),
         Tool(review_trades, REVIEW_TRADES_SCHEMA),
     ]

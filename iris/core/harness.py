@@ -673,14 +673,6 @@ class Harness:
                 chunks.append(content[:1200])
         return "\n".join(chunks)
 
-    def _detect_artifact_signals(self, text: str) -> dict:
-        return {
-            "has_observation": ("obs_" in text) or ("observation" in text),
-            "has_hypothesis": ("hyp_" in text) or ("hypothesis" in text),
-            "has_valuation": ("val_" in text) or ("valuation_id" in text),
-            "has_trade_score": ("ts_" in text) or ("trade_score_id" in text),
-        }
-
     def _tool_call_signature(self, tool_calls: list[ToolCall]) -> tuple:
         return tuple(
             (tc.name, json.dumps(tc.arguments, sort_keys=True, ensure_ascii=False))
@@ -832,9 +824,10 @@ class Harness:
 
     def _memory_flush(self, messages: list) -> None:
         budget = self._active_budget or BudgetTracker(self._budget_policy())
+        # Use declarative is_knowledge flag instead of hardcoded name whitelist.
         knowledge_tools = [
             t for t in self.tool_registry.values()
-            if t.name in {"remember", "create_hypothesis", "add_evidence_card"}
+            if getattr(t, "is_knowledge", False)
         ]
         self.context.memory_flush(messages, knowledge_tools, budget)
 

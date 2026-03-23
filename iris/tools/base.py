@@ -52,13 +52,23 @@ def make_tool_schema(name: str, description: str, properties: dict, required: li
 
 
 class Tool:
-    """Wraps a tool function with its OpenAI schema."""
+    """Wraps a tool function with its OpenAI schema.
 
-    def __init__(self, fn, schema: dict, retriever=None):
+    Metadata attributes (set at registration, not hardcoded centrally):
+      panel_type:    Frontend panel extraction method name, e.g. "valuation", "quote".
+                     None means no panel extraction needed.
+      is_knowledge:  True if this tool persists knowledge that must be flushed
+                     before context compaction (e.g. remember, create_hypothesis).
+    """
+
+    def __init__(self, fn, schema: dict, retriever=None, *,
+                 panel_type: str | None = None, is_knowledge: bool = False):
         self.fn = fn
         self.schema = schema
         self.name = schema["function"]["name"]
         self.retriever = retriever
+        self.panel_type = panel_type
+        self.is_knowledge = is_knowledge
 
     def execute(self, args: dict) -> ToolResult:
         if self.retriever:
