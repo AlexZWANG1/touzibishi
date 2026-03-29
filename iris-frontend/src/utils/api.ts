@@ -66,6 +66,14 @@ export async function getWatchlist(): Promise<WatchlistItem[]> {
   return request<WatchlistItem[]>("/api/watchlist");
 }
 
+export async function getPortfolio(): Promise<unknown | null> {
+  try {
+    return await request<unknown>("/api/portfolio");
+  } catch {
+    return null;
+  }
+}
+
 /**
  * GET /api/memory → { companies: [...], sectors: [...], patterns: [...], calibration: [...] }
  */

@@ -1,7 +1,18 @@
 import json
 import os
 from typing import Generator
-from openai import OpenAI
+
+# Langfuse drop-in: if configured, every LLM call is auto-traced.
+# Falls back to vanilla OpenAI when langfuse is unavailable.
+try:
+    from core.tracing import is_enabled as _lf_enabled
+    if _lf_enabled():
+        from langfuse.openai import OpenAI
+    else:
+        from openai import OpenAI
+except Exception:
+    from openai import OpenAI
+
 from .base import LLMClient, LLMResponse, ToolCall, StreamEvent
 
 

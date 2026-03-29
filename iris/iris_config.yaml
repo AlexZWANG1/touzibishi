@@ -104,6 +104,28 @@ knowledge:
   chunk_size: 800
   chunk_overlap: 200
 
+# ── LLM utility prompts (非 soul 层，是辅助提取/判断用的指令) ──
+prompts:
+  # 从用户输入中提取股票代码，用于加载历史分析上下文
+  ticker_extraction: |
+    Extract the primary stock ticker symbol from the user's investment query.
+    Return JSON: {"ticker": "NVDA"} or {"ticker": null}.
+    Must be a real tradable ticker (e.g. NVDA, META, 600519.SS).
+    Do NOT return industry keywords like AI, IT, EV, ML, GDP, CEO, etc.
+    If the query is about an industry/sector/concept rather than a specific stock, return null.
+
+  # 从分析报告中提取结构化元数据，供前端 UI 渲染标签卡片
+  metadata_extraction: |
+    Extract structured metadata from an investment analysis.
+    Return JSON with keys:
+    ticker (string or null — the primary stock ticker analyzed, e.g. 'NVDA', 'META', '600519.SS';
+    must be a real tradable ticker symbol, NOT an industry keyword like 'AI', 'IT', 'EV', 'ML'),
+    recommendation (string or null — one of: STRONG BUY, BUY, HOLD, SELL, STRONG SELL,
+    OVERWEIGHT, UNDERWEIGHT, OUTPERFORM, UNDERPERFORM, or null if none given),
+    confidence (string or null — one of: high, medium, low, or null).
+    If the query is a general question, greeting, industry overview, or not about a specific stock,
+    return ticker as null.
+
 skills:
   dir: "./skills"
 

@@ -7,14 +7,17 @@ Each skill folder contains:
   - config.yaml → skill-specific parameters
 """
 
+import logging
 from pathlib import Path
 from typing import Any
 
 import importlib.util
 import yaml
 
-from core.config import register_skill_config
+from core.config import register_skill_config, get_langfuse_prompt
 from tools.base import Tool
+
+log = logging.getLogger(__name__)
 
 
 class SkillLoadError(Exception):
@@ -54,10 +57,16 @@ def load_skills(
 
         skill_name = skill_dir.name
 
-        # Load SKILL.md
-        skill_md = skill_dir / "SKILL.md"
-        if skill_md.exists():
-            soul_parts.append(skill_md.read_text(encoding="utf-8"))
+        # Load SKILL.md — Langfuse first, local file fallback
+        lf_prompt = get_langfuse_prompt(f"iris-skill-{skill_name}")
+        if lf_prompt:
+            log.debug("Skill '%s' SKILL.md loaded from Langfuse", skill_name)
+            soul_parts.append(lf_prompt)
+        else:
+            skill_md = skill_dir / "SKILL.md"
+            if skill_md.exists():
+                log.debug("Skill '%s' SKILL.md loaded from local file", skill_name)
+                soul_parts.append(skill_md.read_text(encoding="utf-8"))
 
         # Load config.yaml
         config_yaml = skill_dir / "config.yaml"

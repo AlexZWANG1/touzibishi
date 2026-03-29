@@ -426,17 +426,20 @@ def _compute_dcf(
     discounted_tv = terminal_value / ((1.0 + wacc) ** projection_years)
 
     # Enterprise and equity value
+    # All values (revenue, FCF, net_cash) are in $M.
+    # shares_outstanding is actual count. Convert equity to $ before dividing.
     sum_discounted_fcf = sum(row["discounted_fcf"] for row in year_by_year)
     enterprise_value = sum_discounted_fcf + discounted_tv
     equity_value = enterprise_value + net_cash
-    fair_value_per_share = equity_value / shares_outstanding
+    fair_value_per_share = (equity_value * 1_000_000) / shares_outstanding
     gap_pct = (fair_value_per_share - current_price) / current_price * 100.0
 
     # Implied multiples
-    eps_y1 = nopat_list[0] / shares_outstanding
+    eps_y1 = (nopat_list[0] * 1_000_000) / shares_outstanding
     fwd_pe = fair_value_per_share / eps_y1 if eps_y1 != 0 else None
     ev_ebitda = enterprise_value / ebit_list[0] if ebit_list[0] != 0 else None
-    fcf_yield = fcf_list[0] / (fair_value_per_share * shares_outstanding) if fair_value_per_share != 0 else None
+    # FCF is in $M, equity_value is in $M — use equity_value directly
+    fcf_yield = fcf_list[0] / equity_value if equity_value != 0 else None
 
     # Revenue growth Y1: compute total revenue Y1 vs base year total revenue
     base_revenue = sum(float(seg["current_annual_revenue"]) for seg in segments)

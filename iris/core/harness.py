@@ -26,6 +26,7 @@ from core.budget import BudgetPolicy, BudgetTracker
 from core.context import ContextAssembler
 from core.loop_detector import LoopDetectionConfig, LoopDetector
 from core.tool_hooks import DefaultToolHooks, ToolHookContext, ToolHooks
+from core.tracing import observe, propagate_attributes, start_span, flush as _trace_flush
 from llm.base import LLMClient, LLMResponse, StreamEvent, ToolCall
 from tools.base import ToolResult
 
@@ -150,6 +151,7 @@ class Harness:
     def steer(self, message: str):
         self._steering_queue.put(message)
 
+    @observe(name="iris-analysis")
     def run(self, user_input: str, context_docs: list[str] = None) -> HarnessResult:
         self._abort.clear()
         self._current_run_id = f"run_{uuid.uuid4().hex[:12]}"
@@ -180,8 +182,17 @@ class Harness:
             },
         )
 
-        return self._main_loop(budget, loop_detector, messages, tool_log, recent_tool_names)
+        with propagate_attributes(
+            session_id=self._current_run_id,
+            metadata={"query": (user_input or "")[:200], "subject": subject or ""},
+            tags=["iris-analysis"],
+        ):
+            try:
+                return self._main_loop(budget, loop_detector, messages, tool_log, recent_tool_names)
+            finally:
+                _trace_flush()
 
+    @observe(name="iris-continuation")
     def continue_run(self, user_input: str, on_event=None, context_docs=None) -> HarnessResult:
         """Continue an existing conversation with preserved message history."""
         if not hasattr(self, '_messages') or not self._messages:
@@ -214,7 +225,15 @@ class Harness:
             },
         )
 
-        return self._main_loop(budget, loop_detector, self._messages, tool_log, recent_tool_names)
+        with propagate_attributes(
+            session_id=self._current_run_id,
+            metadata={"query": (user_input or "")[:200]},
+            tags=["iris-continuation"],
+        ):
+            try:
+                return self._main_loop(budget, loop_detector, self._messages, tool_log, recent_tool_names)
+            finally:
+                _trace_flush()
 
     def _main_loop(
         self,
@@ -578,12 +597,20 @@ class Harness:
             },
         )
 
-        try:
-            result = tool.execute(before_ctx.args)
-        except Exception as e:
-            result = ToolResult.fail(f"Tool exception: {e}", recoverable=False)
+        # Manual Langfuse span — thread-safe for _dispatch_parallel
+        with start_span(f"tool:{tc.name}", input={"tool": tc.name, "args": before_ctx.args}) as span:
+            try:
+                result = tool.execute(before_ctx.args)
+            except Exception as e:
+                result = ToolResult.fail(f"Tool exception: {e}", recoverable=False)
+                span.set_error(str(e))
 
-        result = self.tool_hooks.after_tool_call(before_ctx, result)
+            result = self.tool_hooks.after_tool_call(before_ctx, result)
+
+            if result.status == "ok":
+                span.set_output({"status": "ok"})
+            else:
+                span.set_error(result.error or "unknown error")
 
         # Build audit-friendly result snapshot (truncated for storage)
         result_snapshot = self._truncate_for_audit(result.data) if result.status == "ok" else None

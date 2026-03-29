@@ -1,9 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { formatCurrency } from "@/utils/formatters";
-
-const API = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "");
 
 interface Position {
   ticker: string;
@@ -16,7 +13,7 @@ interface Position {
   entry_date: string | null;
 }
 
-interface Portfolio {
+export interface Portfolio {
   cash: number;
   positions: Position[];
   total_market_value: number;
@@ -29,26 +26,12 @@ interface Portfolio {
   invested_pct: number;
 }
 
-export function PortfolioSummary() {
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [loading, setLoading] = useState(true);
+interface PortfolioSummaryProps {
+  portfolio: Portfolio | null;
+  loading: boolean;
+}
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`${API}/api/portfolio`);
-        if (res.ok) {
-          setPortfolio(await res.json());
-        }
-      } catch {
-        // silently fail — portfolio is optional
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
-  }, []);
-
+export function PortfolioSummary({ portfolio, loading }: PortfolioSummaryProps) {
   if (loading || !portfolio || portfolio.position_count === 0) return null;
 
   return (

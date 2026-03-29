@@ -662,13 +662,14 @@ function _extractPanelData(
       }
 
       // Build year-by-year projections
+      // DCF returns values in $M; frontend formatNumber expects actual dollars.
       const yearProj: import("@/types/analysis").YearProjection[] = (yby || []).map((row) => ({
         year: `Y${row.year}`,
-        revenue: row.revenue as number,
-        growth: 0,
-        ebitda: row.ebit as number,
+        revenue: (row.revenue as number) * 1_000_000,
+        growth: (row.revenue_growth as number ?? 0) * 100,
+        ebitda: (row.ebit as number) * 1_000_000,
         margin: row.revenue ? ((row.ebit as number) / (row.revenue as number)) * 100 : 0,
-        fcf: row.fcf as number,
+        fcf: (row.fcf as number) * 1_000_000,
       }));
 
       set((s) => ({

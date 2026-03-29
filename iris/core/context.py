@@ -4,7 +4,7 @@ import json
 import re
 from typing import Optional
 
-from core.config import get
+from core.config import get, get_prompt, get_langfuse_prompt
 
 
 class ContextAssembler:
@@ -38,28 +38,32 @@ class ContextAssembler:
         # positives like 'AI', 'GDP', 'EV' that look like tickers but aren't.
         try:
             import os
-            from openai import OpenAI
+            from core.tracing import is_enabled as _lf_ok
+            try:
+                if _lf_ok():
+                    from langfuse.openai import OpenAI
+                else:
+                    from openai import OpenAI
+            except Exception:
+                from openai import OpenAI
 
             model = os.getenv("METADATA_MODEL") or os.getenv("INGEST_METADATA_MODEL") or "gpt-5.4-mini"
             client = OpenAI(
                 api_key=os.getenv("OPENAI_API_KEY"),
                 base_url=os.getenv("OPENAI_BASE_URL"),
             )
+            prompt = get_prompt(
+                "iris-ticker-extraction",
+                "prompts.ticker_extraction",
+                "Extract the primary stock ticker symbol from the user's investment query. "
+                "Return JSON: {\"ticker\": \"NVDA\"} or {\"ticker\": null}.",
+            )
             response = client.chat.completions.create(
                 model=model,
                 temperature=0,
                 response_format={"type": "json_object"},
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "Extract the primary stock ticker symbol from the user's investment query. "
-                            "Return JSON: {\"ticker\": \"NVDA\"} or {\"ticker\": null}. "
-                            "Must be a real tradable ticker (e.g. NVDA, META, 600519.SS). "
-                            "Do NOT return industry keywords like AI, IT, EV, ML, GDP, CEO, etc. "
-                            "If the query is about an industry/sector/concept rather than a specific stock, return null."
-                        ),
-                    },
+                    {"role": "system", "content": prompt},
                     {"role": "user", "content": user_input[:500]},
                 ],
             )
@@ -240,9 +244,10 @@ class ContextAssembler:
         summary = self._fallback_truncate_summary(old_messages)
         if strategy == "llm_summary" and budget.reserve_round("compaction"):
             max_chars = get("compaction.summary_max_input_chars", 50000)
-            summary_prompt = get(
-                "compaction.summary_prompt",
-                "Summarize this conversation concisely. Preserve key data, decisions, and IDs.",
+            summary_prompt = (
+                get_langfuse_prompt("iris-compaction-summary")
+                or get("compaction.summary_prompt",
+                       "Summarize this conversation concisely. Preserve key data, decisions, and IDs.")
             )
             content = json.dumps(old_messages, ensure_ascii=False)
             if len(content) > max_chars:
@@ -278,9 +283,10 @@ class ContextAssembler:
         if not budget.reserve_round("flush"):
             return
 
-        flush_prompt = get(
-            "compaction.memory_flush.prompt",
-            "Context is about to be compacted. Save any key findings using available tools.",
+        flush_prompt = (
+            get_langfuse_prompt("iris-memory-flush")
+            or get("compaction.memory_flush.prompt",
+                   "Context is about to be compacted. Save any key findings using available tools.")
         )
         flush_messages = messages + [{"role": "user", "content": f"[MEMORY FLUSH] {flush_prompt}"}]
         tool_schemas = [t.schema for t in knowledge_tools]

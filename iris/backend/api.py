@@ -60,7 +60,14 @@ def _extract_metadata_via_llm(query: str, reasoning_text: str) -> dict:
     Returns dict with keys: ticker, recommendation, confidence.
     """
     import os
-    from openai import OpenAI
+    from core.tracing import is_enabled as _lf_ok
+    try:
+        if _lf_ok():
+            from langfuse.openai import OpenAI
+        else:
+            from openai import OpenAI
+    except Exception:
+        from openai import OpenAI
 
     model = os.getenv("METADATA_MODEL") or os.getenv("INGEST_METADATA_MODEL") or "gpt-5.4-mini"
     client = OpenAI(
@@ -71,25 +78,19 @@ def _extract_metadata_via_llm(query: str, reasoning_text: str) -> dict:
     excerpt = (reasoning_text or "")[:3000]
 
     try:
+        from core.config import get_prompt
+        prompt = get_prompt(
+            "iris-metadata-extraction",
+            "prompts.metadata_extraction",
+            "Extract structured metadata from an investment analysis. "
+            "Return JSON with keys: ticker, recommendation, confidence.",
+        )
         response = client.chat.completions.create(
             model=model,
             temperature=0,
             response_format={"type": "json_object"},
             messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Extract structured metadata from an investment analysis. "
-                        "Return JSON with keys: "
-                        "ticker (string or null — the primary stock ticker analyzed, e.g. 'NVDA', 'META', '600519.SS'; "
-                        "must be a real tradable ticker symbol, NOT an industry keyword like 'AI', 'IT', 'EV', 'ML'), "
-                        "recommendation (string or null — one of: STRONG BUY, BUY, HOLD, SELL, STRONG SELL, "
-                        "OVERWEIGHT, UNDERWEIGHT, OUTPERFORM, UNDERPERFORM, or null if none given), "
-                        "confidence (string or null — one of: high, medium, low, or null). "
-                        "If the query is a general question, greeting, industry overview, or not about a specific stock, "
-                        "return ticker as null."
-                    ),
-                },
+                {"role": "system", "content": prompt},
                 {
                     "role": "user",
                     "content": f"Query: {query}\n\nAnalysis excerpt:\n{excerpt}",
@@ -115,7 +116,14 @@ def _classify_query_via_llm(query: str) -> dict:
     Uses a fast LLM call instead of brittle regex matching.
     """
     import os
-    from openai import OpenAI
+    from core.tracing import is_enabled as _lf_ok
+    try:
+        if _lf_ok():
+            from langfuse.openai import OpenAI
+        else:
+            from openai import OpenAI
+    except Exception:
+        from openai import OpenAI
 
     q = (query or "").strip()
     if not q:

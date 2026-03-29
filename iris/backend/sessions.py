@@ -242,6 +242,7 @@ class AnalysisSession:
                 model["sensitivityColValues"] = col_vals
 
         # Year-by-year
+        # DCF values are in $M; frontend formatNumber expects actual dollars.
         yby = result.get("year_by_year")
         if yby and isinstance(yby, list):
             projections = []
@@ -250,11 +251,11 @@ class AnalysisSession:
                 ebit = row.get("ebit", 0)
                 projections.append({
                     "year": f"Y{row.get('year', '?')}",
-                    "revenue": revenue,
-                    "growth": row.get("revenue_growth", 0),
-                    "ebitda": ebit,
+                    "revenue": revenue * 1_000_000,
+                    "growth": row.get("revenue_growth", 0) * 100,
+                    "ebitda": ebit * 1_000_000,
                     "margin": (ebit / revenue * 100) if revenue else 0,
-                    "fcf": row.get("fcf", 0),
+                    "fcf": row.get("fcf", 0) * 1_000_000,
                 })
             if projections:
                 model["yearByYear"] = projections

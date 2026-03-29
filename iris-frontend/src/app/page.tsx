@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SearchBar, type AnalysisMode } from "@/components/SearchBar";
 import { WatchlistGrid } from "@/components/WatchlistGrid";
-import { PortfolioSummary } from "@/components/PortfolioSummary";
+import { PortfolioSummary, type Portfolio } from "@/components/PortfolioSummary";
 import type { WatchlistItem, HistoryItem } from "@/types/analysis";
-import { getHistory, getWatchlist, startAnalysis } from "@/utils/api";
+import { getHistory, getPortfolio, getWatchlist, startAnalysis } from "@/utils/api";
 import { classNames } from "@/utils/formatters";
 
 const CAPABILITY_MODULES = [
@@ -95,6 +95,7 @@ function formatDate(iso: string): string {
 
 export default function HomePage() {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [wlLoading, setWlLoading] = useState(false);
@@ -107,13 +108,18 @@ export default function HomePage() {
   useEffect(() => {
     async function load() {
       try {
-        const [watchlistResult, historyResult] = await Promise.allSettled([
+        const [watchlistResult, portfolioResult, historyResult] = await Promise.allSettled([
           getWatchlist(),
+          getPortfolio(),
           getHistory(),
         ]);
 
         if (watchlistResult.status === "fulfilled") {
           setWatchlist(watchlistResult.value);
+        }
+
+        if (portfolioResult.status === "fulfilled" && portfolioResult.value) {
+          setPortfolio(portfolioResult.value as Portfolio);
         }
 
         if (historyResult.status === "fulfilled") {
@@ -136,11 +142,15 @@ export default function HomePage() {
   const handleRefresh = useCallback(async () => {
     setWlLoading(true);
     try {
-      const result = await getWatchlist();
-      setWatchlist(result);
+      const [wlResult, pfResult] = await Promise.allSettled([
+        getWatchlist(),
+        getPortfolio(),
+      ]);
+      if (wlResult.status === "fulfilled") setWatchlist(wlResult.value);
+      if (pfResult.status === "fulfilled" && pfResult.value) setPortfolio(pfResult.value as Portfolio);
     } catch (refreshError) {
-      console.error("Failed to refresh watchlist:", refreshError);
-      setError("刷新 watchlist 失败。");
+      console.error("Failed to refresh:", refreshError);
+      setError("刷新失败。");
     } finally {
       setWlLoading(false);
     }
@@ -250,7 +260,7 @@ export default function HomePage() {
             </div>
           ) : (
             <>
-              <PortfolioSummary />
+              <PortfolioSummary portfolio={portfolio} loading={loading} />
               <WatchlistGrid items={watchlist} loading={wlLoading} onRefresh={handleRefresh} />
 
               {history.length > 0 && (
@@ -267,11 +277,10 @@ export default function HomePage() {
                       <table className="min-w-full border-collapse">
                         <thead>
                           <tr className="border-b border-[var(--b2)] bg-[var(--bg-2)]">
-                            {["时间", "查询", "代码", "状态", "Token"].map((label, index) => (
+                            {["时间", "查询", "代码", "状态"].map((label) => (
                               <th
                                 key={label}
                                 className="px-5 py-3 text-left font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
-                                style={{ textAlign: index === 4 ? "right" : "left" }}
                               >
                                 {label}
                               </th>
@@ -303,9 +312,6 @@ export default function HomePage() {
                                   >
                                     {STATUS_META[item.status] || item.status}
                                   </span>
-                                </td>
-                                <td className="px-5 py-4 text-right font-mono text-[12px] text-[var(--t2)]">
-                                  {(item.tokens_in + item.tokens_out).toLocaleString()}
                                 </td>
                               </tr>
                             );
