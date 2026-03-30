@@ -1,1 +1,1 @@
-Note
+Latest NVDA valuation update: FY2026 revenue $215.9B, Data Center $193.7B, GM 71.1%, FCF $96.7B. Three-scenario DCF produced bear/base/bull fair values of about $64.8/$94.4/$141.3 per share versus market price $167.5. Conclusion: exceptional business quality remains intact, but valuation sits above even aggressive DCF assumptions; best stance without existing position is WATCH, not BUY. Key caveat: CAPM beta-based WACC mechanically overstates discount rate for NVDA, so DCF should be cross-checked against multiples and platform duration.
