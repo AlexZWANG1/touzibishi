@@ -25,45 +25,44 @@ _SOUL_DIR = Path(__file__).resolve().parent.parent / "soul"
 
 
 def _load_evaluator_prompt() -> str:
-    p = _SOUL_DIR / "evaluator.md"
-    if p.exists():
-        return p.read_text(encoding="utf-8")
-    return (
-        "You are a quality auditor for investment analysis. "
-        "Cross-check the conclusion against raw evidence. "
-        "Return JSON with: overall_score (1-5), passed (bool), "
-        "feedback (specific correction instructions), "
-        "issues (list of {field, expected, actual, severity})."
+    """Load evaluator prompt: Langfuse → local file → hardcoded fallback."""
+    from core.config import get_prompt
+    return get_prompt(
+        langfuse_name="iris-evaluator",
+        yaml_key="",  # no yaml fallback for evaluator
+        default=(_SOUL_DIR / "evaluator.md").read_text(encoding="utf-8")
+                if (_SOUL_DIR / "evaluator.md").exists()
+                else "You are a quality auditor for investment research. Cross-check conclusions against raw tool evidence. Return JSON: {passed, verdict, must_fix, suggestions, verified}.",
     )
 
 
 # ── Data classes ─────────────────────────────────────────────
 
 @dataclass
-class EvalIssue:
-    field: str
-    expected: str
-    actual: str
-    severity: str = "medium"  # low / medium / high
-
-    def to_dict(self) -> dict:
-        return {"field": self.field, "expected": self.expected,
-                "actual": self.actual, "severity": self.severity}
-
-
-@dataclass
 class EvalResult:
-    overall_score: float  # 1.0 – 5.0
     passed: bool
-    feedback: str  # actionable correction text
-    issues: list[EvalIssue] = field(default_factory=list)
+    verdict: str                                  # one-sentence why pass/fail
+    must_fix: list[str] = field(default_factory=list)   # blocking issues
+    suggestions: list[str] = field(default_factory=list) # non-blocking improvements
+    verified: list[str] = field(default_factory=list)    # facts confirmed correct
+
+    @property
+    def feedback_text(self) -> str:
+        """Human-readable feedback for injecting into Generator messages."""
+        parts = [self.verdict]
+        if self.must_fix:
+            parts.append("\nMust fix:")
+            for i, item in enumerate(self.must_fix, 1):
+                parts.append(f"  {i}. {item}")
+        return "\n".join(parts)
 
     def to_dict(self) -> dict:
         return {
-            "overall_score": self.overall_score,
             "passed": self.passed,
-            "feedback": self.feedback,
-            "issues": [i.to_dict() for i in self.issues],
+            "verdict": self.verdict,
+            "must_fix": self.must_fix,
+            "suggestions": self.suggestions,
+            "verified": self.verified,
         }
 
 
@@ -71,7 +70,6 @@ class EvalResult:
 
 @dataclass
 class EvaluatorConfig:
-    pass_threshold: float = 3.0
     min_tools_for_eval: int = 2
 
 
@@ -148,8 +146,8 @@ class Evaluator:
             log.error("Evaluator LLM call failed: %s", e)
             # On failure, pass through (don't block the analysis)
             result = EvalResult(
-                overall_score=3.0, passed=True,
-                feedback=f"Evaluator error: {e}",
+                passed=True,
+                verdict=f"Evaluator error, passing through: {e}",
             )
 
         # Persist eval report
@@ -167,41 +165,35 @@ class Evaluator:
 
     def _parse_response(self, text: str) -> EvalResult:
         """Parse LLM response into EvalResult. Expects JSON."""
-        # Try to extract JSON from the response
         try:
-            # Handle markdown code blocks
             if "```json" in text:
                 text = text.split("```json", 1)[1].split("```", 1)[0]
             elif "```" in text:
                 text = text.split("```", 1)[1].split("```", 1)[0]
-
             data = json.loads(text.strip())
         except (json.JSONDecodeError, IndexError):
-            # Fallback: treat as free-text feedback, assume marginal
-            log.warning("Evaluator returned non-JSON, treating as feedback")
+            log.warning("Evaluator returned non-JSON, treating as fail")
             return EvalResult(
-                overall_score=2.5,
                 passed=False,
-                feedback=text[:2000],
+                verdict="Evaluator returned non-JSON response",
+                must_fix=[text[:1500]],
             )
 
-        score = float(data.get("overall_score", 2.5))
-        passed = bool(data.get("passed", score >= self.config.pass_threshold))
-        feedback = data.get("feedback", "")
+        passed = bool(data.get("passed", False))
+        verdict = data.get("verdict", "")
+        must_fix = data.get("must_fix", [])
+        suggestions = data.get("suggestions", [])
+        verified = data.get("verified", [])
 
-        issues = []
-        for iss in data.get("issues", []):
-            if isinstance(iss, dict):
-                issues.append(EvalIssue(
-                    field=iss.get("field", "unknown"),
-                    expected=str(iss.get("expected", "")),
-                    actual=str(iss.get("actual", "")),
-                    severity=iss.get("severity", "medium"),
-                ))
+        # Safety: if must_fix is non-empty, it's a fail regardless of what LLM said
+        if must_fix and passed:
+            log.warning("Evaluator said passed but has must_fix items — overriding to fail")
+            passed = False
 
         return EvalResult(
-            overall_score=score,
             passed=passed,
-            feedback=feedback,
-            issues=issues,
+            verdict=verdict,
+            must_fix=[str(x) for x in must_fix] if isinstance(must_fix, list) else [str(must_fix)],
+            suggestions=[str(x) for x in suggestions] if isinstance(suggestions, list) else [str(suggestions)],
+            verified=[str(x) for x in verified] if isinstance(verified, list) else [str(verified)],
         )
