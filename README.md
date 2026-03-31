@@ -6,6 +6,14 @@
 
 Prism 是一个 **自主投研 Agent**，把自然语言研究任务转化为结构化、有证据支撑的投资分析。它的核心不是「调 API 拼凑答案」，而是一个严肃设计的 **LLM 控制循环（Harness）**—— 带预算管理、循环检测、上下文压缩和记忆冲刷的完整 Agent 运行时。
 
+### 最近更新（2026-03 ~ 2026-04）
+
+- **Deep Research 模式**：Generator-Evaluator 双 Agent 循环。Generator 自主完成研究 → Evaluator 独立校验数字和逻辑 → 不通过则打回修正，直到 PASS。首次 META 分析中 Evaluator 抓到了 forward P/E 写错（27.5x vs 实际 14.94x）的数据幻觉。
+- **Langfuse 全链路追踪**：每次 LLM 调用、工具调用、token 消耗、成本均自动上报 Langfuse，支持 trace 回放和 prompt 版本管理。
+- **Evaluator Prompt 重写**：基于 Langfuse dual-track 对比迭代，Evaluator 现在逐项核对工具原始返回值 vs 报告引用数字。
+- **LLM 分类取代正则**：ticker 提取、元数据分类、模式路由全部改为 LLM-based，消除了 regex/keyword heuristic 的边界错误。
+- **Trace Report 系统**：每次分析自动生成逐轮 trace 报告（LLM thinking → tool calls → evaluator verdict），存入 `trace_reports/`。
+
 ---
 
 ## 设计哲学：三层解耦
@@ -159,9 +167,32 @@ Backend (FastAPI + Uvicorn)
 
 ---
 
-## 两种工作模式
+## 三种工作模式
 
-### 深度分析模式（Analysis）
+### 深度研究模式（Deep Research） 🆕
+
+**Generator-Evaluator 双 Agent 架构**，灵感来自 GAN 对抗验证思路：
+
+```
+用户查询 → Generator Agent（自主研究 + 估值 + 交易建议）
+                ↓
+           Evaluator Agent（独立 context，逐项核对数字）
+                ↓
+           PASS → 输出报告
+           FAIL → 反馈注入 Generator → 修正 → 再验证
+```
+
+| 阶段 | Generator 做什么 | Evaluator 做什么 |
+|---|---|---|
+| **收集** | 并行 10+ 工具：财报、SEC、电话会、Exa 搜索 | — |
+| **分析** | 建假设，对比同业，找反证 | — |
+| **估值** | Bear/Base/Bull DCF + Comps + CapEx 敏感性 | — |
+| **校验** | — | 拿 tool 原始返回值逐项核对报告数字 |
+| **修正** | 根据 must_fix 重新获取数据并修正 | 验证修正后全部 PASS |
+
+实测：META 分析中 Evaluator 发现 forward P/E 被写错（27.5x vs 实际 14.94x），避免了交付给 PM 的数据错误。成本约 $0.50/次，Evaluator 占 ~19%。
+
+### 标准分析模式（Analysis）
 
 用于实时研究。输入一个研究问题，Agent 自主完成四个阶段：
 
@@ -359,15 +390,67 @@ cd iris-frontend && npm run dev
 
 ---
 
+## 可观测性（Observability） 🆕
+
+### Langfuse 全链路追踪
+
+每次分析自动上报到 Langfuse：
+
+- **LLM 调用**：input/output tokens, reasoning tokens, latency, cost
+- **工具调用**：参数、返回状态、耗时
+- **Evaluator 独立 trace**：与 Generator 分开记录
+- **Prompt 版本管理**：通过 Langfuse Prompt Management 管理 skill prompt 迭代
+
+### Trace Report
+
+每次 deep research 自动生成逐轮 trace 报告，记录：
+- 每一步 LLM 的 thinking（推理过程）
+- 工具调用的完整参数和结果
+- Evaluator 的 verdict（通过/未通过 + 原因）
+- 关键数字的交叉验证结果
+
+存储在 `iris/trace_reports/` 下，同步到 Notion 追踪数据库。
+
+---
+
 ## 技术栈
 
 | 层 | 技术 |
 |---|---|
-| 前端 | Next.js 14, React, TypeScript, Tailwind CSS |
+| 前端 | Next.js 15, React 19, TypeScript, Tailwind CSS 4, Zustand 5, Recharts |
 | 后端 | Python, FastAPI, Uvicorn |
 | 数据库 | SQLite |
-| 向量嵌入 | OpenAI `text-embedding-3-small` |
-| LLM | 任何 OpenAI 兼容 API |
+| 向量嵌入 | OpenAI `text-embedding-3-small`（可切换 Ollama 本地） |
+| LLM | 任何 OpenAI 兼容 API（当前使用 gpt-5.4） |
+| 可观测性 | Langfuse（LLM tracing + prompt management） |
+
+---
+
+## 项目结构
+
+```
+iris/
+├── core/                    # 核心引擎（~500 行核心逻辑）
+│   ├── harness.py          # Agent 主循环 + 工具调度
+│   ├── evaluator.py        # 独立 Evaluator Agent（deep research）
+│   ├── budget.py           # 三维预算治理
+│   ├── loop_detector.py    # 循环检测（repeat/pingpong/noprogress）
+│   ├── context.py          # 上下文组装/压缩/记忆冲刷
+│   ├── tracing.py          # Langfuse 追踪集成
+│   ├── config.py           # 配置加载（yaml + soul/*.md）
+│   └── skill_loader.py     # 技能自动发现与注册
+├── skills/                  # 领域技能（SkillLoader 自动加载）
+│   ├── valuation/          # DCF + comps + cross-check
+│   ├── fundamentals/       # 深度研究方法论
+│   ├── trading/            # 交易信号 + 纸上组合
+│   └── hypothesis/         # 假设追踪 + 贝叶斯更新
+├── tools/                   # 15+ 数据获取 + 记忆工具
+├── soul/                    # Prompt 层（.md 文件）
+│   └── evaluator.md        # Evaluator 独立 prompt
+├── backend/                 # FastAPI REST + SSE
+├── trace_reports/           # 分析 trace 报告
+└── scripts/                 # Langfuse prompt eval 脚本
+```
 
 ---
 
