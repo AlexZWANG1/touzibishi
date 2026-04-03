@@ -4,21 +4,26 @@ import { formatCurrency } from "@/utils/formatters";
 
 interface Position {
   ticker: string;
+  name?: string;
   shares: number;
   avg_cost: number;
+  currency?: string;
+  broker?: string;
   live_price: number | null;
   market_value: number;
+  market_value_cny?: number;
   unrealized_pnl: number;
   unrealized_pnl_pct: number;
   entry_date: string | null;
 }
 
 export interface Portfolio {
-  cash: number;
+  cash: Record<string, number> | number;
+  cash_total_cny: number;
   positions: Position[];
-  total_market_value: number;
-  total_portfolio_value: number;
-  total_unrealized_pnl: number;
+  total_market_value_cny: number;
+  total_portfolio_cny: number;
+  total_unrealized_pnl_cny: number;
   total_realized_pnl: number;
   total_return_pct: number;
   position_count: number;
@@ -46,8 +51,8 @@ export function PortfolioSummary({ portfolio, loading }: PortfolioSummaryProps) 
       {/* Summary Stats */}
       <div className="grid gap-3 md:grid-cols-4">
         {[
-          { label: "组合总值", value: formatCurrency(portfolio.total_portfolio_value) },
-          { label: "现金", value: formatCurrency(portfolio.cash) },
+          { label: "组合总值", value: formatCurrency(portfolio.total_portfolio_cny, "CNY") },
+          { label: "现金", value: formatCurrency(portfolio.cash_total_cny, "CNY") },
           {
             label: "总回报",
             value: `${portfolio.total_return_pct >= 0 ? "+" : ""}${portfolio.total_return_pct.toFixed(2)}%`,
@@ -75,11 +80,11 @@ export function PortfolioSummary({ portfolio, loading }: PortfolioSummaryProps) 
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="border-b border-[var(--b2)] bg-[var(--bg-2)]">
-                {["代码", "股数", "成本", "现价", "市值", "盈亏"].map((label, index) => (
+                {["代码", "名称", "股数", "成本", "现价", "市值(CNY)", "盈亏"].map((label, index) => (
                   <th
                     key={label}
-                    className="px-5 py-3 text-left font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
-                    style={{ textAlign: index >= 2 ? "right" : "left" }}
+                    className="px-4 py-3 font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
+                    style={{ textAlign: index >= 3 ? "right" : "left" }}
                   >
                     {label}
                   </th>
@@ -89,21 +94,24 @@ export function PortfolioSummary({ portfolio, loading }: PortfolioSummaryProps) 
             <tbody>
               {portfolio.positions.map((pos) => (
                 <tr key={pos.ticker} className="border-b border-[var(--b1)] last:border-b-0">
-                  <td className="px-5 py-4 font-mono text-[13px] font-semibold text-[var(--ac)]">
+                  <td className="px-4 py-4 font-mono text-[13px] font-semibold text-[var(--ac)]">
                     {pos.ticker}
                   </td>
-                  <td className="px-5 py-4 font-mono text-[13px] text-[var(--t2)]">{pos.shares}</td>
-                  <td className="px-5 py-4 text-right font-mono text-[13px] text-[var(--t2)]">
-                    {formatCurrency(pos.avg_cost)}
+                  <td className="px-4 py-4 text-[13px] text-[var(--t2)]">
+                    {pos.name || "—"}
                   </td>
-                  <td className="px-5 py-4 text-right font-mono text-[13px] text-[var(--cy-t)]">
-                    {pos.live_price != null ? formatCurrency(pos.live_price) : "—"}
+                  <td className="px-4 py-4 font-mono text-[13px] text-[var(--t2)]">{pos.shares}</td>
+                  <td className="px-4 py-4 text-right font-mono text-[13px] text-[var(--t2)]">
+                    {formatCurrency(pos.avg_cost, pos.currency || "USD")}
                   </td>
-                  <td className="px-5 py-4 text-right font-mono text-[13px] text-[var(--cy-t)]">
-                    {formatCurrency(pos.market_value)}
+                  <td className="px-4 py-4 text-right font-mono text-[13px] text-[var(--cy-t)]">
+                    {pos.live_price != null ? formatCurrency(pos.live_price, pos.currency || "USD") : "—"}
+                  </td>
+                  <td className="px-4 py-4 text-right font-mono text-[13px] text-[var(--cy-t)]">
+                    {formatCurrency(pos.market_value_cny || pos.market_value, "CNY")}
                   </td>
                   <td
-                    className="px-5 py-4 text-right font-mono text-[13px] font-semibold"
+                    className="px-4 py-4 text-right font-mono text-[13px] font-semibold"
                     style={{ color: pos.unrealized_pnl >= 0 ? "var(--green)" : "var(--red)" }}
                   >
                     {pos.unrealized_pnl >= 0 ? "+" : ""}

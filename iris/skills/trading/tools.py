@@ -17,6 +17,9 @@ from tools.base import Tool, ToolResult, make_tool_schema
 
 # ── Persistent portfolio state ──────────────────────────────
 
+DEFAULT_FX = {"USD/CNY": 6.8858, "HKD/CNY": 0.8781}
+
+
 def _portfolio_path() -> Path:
     cfg = get_skill_config("trading")
     paper = cfg.get("paper_trading", {})
@@ -32,18 +35,56 @@ def _load_portfolio() -> dict:
     cfg = get_skill_config("trading")
     initial = cfg.get("paper_trading", {}).get("initial_capital", 1_000_000)
     return {
-        "initial_capital": initial,
-        "cash": initial,
+        "initial_capital_cny": initial,
+        "cash": {"CNY": initial},
+        "fx_rates": DEFAULT_FX,
         "positions": {},
         "closed_trades": [],
         "trade_log": [],
     }
 
 
+def _get_fx(portfolio: dict) -> dict:
+    """Return fx_rates dict, with CNY/CNY=1."""
+    fx = {**DEFAULT_FX, **portfolio.get("fx_rates", {})}
+    fx["CNY/CNY"] = 1.0
+    return fx
+
+
+def _cash_cny(portfolio: dict) -> float:
+    """Total cash converted to CNY."""
+    cash = portfolio.get("cash", {})
+    if isinstance(cash, (int, float)):
+        return float(cash)
+    fx = _get_fx(portfolio)
+    total = 0.0
+    for ccy, amt in cash.items():
+        rate = fx.get(f"{ccy}/CNY", 1.0)
+        total += amt * rate
+    return total
+
+
+def _get_cash(portfolio: dict, currency: str) -> float:
+    """Get cash balance for a specific currency."""
+    cash = portfolio.get("cash", {})
+    if isinstance(cash, (int, float)):
+        return float(cash) if currency == "USD" else 0.0
+    return cash.get(currency, 0.0)
+
+
+def _set_cash(portfolio: dict, currency: str, amount: float):
+    """Set cash balance for a specific currency."""
+    cash = portfolio.get("cash", {})
+    if isinstance(cash, (int, float)):
+        portfolio["cash"] = {"USD": amount}
+    else:
+        portfolio["cash"][currency] = round(amount, 2)
+
+
 def _save_portfolio(portfolio: dict):
     p = _portfolio_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(portfolio, indent=2, default=str), encoding="utf-8")
+    p.write_text(json.dumps(portfolio, indent=2, default=str, ensure_ascii=False), encoding="utf-8")
 
 
 # ── Tool Schemas ─────────────────────────────────────────────
@@ -164,17 +205,22 @@ def generate_trade_signal(
 
     # Soft warnings
     warnings = []
-    total_invested = sum(
-        p["shares"] * p["avg_cost"]
+    fx = _get_fx(portfolio)
+    total_invested_cny = sum(
+        p["shares"] * p["avg_cost"] * fx.get(f"{p.get('currency', 'USD')}/CNY", 1.0)
         for p in portfolio.get("positions", {}).values()
     )
-    total_value = portfolio["cash"] + total_invested
+    cash_total_cny = _cash_cny(portfolio)
+    total_value = cash_total_cny + total_invested_cny
 
     if action == "BUY" and position_pct > 0:
-        if position_pct / 100 * total_value > portfolio["cash"]:
-            warnings.append(f"Position size ${position_pct/100*total_value:,.0f} exceeds available cash ${portfolio['cash']:,.0f}.")
+        if position_pct / 100 * total_value > cash_total_cny:
+            warnings.append(f"Position size ¥{position_pct/100*total_value:,.0f} exceeds available cash ¥{cash_total_cny:,.0f}.")
         if already_held:
-            existing_pct = (portfolio["positions"][ticker.upper()]["shares"] * portfolio["positions"][ticker.upper()]["avg_cost"]) / total_value * 100
+            pos_data = portfolio["positions"][ticker.upper()]
+            pos_ccy = pos_data.get("currency", "USD")
+            existing_cny = pos_data["shares"] * pos_data["avg_cost"] * fx.get(f"{pos_ccy}/CNY", 1.0)
+            existing_pct = existing_cny / total_value * 100
             warnings.append(f"Already hold {ticker.upper()} at {existing_pct:.1f}% of portfolio. Adding would increase exposure.")
 
     if risk_reward_ratio is not None and risk_reward_ratio < 1.5:
@@ -217,14 +263,24 @@ def execute_trade(
     ticker = ticker.upper()
     portfolio = _load_portfolio()
 
+    # Determine currency from existing position or default to USD
+    currency = "USD"
+    if ticker in portfolio.get("positions", {}):
+        currency = portfolio["positions"][ticker].get("currency", "USD")
+    elif ticker.endswith(".HK"):
+        currency = "HKD"
+    elif ticker.endswith(".SS") or ticker.endswith(".SZ"):
+        currency = "CNY"
+
     if action == "BUY":
         cost = shares * price
-        if cost > portfolio["cash"]:
+        available = _get_cash(portfolio, currency)
+        if cost > available:
             return ToolResult.fail(
-                f"Insufficient cash: need ${cost:,.2f}, have ${portfolio['cash']:,.2f}"
+                f"Insufficient {currency} cash: need {cost:,.2f}, have {available:,.2f}"
             )
 
-        portfolio["cash"] -= cost
+        _set_cash(portfolio, currency, available - cost)
 
         if ticker in portfolio["positions"]:
             pos = portfolio["positions"][ticker]
@@ -236,6 +292,7 @@ def execute_trade(
             portfolio["positions"][ticker] = {
                 "shares": shares,
                 "avg_cost": price,
+                "currency": currency,
                 "entry_date": datetime.now().isoformat(),
             }
 
@@ -244,6 +301,7 @@ def execute_trade(
             "action": "BUY",
             "shares": shares,
             "price": price,
+            "currency": currency,
             "timestamp": datetime.now().isoformat(),
         })
 
@@ -260,16 +318,17 @@ def execute_trade(
         proceeds = shares * price
         cost_basis = shares * pos["avg_cost"]
         pnl = proceeds - cost_basis
-        portfolio["cash"] += proceeds
+        available = _get_cash(portfolio, currency)
+        _set_cash(portfolio, currency, available + proceeds)
 
         if shares == pos["shares"]:
-            # Close entire position
             portfolio["closed_trades"].append({
                 "ticker": ticker,
                 "shares": shares,
                 "entry_price": pos["avg_cost"],
                 "exit_price": price,
                 "pnl": round(pnl, 2),
+                "currency": currency,
                 "entry_date": pos.get("entry_date"),
                 "exit_date": datetime.now().isoformat(),
             })
@@ -283,17 +342,18 @@ def execute_trade(
             "shares": shares,
             "price": price,
             "pnl": round(pnl, 2),
+            "currency": currency,
             "timestamp": datetime.now().isoformat(),
         })
 
     _save_portfolio(portfolio)
 
-    # Compute portfolio summary after trade
-    total_invested = sum(
-        p["shares"] * p["avg_cost"]
+    fx = _get_fx(portfolio)
+    total_invested_cny = sum(
+        p["shares"] * p["avg_cost"] * fx.get(f"{p.get('currency', 'USD')}/CNY", 1.0)
         for p in portfolio.get("positions", {}).values()
     )
-    total_value = portfolio["cash"] + total_invested
+    total_value_cny = _cash_cny(portfolio) + total_invested_cny
     closed = portfolio.get("closed_trades", [])
     realized = sum(t.get("pnl", 0) for t in closed)
 
@@ -303,10 +363,11 @@ def execute_trade(
         "action": action,
         "shares": shares,
         "price": price,
+        "currency": currency,
         "portfolio_after": {
-            "cash": round(portfolio["cash"], 2),
+            "cash": portfolio.get("cash", {}),
             "position_count": len(portfolio.get("positions", {})),
-            "total_value": round(total_value, 2),
+            "total_value_cny": round(total_value_cny, 2),
             "total_realized_pnl": round(realized, 2),
         },
     })
@@ -316,39 +377,48 @@ def get_portfolio(live_prices: dict = None) -> ToolResult:
     """View current paper portfolio with P&L."""
     portfolio = _load_portfolio()
     live_prices = live_prices or {}
+    fx = _get_fx(portfolio)
 
     positions_summary = []
-    total_market_value = 0
-    total_cost = 0
+    total_market_value_cny = 0
+    total_cost_cny = 0
 
     for ticker, pos in portfolio.get("positions", {}).items():
         live_price = live_prices.get(ticker, live_prices.get(ticker.upper()))
+        ccy = pos.get("currency", "USD")
+        fx_rate = fx.get(f"{ccy}/CNY", 1.0)
+
         cost_basis = pos["shares"] * pos["avg_cost"]
         market_value = pos["shares"] * live_price if live_price else cost_basis
 
         unrealized_pnl = market_value - cost_basis
         unrealized_pnl_pct = (unrealized_pnl / cost_basis * 100) if cost_basis > 0 else 0
 
-        total_market_value += market_value
-        total_cost += cost_basis
+        total_market_value_cny += market_value * fx_rate
+        total_cost_cny += cost_basis * fx_rate
 
         positions_summary.append({
             "ticker": ticker,
+            "name": pos.get("name", ""),
             "shares": pos["shares"],
             "avg_cost": round(pos["avg_cost"], 2),
+            "currency": ccy,
+            "broker": pos.get("broker", ""),
             "live_price": live_price,
             "market_value": round(market_value, 2),
+            "market_value_cny": round(market_value * fx_rate, 2),
             "unrealized_pnl": round(unrealized_pnl, 2),
             "unrealized_pnl_pct": round(unrealized_pnl_pct, 2),
             "entry_date": pos.get("entry_date"),
         })
 
-    total_portfolio_value = portfolio["cash"] + total_market_value
-    total_unrealized = total_market_value - total_cost
+    cash_total_cny = _cash_cny(portfolio)
+    total_portfolio_cny = cash_total_cny + total_market_value_cny
+    total_unrealized_cny = total_market_value_cny - total_cost_cny
+    initial = portfolio.get("initial_capital_cny", portfolio.get("initial_capital", 0))
     total_return_pct = (
-        (total_portfolio_value - portfolio["initial_capital"])
-        / portfolio["initial_capital"] * 100
-    ) if portfolio.get("initial_capital") else 0
+        (total_portfolio_cny - initial) / initial * 100
+    ) if initial else 0
 
     closed = portfolio.get("closed_trades", [])
     realized_pnl = sum(t.get("pnl", 0) for t in closed)
@@ -356,17 +426,18 @@ def get_portfolio(live_prices: dict = None) -> ToolResult:
     loss_count = sum(1 for t in closed if t.get("pnl", 0) <= 0)
 
     return ToolResult.ok({
-        "cash": round(portfolio["cash"], 2),
+        "cash": portfolio.get("cash", {}),
+        "cash_total_cny": round(cash_total_cny, 2),
         "positions": positions_summary,
-        "total_market_value": round(total_market_value, 2),
-        "total_portfolio_value": round(total_portfolio_value, 2),
-        "total_unrealized_pnl": round(total_unrealized, 2),
+        "total_market_value_cny": round(total_market_value_cny, 2),
+        "total_portfolio_cny": round(total_portfolio_cny, 2),
+        "total_unrealized_pnl_cny": round(total_unrealized_cny, 2),
         "total_realized_pnl": round(realized_pnl, 2),
         "total_return_pct": round(total_return_pct, 2),
         "position_count": len(positions_summary),
         "win_loss": f"{win_count}W / {loss_count}L" if closed else "no closed trades",
-        "invested_pct": round(total_market_value / total_portfolio_value * 100, 1)
-            if total_portfolio_value > 0 else 0,
+        "invested_pct": round(total_market_value_cny / total_portfolio_cny * 100, 1)
+            if total_portfolio_cny > 0 else 0,
     })
 
 

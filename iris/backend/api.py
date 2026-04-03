@@ -247,26 +247,27 @@ def _classify_query_via_llm(query: str) -> dict:
     )
 
     try:
+        from core.config import get_prompt
+        classifier_prompt = get_prompt(
+            "iris-classifier",
+            "prompts.classifier",
+            "You are a classifier for an investment analysis assistant called IRIS. "
+            "Determine if the user's message is a greeting/meta question (NOT an analysis request). "
+            "Return JSON: {\"is_meta\": bool, \"reply\": string or null}. "
+            "is_meta=true ONLY for: greetings (hi, hello, 你好, etc.), "
+            "identity questions (who are you, 你是谁), capability questions (what can you do, 你能做什么). "
+            "is_meta=false for ANYTHING that could be an analysis request, even if it starts with a greeting "
+            "(e.g. 'hello, analyze NVDA' → is_meta=false). "
+            "If is_meta=true, provide a friendly reply in the same language as the query. "
+            "Introduce yourself as IRIS, an investment research analysis assistant. "
+            "Mention you can do: stock/industry analysis, valuation, earnings review, multi-turn follow-up.",
+        )
         response = client.chat.completions.create(
             model=model,
             temperature=0,
             response_format={"type": "json_object"},
             messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a classifier for an investment analysis assistant called IRIS. "
-                        "Determine if the user's message is a greeting/meta question (NOT an analysis request). "
-                        "Return JSON: {\"is_meta\": bool, \"reply\": string or null}. "
-                        "is_meta=true ONLY for: greetings (hi, hello, 你好, etc.), "
-                        "identity questions (who are you, 你是谁), capability questions (what can you do, 你能做什么). "
-                        "is_meta=false for ANYTHING that could be an analysis request, even if it starts with a greeting "
-                        "(e.g. 'hello, analyze NVDA' → is_meta=false). "
-                        "If is_meta=true, provide a friendly reply in the same language as the query. "
-                        "Introduce yourself as IRIS, an investment research analysis assistant. "
-                        "Mention you can do: stock/industry analysis, valuation, earnings review, multi-turn follow-up."
-                    ),
-                },
+                {"role": "system", "content": classifier_prompt},
                 {"role": "user", "content": q},
             ],
         )
@@ -704,6 +705,10 @@ async def continue_analysis(analysis_id: str, req: SteerRequest):
     session.status = "running"
     session.turn_count += 1
 
+    # Record the user message + turn markers so the full multi-turn
+    # conversation is persisted in reasoning_text for replay.
+    session.inject_turn(req.message)
+
     # Re-create event callback
     def on_event(event: HarnessEvent) -> None:
         try:
@@ -797,6 +802,8 @@ async def resume_analysis(run_id: str, req: SteerRequest):
         session.accumulated_timeline = json.loads(run.get("timeline_json") or "[]")
         # Reconstruct _raw_text with thinking tags so _split_thinking_blocks works correctly
         reasoning = run.get("reasoning_text") or ""
+        # Reconstruct turn markers for legacy multi-turn data
+        reasoning = _reconstruct_turns(reasoning, run.get("messages_json", ""))
         thinking = run.get("thinking_text") or ""
         session._raw_text = reasoning + (f"\n<thinking>\n{thinking}\n</thinking>" if thinking else "")
         panels = json.loads(run.get("panels_json") or "{}")
@@ -826,6 +833,9 @@ async def resume_analysis(run_id: str, req: SteerRequest):
     bound_fn = functools.partial(request_user_input, session=session)
     user_input_tool = Tool(bound_fn, REQUEST_USER_INPUT_SCHEMA)
     harness.tool_registry[user_input_tool.name] = user_input_tool
+
+    # Record the user message + turn markers for replay persistence.
+    session.inject_turn(req.message)
 
     register_session(session)
 
@@ -897,26 +907,28 @@ async def execute_trade(req: ExecuteTradeRequest):
 
 @app.get("/api/portfolio")
 async def get_portfolio_api():
-    """Get current paper portfolio state with LLM-driven live prices."""
+    """Get current portfolio state with concurrent live prices."""
     from skills.trading.tools import get_portfolio as _get_portfolio, _load_portfolio
-    from tools.market import quote as quote_fn, QUOTE_SCHEMA
-    from tools.base import Tool
+    from tools.market import quote as quote_fn
 
     portfolio_raw = _load_portfolio()
     tickers = list(portfolio_raw.get("positions", {}).keys())
-    live_prices = {}
+    live_prices: dict[str, float] = {}
+
     if tickers:
-        quote_tool = Tool(quote_fn, QUOTE_SCHEMA)
-        ticker_list = ", ".join(tickers)
-        results = await _mini_llm_tools(
-            f"Fetch current stock quotes for each of these tickers: {ticker_list}. "
-            f"Call the quote tool once per ticker.",
-            [quote_tool],
-            max_rounds=5,
-        )
-        for r in results:
-            if isinstance(r, dict) and r.get("ticker") and r.get("price"):
-                live_prices[r["ticker"].upper()] = r["price"]
+        loop = asyncio.get_running_loop()
+
+        async def _fetch(tk: str) -> tuple[str, float | None]:
+            try:
+                result = await loop.run_in_executor(None, quote_fn, tk)
+                if result.status == "ok" and result.data.get("price"):
+                    return tk.upper(), result.data["price"]
+            except Exception as e:
+                logger.warning(f"portfolio quote({tk}) failed: {e}")
+            return tk.upper(), None
+
+        results = await asyncio.gather(*[_fetch(tk) for tk in tickers])
+        live_prices = {tk: p for tk, p in results if p is not None}
 
     result = _get_portfolio(live_prices=live_prices)
     return result.data
@@ -981,30 +993,29 @@ async def delete_memory(memory_type: str, filename: str):
 
 @app.get("/api/watchlist")
 async def get_watchlist():
-    """Build watchlist from DB (structured data) + LLM-driven live quotes."""
-    from tools.market import quote as quote_fn, QUOTE_SCHEMA
-    from tools.base import Tool
+    """Build watchlist from DB (structured data) + direct concurrent quotes."""
+    from tools.market import quote as quote_fn
 
     retriever = _get_retriever()
     tickers = retriever.get_tracked_tickers()
     if not tickers:
         return []
 
-    # LLM decides which tools to call to fetch prices
-    quote_tool = Tool(quote_fn, QUOTE_SCHEMA)
-    ticker_list = ", ".join(tickers)
-    results = await _mini_llm_tools(
-        f"Fetch current stock quotes for each of these tickers: {ticker_list}. "
-        f"Call the quote tool once per ticker.",
-        [quote_tool],
-        max_rounds=5,
-    )
+    # Fetch all quotes concurrently — no LLM needed for simple price lookup
+    loop = asyncio.get_running_loop()
 
-    # Build ticker → quote data map from LLM tool results
-    quote_map: dict[str, dict] = {}
-    for r in results:
-        if isinstance(r, dict) and r.get("ticker"):
-            quote_map[r["ticker"].upper()] = r
+    async def _fetch_quote(tk: str) -> tuple[str, dict]:
+        try:
+            result = await loop.run_in_executor(None, quote_fn, tk)
+            if result.status == "ok":
+                return tk.upper(), result.data
+        except Exception as e:
+            logger.warning(f"watchlist quote({tk}) failed: {e}")
+        return tk.upper(), {}
+
+    quote_tasks = [_fetch_quote(tk) for tk in tickers]
+    quote_results = await asyncio.gather(*quote_tasks)
+    quote_map: dict[str, dict] = {tk: data for tk, data in quote_results}
 
     watchlist = []
     for ticker in tickers:
@@ -1026,6 +1037,10 @@ async def get_watchlist():
                     pass
             elif val_data and isinstance(val_data, dict):
                 fair_value = val_data.get("fair_value")
+
+        # Discard clearly invalid fair_value (0 or negative)
+        if fair_value is not None and fair_value <= 0:
+            fair_value = None
 
         market_price = q.get("price")
         gap = None
@@ -1058,6 +1073,104 @@ async def list_history(
     return retriever.list_analysis_runs(ticker=ticker, limit=limit, offset=offset)
 
 
+def _reconstruct_turns(reasoning_text: str, messages_json_str: str) -> str:
+    """Reconstruct reasoning_text with <!---TURN---> markers from messages_json.
+
+    For conversations saved before turn markers were persisted, this function
+    extracts user follow-up messages and assistant text anchors from the message
+    history, then inserts turn markers at the correct positions in reasoning_text.
+    """
+    if not messages_json_str or "<!---TURN--->" in (reasoning_text or ""):
+        return reasoning_text or ""
+
+    try:
+        messages = json.loads(messages_json_str)
+    except (json.JSONDecodeError, TypeError):
+        return reasoning_text or ""
+
+    # Collect turn boundaries: (user_messages[], assistant_anchor_text)
+    # A turn boundary is a group of user messages followed by assistant responses.
+    # We scan ALL subsequent assistant messages (not just the first) to find a
+    # visible text anchor, since intermediate assistants may contain only thinking.
+    import re as _re
+    turns: list[tuple[list[str], str]] = []
+    past_initial_assistant = False
+    current_user_msgs: list[str] = []
+    seeking_anchor = False  # True when we have user msgs but no anchor yet
+
+    for msg in messages:
+        role = msg.get("role")
+        if role == "assistant":
+            if not past_initial_assistant:
+                past_initial_assistant = True
+                continue
+            if current_user_msgs and not seeking_anchor:
+                # First assistant after user follow-ups
+                content = msg.get("content", "") or ""
+                anchor = _re.sub(r"<thinking>[\s\S]*?</thinking>", "", content).strip()
+                if anchor:
+                    turns.append((current_user_msgs.copy(), anchor))
+                    current_user_msgs = []
+                else:
+                    seeking_anchor = True
+            elif seeking_anchor:
+                # Keep looking for visible text in later assistant messages
+                content = msg.get("content", "") or ""
+                anchor = _re.sub(r"<thinking>[\s\S]*?</thinking>", "", content).strip()
+                if anchor:
+                    turns.append((current_user_msgs.copy(), anchor))
+                    current_user_msgs = []
+                    seeking_anchor = False
+        elif role == "user" and past_initial_assistant:
+            if seeking_anchor:
+                # Hit next user message without finding anchor — save turn without anchor
+                turns.append((current_user_msgs.copy(), ""))
+                current_user_msgs = []
+                seeking_anchor = False
+            current_user_msgs.append(msg.get("content", "") or "")
+
+    # Flush any remaining user messages without anchor
+    if current_user_msgs:
+        turns.append((current_user_msgs, ""))
+
+    if not turns:
+        return reasoning_text or ""
+
+    # Insert markers using anchors (process in reverse to keep positions stable)
+    result = reasoning_text or ""
+    for user_msgs, anchor in reversed(turns):
+        combined_user = "\n".join(m for m in user_msgs if m.strip())
+        if not combined_user.strip():
+            continue
+        marker = f"\n\n<!---TURN--->\n{combined_user}\n<!---TURN--->\n\n"
+
+        if anchor and anchor in result:
+            idx = result.index(anchor)
+            result = result[:idx] + marker + result[idx:]
+        else:
+            # Fallback: search for substrings of the user's message in the AI text.
+            # The AI often quotes or paraphrases the user, e.g. 关于你说的"全部减仓".
+            # Try sliding windows of decreasing length over the longest user message.
+            longest_msg = max(user_msgs, key=len).strip()
+            found = False
+            min_window = min(3, len(longest_msg))
+            for window in range(len(longest_msg), min_window - 1, -1):
+                for start in range(len(longest_msg) - window + 1):
+                    needle = longest_msg[start : start + window]
+                    idx = result.rfind(needle)
+                    if idx > 0:
+                        # Walk back to start of paragraph
+                        linebreak = result.rfind("\n", 0, idx)
+                        split_at = linebreak + 1 if linebreak > 0 else idx
+                        result = result[:split_at] + marker + result[split_at:]
+                        found = True
+                        break
+                if found:
+                    break
+
+    return result
+
+
 @app.get("/api/history/{run_id}")
 async def get_history_detail(run_id: str):
     retriever = _get_retriever()
@@ -1068,6 +1181,14 @@ async def get_history_detail(run_id: str):
     run["panels"] = json.loads(run.get("panels_json") or "{}")
     run["resumable"] = bool(run.get("messages_json"))
     run["turn_count"] = run.get("turn_count", 1)
+
+    # Reconstruct turn markers for legacy multi-turn conversations
+    if run.get("turn_count", 1) > 1:
+        run["reasoning_text"] = _reconstruct_turns(
+            run.get("reasoning_text", ""),
+            run.get("messages_json", ""),
+        )
+
     # Remove heavy/internal fields from response
     run.pop("timeline_json", None)
     run.pop("panels_json", None)
@@ -1249,6 +1370,24 @@ async def search_knowledge(req: KnowledgeSearchRequest):
         source_category="human_knowledge",
     )
     return {"query": req.query, "results": results, "count": len(results)}
+
+
+# ── Excel download endpoint ──────────────────────────────────
+
+@app.get("/api/download-excel")
+async def download_excel(path: str = Query(..., description="Path to the generated .xlsx file")):
+    """Stream an Excel workbook generated by the valuation export_excel mode."""
+    import os
+    from fastapi.responses import FileResponse
+
+    if not os.path.isfile(path) or not path.endswith(".xlsx"):
+        raise HTTPException(status_code=404, detail="Excel file not found")
+    filename = os.path.basename(path)
+    return FileResponse(
+        path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=filename,
+    )
 
 
 # ── Developer panel endpoints ────────────────────────────────

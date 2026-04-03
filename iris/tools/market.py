@@ -1,14 +1,16 @@
 """
-Market data tools — FMP primary, yfinance fallback.
+Market data tools — httpx Yahoo primary, FMP secondary, yfinance last resort.
 
 Provides stock price, historical data, and key stats.
-FMP (Financial Modeling Prep) is the primary source for reliability;
-yfinance serves as a zero-cost fallback when FMP fails or quota is exhausted.
+httpx Yahoo is primary because it's thread-safe (enables true concurrency).
+FMP is secondary (rate-limited on free tier, auto-skipped after 429).
+yfinance is last resort (has a global lock, not concurrent-safe).
 """
 
 import os
 import logging
 import threading
+import time as _time
 from datetime import datetime, timedelta
 
 import httpx
@@ -23,6 +25,13 @@ _yf_lock = threading.Lock()
 
 _FMP_BASE = "https://financialmodelingprep.com/stable"
 _FMP_TIMEOUT = 10
+
+# ── Quote cache (TTL-based, avoids duplicate fetches) ─────────
+_quote_cache: dict[str, tuple[float, ToolResult]] = {}  # ticker → (expiry_ts, result)
+_QUOTE_CACHE_TTL = 60  # seconds
+
+# ── FMP 429 cooldown ──────────────────────────────────────────
+_fmp_cooldown_until: float = 0.0  # timestamp; skip FMP until this time
 
 
 def _fmp_key() -> str:
@@ -76,6 +85,9 @@ HISTORY_SCHEMA = make_tool_schema(
 
 def _fmp_get(endpoint: str, params: dict | None = None) -> dict | list | None:
     """Call an FMP stable endpoint. Returns parsed JSON or None on failure."""
+    global _fmp_cooldown_until
+    if _time.time() < _fmp_cooldown_until:
+        return None  # skip during cooldown
     key = _fmp_key()
     if not key:
         logger.debug(f"FMP key empty, skipping {endpoint}")
@@ -83,11 +95,14 @@ def _fmp_get(endpoint: str, params: dict | None = None) -> dict | list | None:
     try:
         p = {"apikey": key, **(params or {})}
         r = httpx.get(f"{_FMP_BASE}/{endpoint}", params=p, timeout=_FMP_TIMEOUT)
+        if r.status_code == 429:
+            _fmp_cooldown_until = _time.time() + 300  # 5 min cooldown
+            logger.info("FMP 429 rate-limited, cooling down for 5 minutes")
+            return None
         if r.status_code != 200:
             logger.debug(f"FMP {endpoint} {p.get('symbol','')} returned {r.status_code}")
             return None
         data = r.json()
-        # FMP returns error messages as dicts
         if isinstance(data, dict) and "Error Message" in data:
             return None
         return data
@@ -335,30 +350,38 @@ def _httpx_yf_quote(ticker: str) -> ToolResult | None:
         return None
 
 
-# ── Public API: FMP → yfinance → httpx Yahoo ─────────────────
+# ── Public API: cache → httpx Yahoo → FMP → yfinance ─────────
 
 def quote(ticker: str) -> ToolResult:
-    """Get current quote. Tries FMP first, then yfinance, then httpx Yahoo."""
-    # 1. FMP
-    result = _fmp_quote(ticker)
+    """Get current quote with 60s cache. httpx Yahoo first (thread-safe), then FMP, then yfinance."""
+    ticker = ticker.strip()
+
+    # 0. Cache hit
+    cached = _quote_cache.get(ticker.upper())
+    if cached and _time.time() < cached[0]:
+        return cached[1]
+
+    # 1. httpx Yahoo (thread-safe, fast, enables true concurrency)
+    result = _httpx_yf_quote(ticker)
     if result and result.status == "ok":
-        logger.debug(f"quote({ticker}): FMP success")
+        _quote_cache[ticker.upper()] = (_time.time() + _QUOTE_CACHE_TTL, result)
         return result
 
-    # 2. yfinance (curl_cffi, may fail on Windows)
-    logger.info(f"quote({ticker}): FMP failed, trying yfinance")
+    # 2. FMP (richer data but rate-limited on free tier)
+    result = _fmp_quote(ticker)
+    if result and result.status == "ok":
+        _quote_cache[ticker.upper()] = (_time.time() + _QUOTE_CACHE_TTL, result)
+        return result
+
+    # 3. yfinance (last resort — global lock, slow)
+    logger.info(f"quote({ticker}): httpx+FMP failed, trying yfinance")
     try:
         result = _yf_quote(ticker)
         if result and result.status == "ok":
+            _quote_cache[ticker.upper()] = (_time.time() + _QUOTE_CACHE_TTL, result)
             return result
     except Exception as e:
         logger.info(f"quote({ticker}): yfinance failed: {e}")
-
-    # 3. httpx Yahoo Finance (pure httpx, thread-safe)
-    logger.info(f"quote({ticker}): yfinance failed, trying httpx Yahoo")
-    result = _httpx_yf_quote(ticker)
-    if result:
-        return result
 
     return ToolResult.fail(f"All sources failed for quote({ticker})", recoverable=True)
 

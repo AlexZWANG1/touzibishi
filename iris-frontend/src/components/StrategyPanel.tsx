@@ -189,8 +189,8 @@ export function StrategyPanel() {
         <section className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
             {[
-              { label: "组合总值", value: formatCurrency(strategy.portfolio.totalPortfolioValue) },
-              { label: "现金", value: formatCurrency(strategy.portfolio.cash) },
+              { label: "组合总值", value: formatCurrency(strategy.portfolio.totalPortfolioCny, "CNY") },
+              { label: "现金", value: formatCurrency(strategy.portfolio.cashTotalCny, "CNY") },
               { label: "总回报", value: formatPercent(strategy.portfolio.totalReturnPct) },
               { label: "已投资", value: `${strategy.portfolio.investedPct.toFixed(1)}%` },
             ].map((item) => (
@@ -219,10 +219,10 @@ export function StrategyPanel() {
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="border-b border-[var(--b1)] bg-[var(--bg-2)]">
-                      {["代码", "股数", "成本", "现价", "市值", "盈亏"].map((label) => (
+                      {["代码", "名称", "股数", "成本", "现价", "市值(CNY)", "盈亏"].map((label) => (
                         <th
                           key={label}
-                          className="px-5 py-3 text-left font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
+                          className="px-4 py-3 text-left font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--t3)]"
                         >
                           {label}
                         </th>
@@ -232,21 +232,24 @@ export function StrategyPanel() {
                   <tbody>
                     {strategy.portfolio.positions.map((position) => (
                       <tr key={position.ticker} className="border-b border-[var(--b1)] last:border-b-0">
-                        <td className="px-5 py-4 font-mono text-[13px] font-semibold text-[var(--ac)]">
+                        <td className="px-4 py-4 font-mono text-[13px] font-semibold text-[var(--ac)]">
                           {position.ticker}
                         </td>
-                        <td className="px-5 py-4 font-mono text-[13px] text-[var(--t2)]">{position.shares}</td>
-                        <td className="px-5 py-4 font-mono text-[13px] text-[var(--t2)]">
-                          {formatCurrency(position.avgCost)}
+                        <td className="px-4 py-4 text-[13px] text-[var(--t2)]">
+                          {position.name || "—"}
                         </td>
-                        <td className="px-5 py-4 font-mono text-[13px] text-[var(--cy-t)]">
-                          {position.livePrice != null ? formatCurrency(position.livePrice) : "—"}
+                        <td className="px-4 py-4 font-mono text-[13px] text-[var(--t2)]">{position.shares}</td>
+                        <td className="px-4 py-4 font-mono text-[13px] text-[var(--t2)]">
+                          {formatCurrency(position.avgCost, position.currency || "USD")}
                         </td>
-                        <td className="px-5 py-4 font-mono text-[13px] text-[var(--cy-t)]">
-                          {formatCurrency(position.marketValue)}
+                        <td className="px-4 py-4 font-mono text-[13px] text-[var(--cy-t)]">
+                          {position.livePrice != null ? formatCurrency(position.livePrice, position.currency || "USD") : "—"}
+                        </td>
+                        <td className="px-4 py-4 font-mono text-[13px] text-[var(--cy-t)]">
+                          {formatCurrency(position.marketValueCny || position.marketValue, "CNY")}
                         </td>
                         <td
-                          className="px-5 py-4 font-mono text-[13px] font-semibold"
+                          className="px-4 py-4 font-mono text-[13px] font-semibold"
                           style={{ color: position.unrealizedPnl >= 0 ? "var(--green)" : "var(--red)" }}
                         >
                           {position.unrealizedPnl >= 0 ? "+" : ""}

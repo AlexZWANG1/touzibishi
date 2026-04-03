@@ -1,21 +1,120 @@
 {
-  "initial_capital": 1000000,
-  "cash": 940040.34,
+  "initial_capital_cny": 1037000,
+  "cash": {
+    "USD": 24961.0,
+    "HKD": 75000.0,
+    "CNY": 604499.0
+  },
+  "fx_rates": {
+    "USD/CNY": 6.8858,
+    "HKD/CNY": 0.8781
+  },
   "positions": {
-    "META": {
-      "shares": 101,
-      "avg_cost": 593.66,
-      "entry_date": "2026-03-22T15:41:13.654256"
+    "NVDA": {
+      "shares": 34,
+      "avg_cost": 117.21,
+      "currency": "USD",
+      "broker": "IBKR",
+      "name": "英伟达",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "TLT": {
+      "shares": 314,
+      "avg_cost": 85.96,
+      "currency": "USD",
+      "broker": "IBKR",
+      "name": "美国国债20+年ETF",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "IBKR": {
+      "shares": 0.2075,
+      "avg_cost": 64.26,
+      "currency": "USD",
+      "broker": "IBKR",
+      "name": "Interactive Brokers",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "2800.HK": {
+      "shares": 150,
+      "avg_cost": 19.0,
+      "currency": "HKD",
+      "broker": "HK Broker",
+      "name": "盈富基金",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "3032.HK": {
+      "shares": 400,
+      "avg_cost": 5.3,
+      "currency": "HKD",
+      "broker": "HK Broker",
+      "name": "恒生科技ETF",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "3690.HK": {
+      "shares": 111,
+      "avg_cost": 130.267,
+      "currency": "HKD",
+      "broker": "HK Broker",
+      "name": "美团-W",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "0005.HK": {
+      "shares": 18,
+      "avg_cost": 47.294,
+      "currency": "HKD",
+      "broker": "HK Broker",
+      "name": "汇丰控股",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "0700.HK": {
+      "shares": 5,
+      "avg_cost": 298.2,
+      "currency": "HKD",
+      "broker": "HK Broker",
+      "name": "腾讯控股",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "0960.HK": {
+      "shares": 100,
+      "avg_cost": 15.911,
+      "currency": "HKD",
+      "broker": "HK Broker",
+      "name": "龙湖集团",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "9988.HK": {
+      "shares": 15,
+      "avg_cost": 104.8,
+      "currency": "HKD",
+      "broker": "HK Broker",
+      "name": "阿里巴巴-W",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "510050.SS": {
+      "shares": 500,
+      "avg_cost": 2.683,
+      "currency": "CNY",
+      "broker": "中信证券",
+      "name": "上证50",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "510300.SS": {
+      "shares": 1200,
+      "avg_cost": 4.07,
+      "currency": "CNY",
+      "broker": "中信证券",
+      "name": "沪深300",
+      "entry_date": "2026-03-14T00:00:00"
+    },
+    "518880.SS": {
+      "shares": 200,
+      "avg_cost": 9.856,
+      "currency": "CNY",
+      "broker": "中信证券",
+      "name": "黄金ETF",
+      "entry_date": "2026-03-14T00:00:00"
     }
   },
   "closed_trades": [],
-  "trade_log": [
-    {
-      "ticker": "META",
-      "action": "BUY",
-      "shares": 101,
-      "price": 593.66,
-      "timestamp": "2026-03-22T15:41:13.654256"
-    }
-  ]
+  "trade_log": []
 }
