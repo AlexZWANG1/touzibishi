@@ -66,6 +66,10 @@ const initialModelPanel: ModelPanelState = {
   sensitivityRowValues: [],
   sensitivityColValues: [],
   yearByYear: [],
+  crossCheck: null,
+  warnings: [],
+  sellSideAnchor: null,
+  excelPath: null,
   loading: false,
 };
 
@@ -160,6 +164,16 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
     const { analysisId } = get();
     if (!analysisId) return;
     try {
+      // Probe first — if session expired, fall back to resume
+      const probe = await api.probeSession(analysisId);
+      if (!probe.live && !probe.continuable) {
+        // Session gone from memory — use resume endpoint to rehydrate from DB
+        return get().resumeAnalysis(message);
+      }
+      if (!probe.live && probe.continuable) {
+        // Session not running but resumable — try resume for reliability
+        return get().resumeAnalysis(message);
+      }
       await api.continueAnalysis(analysisId, message);
       // Add user message to timeline + insert turn marker in text buffer
       set((state) => {
@@ -495,11 +509,11 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
       }
 
       case "eval_end": {
-        const { round: evalRound, passed, score, feedback } = event.data as {
+        const { round: evalRound, passed, verdict, mustFix } = event.data as {
           round: number;
           passed: boolean;
-          score: number;
-          feedback: string;
+          verdict: string;
+          mustFix: string[];
         };
         set((s) => {
           // Update the eval_start entry to complete
@@ -509,12 +523,13 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
           const updatedTimeline = [...s.timeline];
           if (idx !== -1) {
             const actualIdx = s.timeline.length - 1 - idx;
+            const fixCount = mustFix?.length || 0;
             updatedTimeline[actualIdx] = {
               ...updatedTimeline[actualIdx],
               status: passed ? "complete" : "error",
               message: passed
-                ? `质量检查通过 (${score.toFixed(1)}/5.0)`
-                : `质量检查未通过 (${score.toFixed(1)}/5.0) — 修正中...`,
+                ? `质量检查通过`
+                : `质量检查未通过 (${fixCount} 项必须修正) — 修正中...`,
             };
           }
           // If not passed, clear the text buffer so the next round's streaming
@@ -524,6 +539,8 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
               timeline: updatedTimeline,
               _rawTextBuffer: "",
               reasoningText: "",
+              // Clear accumulated panel data so re-run doesn't duplicate
+              dataPanel: { metrics: [], financialTables: [], loading: true },
             };
           }
           return { timeline: updatedTimeline };
@@ -663,15 +680,19 @@ function _extractPanelData(
       if (comps && typeof comps === "object") {
         _extractPanelData("get_comps", comps, set);
       }
-      // Extract cross_check and warnings for ModelPanel
-      const crossCheck = result.cross_check as Record<string, unknown> | undefined;
+      // Extract cross_check, warnings, sell-side anchor, excel path
+      const crossCheck = result.cross_check as import("@/types/analysis").CrossCheckResult | undefined;
       const dcfWarnings = (dcf as Record<string, unknown>)?.warnings as string[] | undefined;
-      if (crossCheck || dcfWarnings) {
+      const sellSideAnchor = (dcf as Record<string, unknown>)?.sell_side_anchor as import("@/types/analysis").SellSideAnchor | undefined;
+      const excelPath = result.excel_path as string | undefined;
+      if (crossCheck || dcfWarnings || sellSideAnchor || excelPath) {
         set((s) => ({
           modelPanel: {
             ...s.modelPanel,
-            crossCheck: crossCheck || s.modelPanel.crossCheck,
-            warnings: dcfWarnings || s.modelPanel.warnings,
+            crossCheck: crossCheck ?? s.modelPanel.crossCheck,
+            warnings: dcfWarnings ?? s.modelPanel.warnings,
+            sellSideAnchor: sellSideAnchor ?? s.modelPanel.sellSideAnchor,
+            excelPath: excelPath ?? s.modelPanel.excelPath,
           },
         }));
       }
@@ -730,6 +751,16 @@ function _extractPanelData(
         ebitda: (row.ebit as number) * 1_000_000,
         margin: row.revenue ? ((row.ebit as number) / (row.revenue as number)) * 100 : 0,
         fcf: (row.fcf as number) * 1_000_000,
+        // Optional three-statement detail (keep in $M)
+        ...(row.cogs != null && { cogs: (row.cogs as number) * 1_000_000 }),
+        ...(row.gross_profit != null && { grossProfit: (row.gross_profit as number) * 1_000_000 }),
+        ...(row.sga != null && { sga: (row.sga as number) * 1_000_000 }),
+        ...(row.rd != null && { rd: (row.rd as number) * 1_000_000 }),
+        ...(row.nopat != null && { nopat: (row.nopat as number) * 1_000_000 }),
+        ...(row.da != null && { da: (row.da as number) * 1_000_000 }),
+        ...(row.capex != null && { capex: (row.capex as number) * 1_000_000 }),
+        ...(row.nwc != null && { nwc: (row.nwc as number) * 1_000_000 }),
+        ...(row.delta_wc != null && { deltaWc: (row.delta_wc as number) * 1_000_000 }),
       }));
 
       set((s) => ({
@@ -814,10 +845,14 @@ function _extractPanelData(
       const positions = Array.isArray(result.positions)
         ? (result.positions as Record<string, unknown>[]).map((position) => ({
             ticker: (position.ticker as string) || "",
+            name: (position.name as string) || "",
             shares: typeof position.shares === "number" ? position.shares : 0,
             avgCost: typeof position.avg_cost === "number" ? position.avg_cost : 0,
+            currency: (position.currency as string) || "USD",
+            broker: (position.broker as string) || "",
             livePrice: typeof position.live_price === "number" ? position.live_price : null,
             marketValue: typeof position.market_value === "number" ? position.market_value : 0,
+            marketValueCny: typeof position.market_value_cny === "number" ? position.market_value_cny : 0,
             unrealizedPnl: typeof position.unrealized_pnl === "number" ? position.unrealized_pnl : 0,
             unrealizedPnlPct:
               typeof position.unrealized_pnl_pct === "number" ? position.unrealized_pnl_pct : 0,
@@ -825,17 +860,25 @@ function _extractPanelData(
           }))
         : [];
 
+      // cash can be a dict {USD: ..., HKD: ..., CNY: ...} or a number
+      const cashRaw = result.cash;
+      const cashValue = typeof cashRaw === "object" && cashRaw !== null
+        ? (cashRaw as Record<string, number>)
+        : typeof cashRaw === "number" ? cashRaw : 0;
+
       set((s) => ({
         strategyPanel: {
           ...s.strategyPanel,
           portfolio: {
-            cash: typeof result.cash === "number" ? result.cash : 0,
-            totalMarketValue:
-              typeof result.total_market_value === "number" ? result.total_market_value : 0,
-            totalPortfolioValue:
-              typeof result.total_portfolio_value === "number" ? result.total_portfolio_value : 0,
-            totalUnrealizedPnl:
-              typeof result.total_unrealized_pnl === "number" ? result.total_unrealized_pnl : 0,
+            cash: cashValue,
+            cashTotalCny:
+              typeof result.cash_total_cny === "number" ? result.cash_total_cny : 0,
+            totalMarketValueCny:
+              typeof result.total_market_value_cny === "number" ? result.total_market_value_cny : 0,
+            totalPortfolioCny:
+              typeof result.total_portfolio_cny === "number" ? result.total_portfolio_cny : 0,
+            totalUnrealizedPnlCny:
+              typeof result.total_unrealized_pnl_cny === "number" ? result.total_unrealized_pnl_cny : 0,
             totalRealizedPnl:
               typeof result.total_realized_pnl === "number" ? result.total_realized_pnl : 0,
             totalReturnPct:
@@ -877,9 +920,12 @@ function _extractPanelData(
         if (p.beta) newMetrics.push({ label: "Beta", value: (p.beta as number).toFixed(2) });
         if (p.dividendYield) newMetrics.push({ label: "股息率", value: `${((p.dividendYield as number) * 100).toFixed(2)}%` });
         if (newMetrics.length > 0) {
-          set((s) => ({
-            dataPanel: { ...s.dataPanel, metrics: [...s.dataPanel.metrics, ...newMetrics], loading: false },
-          }));
+          set((s) => {
+            // Dedup by label — newer values win
+            const merged = new Map(s.dataPanel.metrics.map((m) => [m.label, m]));
+            newMetrics.forEach((m) => merged.set(m.label, m));
+            return { dataPanel: { ...s.dataPanel, metrics: [...merged.values()], loading: false } };
+          });
         }
       } else {
         // Financial statement — build a table
@@ -925,13 +971,11 @@ function _extractPanelData(
           rows,
         };
 
-        set((s) => ({
-          dataPanel: {
-            ...s.dataPanel,
-            financialTables: [...s.dataPanel.financialTables, table],
-            loading: false,
-          },
-        }));
+        set((s) => {
+          // Dedup by title — newer table replaces older one
+          const tables = s.dataPanel.financialTables.filter((t) => t.title !== table.title);
+          return { dataPanel: { ...s.dataPanel, financialTables: [...tables, table], loading: false } };
+        });
       }
       break;
     }
@@ -948,9 +992,11 @@ function _extractPanelData(
       if (result.ev_ebitda) newMetrics.push({ label: "EV/EBITDA", value: (result.ev_ebitda as number).toFixed(1) });
       if (result.dividend_yield) newMetrics.push({ label: "股息率", value: `${((result.dividend_yield as number) * 100).toFixed(2)}%` });
       if (newMetrics.length > 0) {
-        set((s) => ({
-          dataPanel: { ...s.dataPanel, metrics: [...s.dataPanel.metrics, ...newMetrics], loading: false },
-        }));
+        set((s) => {
+          const merged = new Map(s.dataPanel.metrics.map((m) => [m.label, m]));
+          newMetrics.forEach((m) => merged.set(m.label, m));
+          return { dataPanel: { ...s.dataPanel, metrics: [...merged.values()], loading: false } };
+        });
       }
       break;
     }

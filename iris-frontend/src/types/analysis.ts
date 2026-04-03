@@ -80,6 +80,32 @@ export interface YearProjection {
   ebitda: number;
   margin: number;
   fcf: number;
+  // Optional three-statement detail
+  cogs?: number;
+  grossProfit?: number;
+  sga?: number;
+  rd?: number;
+  nopat?: number;
+  da?: number;
+  capex?: number;
+  nwc?: number;
+  deltaWc?: number;
+}
+
+export interface CrossCheckResult {
+  status: "aligned" | "stretched" | "conservative" | "insufficient_data";
+  message: string;
+  implied_fwd_pe?: number;
+  peer_median_fwd_pe?: number;
+  premium_vs_peers?: number;
+}
+
+export interface SellSideAnchor {
+  source: string;
+  y1_revenue_growth?: number;
+  gross_margin?: number;
+  wacc?: number;
+  target_price?: number;
 }
 
 export interface ModelPanelState {
@@ -92,8 +118,10 @@ export interface ModelPanelState {
   sensitivityRowValues: string[];
   sensitivityColValues: string[];
   yearByYear: YearProjection[];
-  crossCheck?: Record<string, unknown> | null;
-  warnings?: string[];
+  crossCheck: CrossCheckResult | null;
+  warnings: string[];
+  sellSideAnchor: SellSideAnchor | null;
+  excelPath: string | null;
   loading: boolean;
 }
 
@@ -141,20 +169,25 @@ export interface StrategySignal {
 
 export interface StrategyPosition {
   ticker: string;
+  name?: string;
   shares: number;
   avgCost: number;
+  currency?: string;
+  broker?: string;
   livePrice?: number | null;
   marketValue: number;
+  marketValueCny?: number;
   unrealizedPnl: number;
   unrealizedPnlPct: number;
   entryDate?: string | null;
 }
 
 export interface StrategyPortfolio {
-  cash: number;
-  totalMarketValue: number;
-  totalPortfolioValue: number;
-  totalUnrealizedPnl: number;
+  cash: Record<string, number> | number;
+  cashTotalCny: number;
+  totalMarketValueCny: number;
+  totalPortfolioCny: number;
+  totalUnrealizedPnlCny: number;
   totalRealizedPnl: number;
   totalReturnPct: number;
   positionCount: number;
