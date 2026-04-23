@@ -29,6 +29,7 @@ from tools.unified_memory import (
 )
 from tools.sec_filing import sec_filing, SEC_FILING_SCHEMA
 from tools.transcripts import transcript, TRANSCRIPT_SCHEMA
+from tools.news_feed import news_feed, NEWS_FEED_SCHEMA
 
 
 def _cli_event_handler(event: HarnessEvent):
@@ -109,6 +110,7 @@ def build_harness(
         Tool(history, HISTORY_SCHEMA),
         Tool(sec_filing, SEC_FILING_SCHEMA),
         Tool(transcript, TRANSCRIPT_SCHEMA),
+        Tool(news_feed, NEWS_FEED_SCHEMA),
     ]
 
     # Memory tools — is_knowledge=True means they must be flushed before compaction

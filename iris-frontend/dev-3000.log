@@ -1,0 +1,23 @@
+
+> iris-frontend@0.1.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use by process 113076, using available port 3001 instead.
+   ▲ Next.js 15.5.13
+   - Local:        http://localhost:3001
+   - Network:      http://198. ○ Compiling / ...
+ ✓ Compiled / in 1006ms (615 modules)
+ GET / 200 in 1466ms
+ GET / 200 in 48ms
+ ○ Compiling /analysis/[id] ...
+ ✓ Compiled /analysis/[id] in 3.6s (2258 modules)
+ GET /analysis/8e782bd862694642 200 in 4319ms
+ GET /analysis/8e782bd862694642 200 in 45ms
+ GET / 200 in 25ms
+ ○ Compiling /memory ...
+ ✓ Compiled /memory in 703ms (2271 modules)
+ GET /memory 200 in 826ms
+ GET /memory 200 in 95ms
+ ✓ Compiled in 287ms (1068 modules)
+ GET /memory 200 in 33ms
+ GET / 200 in 15ms

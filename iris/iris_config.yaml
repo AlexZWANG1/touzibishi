@@ -19,6 +19,7 @@ harness:
     financials: 8000
     macro: 8000
     valuation: 10000
+    news_feed: 6000
   tool_injection_mode: "all"   # expose all tools every round
   max_tools_per_round: 10
   always_exposed_tools:
@@ -39,6 +40,7 @@ harness:
     - get_portfolio
     - sec_filing
     - transcript
+    - news_feed
   tool_triggers:
     exa_search: ["搜索", "查找", "search", "find", "新闻", "news"]
     web_fetch: ["网页", "网页内容", "链接", "url", "fetch", "抓取"]
@@ -57,6 +59,7 @@ harness:
     get_portfolio: ["持仓", "组合", "portfolio", "仓位"]
     sec_filing: ["10-K", "10-Q", "SEC", "filing", "年报", "季报", "segment", "分部", "业务分部", "XBRL"]
     transcript: ["earnings call", "电话会", "管理层", "transcript", "纪要", "业绩会", "guidance", "指引"]
+    news_feed: ["新闻", "news", "HN", "Reddit", "arXiv", "热点", "trending", "社区反馈", "信息源"]
 
 # Deep research (evaluator loop) — opt-in enhancement for analysis mode
 deep_research:
@@ -160,6 +163,7 @@ modes:
       - get_portfolio
       - sec_filing
       - transcript
+      - news_feed
       - emit_report
     max_tool_rounds: 25
     max_total_tool_calls: 60
@@ -187,6 +191,7 @@ modes:
       - get_portfolio
       - sec_filing
       - transcript
+      - news_feed
     max_tool_rounds: 40
     max_total_tool_calls: 120
     max_wall_time_seconds: 600

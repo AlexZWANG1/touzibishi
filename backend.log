@@ -1,0 +1,40 @@
+INFO:     Will watch for changes in these directories: ['D:\\项目开发\\二级投研自动化\\iris']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [117216] using WatchFiles
+INFO:     Started server process [99768]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.INFO:     127.0.0.1:63690 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63804 - "OPTIONS /api/watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63806 - "OPTIONS /api/history?limit=30&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63805 - "OPTIONS /api/portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63806 - "GET /api/history?limit=30&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63805 - "GET /api/watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63804 - "GET /api/portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63809 - "GET /api/analyze/8e782bd862694642/status HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63809 - "GET /api/analyze/8e782bd862694642/status HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63809 - "OPTIONS /api/history/8e782bd862694642 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63809 - "OPTIONS /api/history/8e782bd862694642 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63809 - "GET /api/history/8e782bd862694642 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63809 - "GET /api/history/8e782bd862694642 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49303 - "OPTIONS /api/watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49304 - "OPTIONS /api/portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49305 - "OPTIONS /api/history?limit=30&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49306 - "OPTIONS /api/watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49307 - "OPTIONS /api/portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "OPTIONS /api/history?limit=30&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "GET /api/history?limit=30&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49307 - "GET /api/history?limit=30&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49307 - "OPTIONS /api/memory HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "OPTIONS /api/memory HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "GET /api/memory HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49307 - "GET /api/memory HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49307 - "GET /api/history?limit=30&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "GET /api/history?limit=30&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49306 - "GET /api/watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "GET /api/watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49306 - "GET /api/watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "GET /api/watchlist HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49305 - "GET /api/portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "GET /api/portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49305 - "GET /api/portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49308 - "GET /api/portfolio HTTP/1.1" 200 OK
